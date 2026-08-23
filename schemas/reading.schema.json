@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:fortune-teller:schema:reading:1",
+  "title": "Fortune Teller interpretive reading",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["system", "level", "disclaimer", "summary", "claims", "next_steps"],
+  "properties": {
+    "system": {
+      "oneOf": [
+        { "enum": ["bazi", "ziwei", "western", "tarot", "iching", "meihua"] },
+        {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["bazi", "ziwei", "western", "tarot", "iching", "meihua"] }
+        }
+      ]
+    },
+    "level": { "enum": ["quick", "standard", "deep", "audit"] },
+    "disclaimer": { "type": "string", "minLength": 1 },
+    "summary": { "type": "string" },
+    "claims": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "evidence-card.schema.json" }
+    },
+    "uncertainty_summary": { "type": "string" },
+    "cross_system": {
+      "type": "object",
+      "not": {
+        "anyOf": [
+          { "required": ["winner"] },
+          { "required": ["vote"] }
+        ]
+      }
+    },
+    "next_steps": { "type": "array", "items": { "type": "string" } }
+  }
+}

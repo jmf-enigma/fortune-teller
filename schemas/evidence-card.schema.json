@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:fortune-teller:schema:evidence-card:1",
+  "title": "Auditable evidence card",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "claim_id",
+    "statement",
+    "epistemic_status",
+    "system",
+    "profile",
+    "fact_ids",
+    "rule_ids",
+    "calculation_certainty",
+    "input_sensitivity",
+    "school_stability",
+    "source_status",
+    "source_ids"
+  ],
+  "properties": {
+    "claim_id": { "type": "string", "pattern": "^C-[A-Za-z0-9_-]+$" },
+    "statement": { "type": "string", "minLength": 1 },
+    "epistemic_status": { "enum": ["calculation_fact", "traditional_rule", "interpretation", "unresolved"] },
+    "system": { "enum": ["bazi", "ziwei", "western", "tarot", "iching", "meihua"] },
+    "profile": {
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        { "type": "object" }
+      ]
+    },
+    "scope": { "type": "string" },
+    "fact_ids": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "rule_ids": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "reasoning_summary": { "type": "string" },
+    "dependencies": { "type": "array", "items": { "type": "string" } },
+    "calculation_certainty": { "enum": ["high", "qualified", "unavailable"] },
+    "input_sensitivity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "coverage"],
+      "properties": {
+        "label": { "enum": ["stable", "partly_stable", "boundary_sensitive", "unavailable"] },
+        "coverage": { "type": ["string", "null"], "pattern": "^\\d+/\\d+$" }
+      }
+    },
+    "school_stability": { "enum": ["stable", "profile_specific", "disputed", "not_assessed"] },
+    "source_status": { "enum": ["verified", "engine_documented", "unavailable", "disputed"] },
+    "source_ids": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "alternative_readings": { "type": "array", "items": { "type": "string" } },
+    "practical_reflection": { "type": ["string", "null"] }
+  }
+}

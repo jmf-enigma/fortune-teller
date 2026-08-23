@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:fortune-teller:schema:request:1",
+  "title": "Fortune Teller calculation request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["system", "input"],
+  "properties": {
+    "system": { "enum": ["bazi", "ziwei", "western", "tarot", "iching", "meihua"] },
+    "input": { "type": "object" },
+    "profile": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string", "minLength": 1 }
+          }
+        },
+        { "type": "string", "minLength": 1 }
+      ]
+    }
+  }
+}

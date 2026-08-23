@@ -1,0 +1,59 @@
+{
+  "name": "fortune-teller",
+  "version": "0.1.0",
+  "description": "Local-first, auditable Chinese and Western divination engines and Agent Skill.",
+  "type": "module",
+  "license": "MIT",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "fortune-teller": "scripts/fortune-teller.mjs"
+  },
+  "files": [
+    "SKILL.md",
+    "agents",
+    "assets",
+    "docs",
+    "references",
+    "schemas",
+    "scripts",
+    "src",
+    "test",
+    "README.md",
+    "README.en.md",
+    "BENCHMARK.md",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "LICENSE",
+    "SECURITY.md",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "scripts": {
+    "start": "node scripts/fortune-teller.mjs interactive",
+    "calculate": "node scripts/fortune-teller.mjs calculate",
+    "methods": "node scripts/fortune-teller.mjs methods",
+    "doctor": "node scripts/doctor.mjs",
+    "test": "node --test",
+    "verify": "node scripts/release-check.mjs",
+    "check": "npm test && npm run doctor && npm run verify",
+    "package:skill": "node scripts/package-skill.mjs"
+  },
+  "dependencies": {
+    "@js-temporal/polyfill": "0.5.1",
+    "astronomy-engine": "2.1.19",
+    "iztro": "2.6.0",
+    "lunar-typescript": "1.8.6"
+  },
+  "keywords": [
+    "agent-skill",
+    "astrology",
+    "bazi",
+    "codex",
+    "divination",
+    "iching",
+    "tarot",
+    "ziwei"
+  ]
+}

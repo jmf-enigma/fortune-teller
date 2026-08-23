@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+reports/
+.tmp/
+.env
+.DS_Store
+*.log
+*.local.json
+
