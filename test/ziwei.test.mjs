@@ -5,6 +5,16 @@ import { verifyCalculationEnvelope } from "../src/core/result.mjs";
 
 const fixture = { date: "2000-08-16", time: "04:00", timezone: "Asia/Shanghai", chart_sex: "female" };
 
+function factObjects(value, results = []) {
+  if (Array.isArray(value)) {
+    for (const item of value) factObjects(item, results);
+  } else if (value && typeof value === "object") {
+    if (typeof value.fact_id === "string") results.push(value);
+    for (const child of Object.values(value)) factObjects(child, results);
+  }
+  return results;
+}
+
 test("Zi Wei wrapper exposes the iztro fixture and all twelve palaces", () => {
   const result = calculate("ziwei", fixture);
   assert.equal(result.facts.summary.chinese_date, "庚辰 甲申 丙午 庚寅");
@@ -14,7 +24,53 @@ test("Zi Wei wrapper exposes the iztro fixture and all twelve palaces", () => {
   assert.ok(result.facts.palaces.every((palace) => palace.fact_id));
   assert.equal(result.facts.structure.palace_relations.length, 12);
   assert.equal(result.facts.structure.mutagen_locations.length, 4);
+  assert.equal(result.facts.topic_units.length, 5);
   assert.equal(Object.hasOwn(result.facts, "periods"), false);
+  assert.equal(Object.hasOwn(result.facts, "phase_topic_units"), false);
+  assert.deepEqual(verifyCalculationEnvelope(result), []);
+});
+
+test("Zi Wei topic units bind each reading topic to one complete natal fact set", () => {
+  const result = calculate("ziwei", fixture);
+  const expectedPrimary = new Map([
+    ["overview", "命宫"],
+    ["career_study", "官禄"],
+    ["wealth_resources", "财帛"],
+    ["relationships", "夫妻"],
+    ["wellbeing_rhythm", "福德"],
+  ]);
+  assert.deepEqual(
+    result.facts.topic_units.map((unit) => [unit.topic, unit.primary_palace_name]),
+    [...expectedPrimary],
+  );
+  assert.equal(new Set(result.facts.topic_units.map((unit) => unit.fact_id)).size, expectedPrimary.size);
+
+  for (const unit of result.facts.topic_units) {
+    const primary = result.facts.palaces.find((palace) => palace.fact_id === unit.primary_palace_id);
+    const relation = result.facts.structure.palace_relations.find(
+      (item) => item.fact_id === unit.relation_fact_id,
+    );
+    assert.equal(primary.name, expectedPrimary.get(unit.topic));
+    assert.equal(relation.focus_palace_id, primary.fact_id);
+    assert.deepEqual(unit.component_palace_ids, relation.four_directions_palace_ids);
+    assert.equal(unit.component_palace_ids.length, 4);
+    assert.equal(new Set(unit.component_palace_ids).size, 4);
+    const expectedMutagens = result.facts.structure.mutagen_locations
+      .filter((item) => unit.component_palace_ids.includes(item.palace_id))
+      .map((item) => item.fact_id);
+    assert.deepEqual(unit.natal_mutagen_fact_ids, expectedMutagens);
+  }
+
+  assert.ok(result.facts.topic_units.every((unit) => unit.primary_palace_name !== "疾厄"));
+  assert.deepEqual(
+    result.facts.topic_units.find((unit) => unit.topic === "wellbeing_rhythm").secondary_context,
+    [{ palace_name: "疾厄", palace_id: "F-ZW-P12", role: "secondary_context_only" }],
+  );
+  assert.ok(
+    result.facts.topic_units
+      .filter((unit) => unit.topic !== "wellbeing_rhythm")
+      .every((unit) => unit.secondary_context.length === 0),
+  );
   assert.deepEqual(verifyCalculationEnvelope(result), []);
 });
 
@@ -76,23 +132,91 @@ test("target_date exposes calculation-only requested-date decadal and yearly fac
   );
   assert.equal(periods.yearly.star_palaces.length, 12);
   assert.ok(periods.yearly.star_palaces.every((slot) => slot.yearly_cycle_stars));
+  assert.equal(result.facts.phase_topic_units.length, 5);
   assert.match(periods.interpretation_limit, /no auspiciousness, event, or outcome/);
   assert.equal(result.meta.period_api, "iztro horoscope() + decadalList() + yearlyList()");
   assert.deepEqual(verifyCalculationEnvelope(result), []);
 });
 
+test("Zi Wei phase topic units align one palace name across natal, decadal, and yearly IDs", () => {
+  const result = calculate("ziwei", { ...fixture, target_date: "2026-08-23" });
+  const { periods, topic_units: topicUnits, phase_topic_units: phaseUnits } = result.facts;
+  assert.deepEqual(phaseUnits.map((unit) => unit.topic), topicUnits.map((unit) => unit.topic));
+  assert.equal(new Set(phaseUnits.map((unit) => unit.fact_id)).size, phaseUnits.length);
+
+  for (const unit of phaseUnits) {
+    const natalUnit = topicUnits.find((item) => item.fact_id === unit.natal_topic_unit_id);
+    const natalPalace = result.facts.palaces.find((palace) => palace.fact_id === unit.natal_palace_id);
+    const decadalSlot = periods.decadal.star_palaces.find(
+      (slot) => slot.fact_id === unit.decadal_star_palace_id,
+    );
+    const yearlySlot = periods.yearly.star_palaces.find(
+      (slot) => slot.fact_id === unit.yearly_star_palace_id,
+    );
+    assert.equal(unit.topic, natalUnit.topic);
+    assert.equal(unit.palace_name, natalUnit.primary_palace_name);
+    assert.equal(natalPalace.name, unit.palace_name);
+    assert.equal(decadalSlot.period_palace_name, unit.palace_name);
+    assert.equal(yearlySlot.period_palace_name, unit.palace_name);
+    assert.equal(unit.target_fact_id, periods.target.fact_id);
+    assert.equal(unit.decadal_period_id, periods.decadal.fact_id);
+    assert.equal(unit.yearly_period_id, periods.yearly.fact_id);
+
+    const expectedDecadalTransformations = periods.decadal.mutagens
+      .filter((mutagen) => mutagen.natal_locations.some(
+        (location) => location.natal_palace_id === decadalSlot.natal_palace_id,
+      ))
+      .map((mutagen) => mutagen.fact_id);
+    const expectedYearlyTransformations = periods.yearly.mutagens
+      .filter((mutagen) => mutagen.natal_locations.some(
+        (location) => location.natal_palace_id === yearlySlot.natal_palace_id,
+      ))
+      .map((mutagen) => mutagen.fact_id);
+    assert.deepEqual(unit.decadal_transformation_fact_ids, expectedDecadalTransformations);
+    assert.deepEqual(unit.yearly_transformation_fact_ids, expectedYearlyTransformations);
+  }
+
+  assert.deepEqual(
+    phaseUnits.map((unit) => [
+      unit.topic,
+      unit.decadal_transformation_fact_ids,
+      unit.yearly_transformation_fact_ids,
+    ]),
+    [
+      ["overview", [], []],
+      ["career_study", [], ["F-ZW-YM4"]],
+      ["wealth_resources", [], []],
+      ["relationships", ["F-ZW-DM2"], []],
+      ["wellbeing_rhythm", [], ["F-ZW-YM3"]],
+    ],
+  );
+  const allFactIds = factObjects(result.facts).map((item) => item.fact_id);
+  assert.equal(new Set(allFactIds).size, allFactIds.length);
+  assert.deepEqual(verifyCalculationEnvelope(result), []);
+});
+
 test("Zi Wei period facts distinguish palace index from list sequence and remain deterministic", () => {
-  const input = { ...fixture, target_date: "2100-12-31" };
+  const input = { ...fixture, target_date: "2099-12-31" };
   const first = calculate("ziwei", input, "ziwei-default-v1");
   calculate("ziwei", { ...fixture, target_date: "2026-02-04" }, "ziwei-zhongzhou-v1");
   const second = calculate("ziwei", input, "ziwei-default-v1");
   assert.equal(first.facts.periods.decadal.index, 7);
   assert.equal(first.facts.periods.decadal.sequence_index, 9);
-  assert.equal(first.facts.periods.yearly.index, 6);
-  assert.equal(first.facts.periods.yearly.sequence_index, 8);
-  assert.equal(first.facts.periods.yearly.calendar_year, 2100);
+  assert.equal(first.facts.periods.yearly.index, 5);
+  assert.equal(first.facts.periods.yearly.sequence_index, 7);
+  assert.equal(first.facts.periods.yearly.calendar_year, 2099);
+  assert.deepEqual(first.facts.topic_units, second.facts.topic_units);
+  assert.deepEqual(first.facts.phase_topic_units, second.facts.phase_topic_units);
   assert.equal(first.facts_hash, second.facts_hash);
   assert.deepEqual(first.facts, second.facts);
+});
+
+test("Zi Wei fails closed when the target's complete phase validity would exceed the release-tested range", () => {
+  assert.throws(
+    () => calculate("ziwei", { ...fixture, target_date: "2100-12-31" }, "ziwei-default-v1"),
+    (error) => error.code === "TARGET_PHASE_OUTSIDE_VALIDATED_RANGE"
+      && /complete Zi Wei decadal\/yearly joint-validity interval/u.test(error.message),
+  );
 });
 
 test("Zi Wei target-date year boundary follows the declared horoscope profile", () => {
@@ -105,6 +229,45 @@ test("Zi Wei target-date year boundary follows the declared horoscope profile", 
   assert.equal(exact.profile.horoscope_divide, "exact");
   assert.equal(exact.facts.periods.yearly.calendar_year, 2026);
   assert.equal(`${exact.facts.periods.yearly.heavenly_stem}${exact.facts.periods.yearly.earthly_branch}`, "丙午");
+});
+
+test("Zi Wei phase validity uses the exact lunar or solar-term boundary declared by the profile", () => {
+  const cases = [
+    {
+      profile: "ziwei-default-v1",
+      target_date: "2026-01-01",
+      expected: ["2025-01-29", "2026-02-16"],
+    },
+    {
+      profile: "ziwei-default-v1",
+      target_date: "2026-02-17",
+      expected: ["2026-02-17", "2027-02-05"],
+    },
+    {
+      profile: "ziwei-zhongzhou-v1",
+      target_date: "2026-02-03",
+      expected: ["2025-02-03", "2026-02-03"],
+    },
+    {
+      profile: "ziwei-zhongzhou-v1",
+      target_date: "2026-02-04",
+      expected: ["2026-02-04", "2027-02-03"],
+    },
+  ];
+
+  for (const scenario of cases) {
+    const result = calculate("ziwei", { ...fixture, target_date: scenario.target_date }, scenario.profile);
+    const validity = result.facts.periods.phase_validity;
+    assert.deepEqual([validity.valid_from, validity.valid_to], scenario.expected);
+    assert.ok(
+      validity.valid_from <= scenario.target_date && scenario.target_date <= validity.valid_to,
+      `${scenario.target_date} must lie inside its exact phase-validity interval`,
+    );
+    assert.deepEqual(validity.boundary_conventions, {
+      horoscope_divide: result.profile.horoscope_divide,
+      age_divide: result.profile.age_divide,
+    });
+  }
 });
 
 test("Zi Wei target-date facts fail closed without one resolved chart or period coverage", () => {

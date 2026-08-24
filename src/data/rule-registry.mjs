@@ -10,10 +10,10 @@ const ruleDefinitions = [
   },
   {
     id: "R-BZ-002", system: "bazi", summary: "Use Ten Gods only as bounded traditional relational vocabulary.",
-    allowed_scopes: ["ten_god_relation", "reflective_theme"],
+    allowed_scopes: ["ten_god_relation"],
     required_fact_prefixes: ["/facts/pillars", "/facts/structure/day_master", "/facts/structure/occurrence_counts"],
     minimum_fact_references: 1, source_ids: ["SRC-BZ-LUNAR-TS-1.8.6", "SRC-BZ-SANMING-WIKISOURCE"],
-    interpretation_ceiling: "bounded_reflection", permitted_epistemic_status: ["traditional_rule", "interpretation", "unresolved"], protective: false,
+    interpretation_ceiling: "traditional_structure", permitted_epistemic_status: ["traditional_rule", "unresolved"], protective: false,
   },
   {
     id: "R-BZ-003", system: "bazi", summary: "Describe time and day-boundary profile effects without adding interpretation.",
@@ -33,11 +33,35 @@ const ruleDefinitions = [
     permitted_epistemic_status: ["calculation_fact", "unresolved"], protective: true,
   },
   {
+    id: "R-BZ-005", system: "bazi",
+    summary: "Adjudicate one month-command pattern only through an explicitly registered compound formation, damage, and paired-rescue route.",
+    allowed_scopes: ["pattern_adjudication", "disease_remedy"],
+    required_fact_prefixes: ["/facts/pillars", "/facts/structure/day_master", "/facts/structure/relationships"],
+    required_fact_groups: [["/facts/pillars"], ["/facts/structure/day_master"]],
+    minimum_fact_references: 2,
+    source_ids: ["SRC-BZ-LUNAR-TS-1.8.6", "SRC-BZ-ZIPING-ZHENQUAN-NLC", "SRC-BZ-DITIAN-SUI-WIKISOURCE"],
+    interpretation_ceiling: "typed_adjudication_binding_required",
+    permitted_epistemic_status: ["unresolved"], protective: true,
+  },
+  {
+    id: "R-BZ-006", system: "bazi",
+    summary: "Read a target phase in the fixed order natal baseline, full decadal environment, yearly trigger, and exact registered interactions.",
+    allowed_scopes: ["phase_activation", "target_period_synthesis"],
+    required_fact_prefixes: [
+      "/facts/pillars", "/facts/structure/relationships", "/facts/luck_cycles/decadal", "/facts/luck_cycles/target",
+    ],
+    required_fact_groups: [["/facts/pillars"], ["/facts/luck_cycles/decadal"], ["/facts/luck_cycles/target"]],
+    minimum_fact_references: 3,
+    source_ids: ["SRC-BZ-LUNAR-TS-1.8.6", "SRC-BZ-ZIPING-ZHENQUAN-NLC", "SRC-BZ-DITIAN-SUI-WIKISOURCE"],
+    interpretation_ceiling: "typed_adjudication_binding_required",
+    permitted_epistemic_status: ["unresolved"], protective: true,
+  },
+  {
     id: "R-ZW-001", system: "ziwei", summary: "Relate named stars to their calculated palace context without event certainty.",
-    allowed_scopes: ["star_palace_context", "reflective_theme"],
+    allowed_scopes: ["star_palace_context"],
     required_fact_prefixes: ["/facts/palaces"],
     minimum_fact_references: 1, source_ids: ["SRC-ZW-IZTRO-2.6.0", "SRC-ZW-ZIWEI-QUANSHU"],
-    interpretation_ceiling: "bounded_reflection", permitted_epistemic_status: ["traditional_rule", "interpretation", "unresolved"], protective: false,
+    interpretation_ceiling: "traditional_structure", permitted_epistemic_status: ["calculation_fact", "traditional_rule", "unresolved"], protective: false,
   },
   {
     id: "R-ZW-002", system: "ziwei", summary: "Use soul/body labels as traditional chart labels, not fixed personality diagnoses.",
@@ -48,7 +72,7 @@ const ruleDefinitions = [
       "/facts/summary/soul_palace_branch", "/facts/summary/body_palace_branch",
     ],
     source_ids: ["SRC-ZW-IZTRO-2.6.0", "SRC-ZW-ZIWEI-QUANSHU"], interpretation_ceiling: "bounded_reflection",
-    permitted_epistemic_status: ["traditional_rule", "interpretation", "unresolved"], protective: false,
+    permitted_epistemic_status: ["traditional_rule", "unresolved"], protective: false,
   },
   {
     id: "R-ZW-003", system: "ziwei", summary: "Report the chart's indexed periods as calculated labels only.",
@@ -70,17 +94,71 @@ const ruleDefinitions = [
     allowed_scopes: ["target_period_calculation", "period_indexing", "calculation_audit"],
     required_fact_prefixes: ["/facts/periods/target", "/facts/periods/decadal", "/facts/periods/yearly"],
     minimum_fact_references: 1,
-    source_ids: ["SRC-ZW-IZTRO-2.6.0"], interpretation_ceiling: "traditional_structure",
-    permitted_epistemic_status: ["calculation_fact", "traditional_rule", "unresolved"], protective: false,
+    source_ids: ["SRC-ZW-IZTRO-2.6.0"], interpretation_ceiling: "calculation_only",
+    permitted_epistemic_status: ["calculation_fact", "unresolved"], protective: false,
   },
   {
-    id: "R-ZW-006", system: "ziwei", summary: "Synthesize one bounded life-stage theme only from natal, decadal, and yearly context together.",
-    allowed_scopes: ["phase_theme", "life_stage"],
+    id: "R-ZW-006", system: "ziwei", summary: "Report legacy three-layer phase structure only when natal, decadal, and yearly context are all cited.",
+    allowed_scopes: ["phase_structure", "life_stage_structure"],
     required_fact_prefixes: ["/facts/palaces", "/facts/periods/decadal", "/facts/periods/yearly"],
     required_fact_groups: [["/facts/palaces"], ["/facts/periods/decadal"], ["/facts/periods/yearly"]],
     minimum_fact_references: 3,
-    source_ids: ["SRC-ZW-IZTRO-HOROSCOPE-GUIDE"], interpretation_ceiling: "bounded_reflection",
-    permitted_epistemic_status: ["traditional_rule", "interpretation", "unresolved"], protective: false,
+    source_ids: ["SRC-ZW-IZTRO-HOROSCOPE-GUIDE"], interpretation_ceiling: "calculation_only",
+    permitted_epistemic_status: ["calculation_fact", "unresolved"], protective: false,
+  },
+  {
+    id: "R-ZW-007", system: "ziwei",
+    summary: "Interpret one supported life topic only through its machine-bound target palace and complete three-directions/four-alignments unit.",
+    allowed_scopes: ["topic_synthesis"],
+    allowed_topics: ["overview", "career_study", "wealth_resources", "relationships", "wellbeing_rhythm"],
+    allowed_profile_ids: ["ziwei-default-v1", "ziwei-zhongzhou-v1"],
+    required_topic_unit_kind: "natal",
+    required_fact_prefixes: ["/facts/topic_units", "/facts/palaces", "/facts/structure/palace_relations"],
+    required_fact_groups: [["/facts/topic_units"], ["/facts/palaces"], ["/facts/structure/palace_relations"]],
+    minimum_fact_references: 6,
+    source_ids: ["SRC-ZW-IZTRO-2.6.0", "SRC-ZW-IZTRO-PALACE-GUIDE"],
+    interpretation_ceiling: "bounded_reflection",
+    permitted_epistemic_status: ["interpretation", "unresolved"], protective: false,
+  },
+  {
+    id: "R-ZW-008", system: "ziwei",
+    summary: "Read a natal transformation only when its actual star, palace, and selected topic unit are bound together.",
+    allowed_scopes: ["topic_transformation"],
+    allowed_topics: ["overview", "career_study", "wealth_resources", "relationships", "wellbeing_rhythm"],
+    allowed_profile_ids: ["ziwei-default-v1", "ziwei-zhongzhou-v1"],
+    required_topic_unit_kind: "natal_with_mutagen",
+    required_fact_prefixes: ["/facts/topic_units", "/facts/palaces", "/facts/structure/mutagen_locations"],
+    required_fact_groups: [["/facts/topic_units"], ["/facts/palaces"], ["/facts/structure/mutagen_locations"]],
+    minimum_fact_references: 4,
+    source_ids: ["SRC-ZW-IZTRO-2.6.0", "SRC-ZW-IZTRO-MUTAGEN-GUIDE"],
+    interpretation_ceiling: "bounded_reflection",
+    permitted_epistemic_status: ["interpretation", "unresolved"], protective: false,
+  },
+  {
+    id: "R-ZW-009", system: "ziwei",
+    summary: "Synthesize a target phase only from one machine-bound topic across natal, decadal, and yearly layers.",
+    allowed_scopes: ["phase_topic_synthesis"],
+    allowed_topics: ["overview", "career_study", "wealth_resources", "relationships", "wellbeing_rhythm"],
+    allowed_profile_ids: ["ziwei-default-v1", "ziwei-zhongzhou-v1"],
+    required_topic_unit_kind: "phase",
+    required_fact_prefixes: [
+      "/facts/phase_topic_units", "/facts/topic_units", "/facts/palaces",
+      "/facts/structure/palace_relations",
+      "/facts/periods/target",
+      "/facts/periods/phase_validity",
+      "/facts/periods/decadal/star_palaces", "/facts/periods/decadal/mutagens",
+      "/facts/periods/yearly/star_palaces", "/facts/periods/yearly/mutagens",
+    ],
+    required_fact_groups: [
+      ["/facts/phase_topic_units"], ["/facts/topic_units"], ["/facts/palaces"],
+      ["/facts/periods/target"],
+      ["/facts/periods/phase_validity"],
+      ["/facts/periods/decadal/star_palaces"], ["/facts/periods/yearly/star_palaces"],
+    ],
+    minimum_fact_references: 7,
+    source_ids: ["SRC-ZW-IZTRO-2.6.0", "SRC-ZW-IZTRO-PALACE-GUIDE", "SRC-ZW-IZTRO-HOROSCOPE-GUIDE"],
+    interpretation_ceiling: "bounded_reflection",
+    permitted_epistemic_status: ["interpretation", "unresolved"], protective: false,
   },
   {
     id: "R-WA-001", system: "western", summary: "Use calculated ecliptic longitude and zodiac placement as the factual base.",
@@ -199,8 +277,24 @@ const ruleDefinitions = [
   },
 ];
 
+const MEANING_RULES = new Set(["R-ZW-007", "R-ZW-008", "R-ZW-009"]);
+
+function assessmentModes(rule) {
+  if (!rule.permitted_epistemic_status.includes("interpretation")) return [];
+  if (["R-ZW-007", "R-ZW-008"].includes(rule.id)) return ["current_reflection"];
+  if (rule.id === "R-ZW-009") return ["bounded_phase", "prospective_hypothesis"];
+  return ["current_reflection"];
+}
+
 const rules = ruleDefinitions.map((rule) => ({
   ...rule,
+  allowed_assessment_modes: assessmentModes(rule),
+  meaning_pack_id: MEANING_RULES.has(rule.id) ? "ziwei-bounded-meanings-v1" : null,
+  meaning_family: rule.id === "R-ZW-007" ? "natal_topic_axes"
+    : rule.id === "R-ZW-008" ? "natal_transformation_lenses"
+      : rule.id === "R-ZW-009" ? "phase_topic_axes_and_processes" : null,
+  canonical_narrative_required: MEANING_RULES.has(rule.id),
+  professional_depth_allowed: MEANING_RULES.has(rule.id),
   source_status: rule.source_ids.length > 0 ? "verified" : "engine_documented",
 }));
 
@@ -221,6 +315,17 @@ export function getRuleById(id) {
 
 if (RULE_BY_ID.size !== RULES.length) throw new Error("rule registry contains duplicate IDs");
 for (const rule of RULES) {
+  if (
+    !Array.isArray(rule.allowed_assessment_modes)
+    || rule.allowed_assessment_modes.some((mode) =>
+      !["current_reflection", "bounded_phase", "prospective_hypothesis"].includes(mode))
+    || (!rule.permitted_epistemic_status.includes("interpretation") && rule.allowed_assessment_modes.length > 0)
+  ) {
+    throw new Error(`rule ${rule.id} has invalid assessment modes`);
+  }
+  if (rule.canonical_narrative_required !== Boolean(rule.meaning_pack_id && rule.meaning_family)) {
+    throw new Error(`rule ${rule.id} has an inconsistent meaning-layer declaration`);
+  }
   if (
     rule.material_fact_paths
     && (

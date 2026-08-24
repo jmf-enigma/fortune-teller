@@ -1,6 +1,8 @@
 # Zi Wei Dou Shu (`ziwei`)
 
-Use this reference only after the live method registry confirms that `ziwei` is available. The engine builds a compact natal chart and, with an exact birth time plus explicit `target_date`, calculation-only decadal/yearly facts through `iztro`; it does not include a validated forecasting system or a free-form event-prediction engine. For a `standard` or `deep` interpretation, also read [ziwei-reading-map.md](ziwei-reading-map.md).
+Use this reference only after the live method registry confirms that `ziwei` is available. The engine builds a compact natal chart and, with an exact birth time plus explicit `target_date`, calculation-only decadal/yearly facts through `iztro`. It also emits machine-bound reading units for five supported topics, so a deep reading can be checked against one complete palace structure instead of being improvised from an unstructured star list. It does not include a validated forecasting system or a free-form event-prediction engine.
+
+For a `standard` or `deep` interpretation, also read [ziwei-reading-map.md](ziwei-reading-map.md). For the meaning of “accurate” and the current review boundary, read [accuracy-evaluation.md](../accuracy-evaluation.md) and [PROFESSIONAL_COVERAGE.md](../../docs/PROFESSIONAL_COVERAGE.md).
 
 ## Actual support
 
@@ -20,7 +22,12 @@ The engine currently supports:
 - optional explicit Gregorian `target_date` with a known birth time, returning the matching decadal and yearly palace mapping, age/year ranges, stars, transformations, and yearly cycle stars through the pinned `iztro` APIs;
 - an auditable structural index for every palace's two trine palaces and opposite palace (三方四正), derived only from the complete twelve-palace cycle;
 - a chart-wide index of every mutagen field actually returned by the pinned engine, with star and palace bindings;
-- major, minor, and adjective star names, optional brightness/mutagen fields, Changsheng/Boshi/Jiangqian/Suiqian labels, decadal data, and age arrays when returned by the dependency;
+- five machine-bound natal topic units under `facts.topic_units`: `overview` → 命宫, `career_study` → 官禄, `wealth_resources` → 财帛, `relationships` → 夫妻, and `wellbeing_rhythm` → 福德;
+- for each supported topic, one primary-palace ID, its exact palace-relation fact ID, all four 三方四正 component-palace IDs, and only the natal mutagen fact IDs located inside that four-palace unit;
+- 疾厄 as secondary context for `wellbeing_rhythm` only; it is not a standalone health-reading route and never authorizes diagnosis or prognosis;
+- major, minor, and adjective star names, with major-star brightness retained when returned by the dependency;
+- on `R-ZW-007/009`, registered fourteen-major-star same-palace combinations, brightness, 六吉六煞, 禄存 and 天马 conditions; the bounded result rule pack contains 24 major-star pairs, 14 natal context modifiers, and 11 period-star modifiers;
+- with `target_date`, five `facts.phase_topic_units` that identify the selected topic, plus complete dynamic four-palace sets `[0,+4,+8,+6]` derived separately for decadal and yearly scopes by the closed layer;
 - unknown-time sensitivity from a 60-second scan over every real instant of the named civil day, compressed into consecutive calculation-date/time-index regimes;
 - daylight-saving gaps, overlaps, and skipped civil dates handled explicitly rather than by sampling nonexistent clock times;
 - stability regime counts for soul star, body star, five-elements class, soul-palace branch, and body-palace branch;
@@ -55,10 +62,13 @@ Do not imply support for:
 - nonbinary variants of the underlying traditional calculation parameter;
 - birth-time rectification, automatic candidate ranking, or selection of a “most likely” palace chart;
 - target-date monthly, daily, hourly, or minor-limit calculations; this release retains only decadal and yearly layers;
-- a complete flying-transformations, Sanhe, Sihua, Zhongzhou, or another school reading beyond returned facts; the emitted 三方四正 index is a relationship fact, not an interpretive school engine;
+- a complete school-specific Sanhe, flying-transformations, Sihua, Zhongzhou, or complete Zi Wei judgment; only the five-topic bounded 24/14/11 result rule pack is implemented;
 - event prediction, compatibility, remedies, auspicious timing, or causal claims;
+- machine-bound deep synthesis for topics outside `overview`, `career_study`, `wealth_resources`, `relationships`, and `wellbeing_rhythm`; other palaces may appear as calculated context but do not become an unsupported deep-reading route;
 - interpretation of stars, brightness, cycles, decadal labels, or age arrays as inevitable events;
 - a verified classical bibliography for each `iztro` label.
+
+The current interpretation profile is `automated_fixture_reviewed`. It has not received independent Zi Wei practitioner review, its professional label is not enabled, and its predictive validity is `not_established`.
 
 If the user gives a lunar date, request a verified Gregorian conversion rather than passing it as a solar date.
 
@@ -74,13 +84,19 @@ Read:
 - `facts.palaces[]`: each palace's `fact_id`, index, name, body/original flags, stem, branch, stars, cycle labels, decadal data, and age arrays;
 - `facts.structure.palace_relations[]`: the focus palace, two trine palaces, opposite palace, their fact IDs, and the exact index-offset derivation;
 - `facts.structure.mutagen_locations[]`: only mutagens actually returned by the dependency, bound to a star group and palace;
+- `facts.topic_units[]`: one auditable topic index with `primary_palace_id`, `relation_fact_id`, four `component_palace_ids`, and any in-unit `natal_mutagen_fact_ids`;
 - when the request contains `target_date`, `facts.periods.target`, `facts.periods.decadal`, and `facts.periods.yearly`; the date is explicit, the date-only target-time policy is recorded, and every period star/transformation remains bound to a natal palace;
+- when the request contains `target_date`, `facts.phase_topic_units[]` supplies the selected topic focus; the closed route then requires complete decadal and yearly dynamic four-palace sets, all registered period stars, and selected-topic-slot transformation IDs;
 - `profile`: every calculation convention supplied to `iztro`;
 - `warnings`: especially `CALENDAR_DAY_PROFILE_QUALIFIED` outside UTC+08:00.
 
-Optional star fields are absent when the dependency does not return them. Absence is not a negative interpretation.
+Optional non-major star fields are absent when the dependency does not return them. Absence is not a negative interpretation. For a closed `R-ZW-007/009` natal major-star binding, preserve the emitted `brightness`; do not drop it from `star_in_palace`.
 
-For a deep structural reading, start with the focus palace and its emitted four-direction unit. Keep the four palace IDs visible internally, then inspect stars and mutagens within those palaces. The structural index does not authorize a single-star verdict or a predicted event. For a target-date phase, use the order in `ziwei-reading-map.md`: natal baseline, decadal context, yearly emphasis, interaction, and reality check.
+For a machine-bound deep reading, first select one supported `topic`, then cite its `topic_units` fact, primary palace, relation fact, and all four component palace facts. 三方四正 is an indivisible evidence group: citing only the favorable-looking palace, only the opposite palace, or any other subset is not a deep topic synthesis. A star claim must cite the actual palace fact containing that star. A transformation claim must cite the emitted mutagen fact whose star and palace match the sentence and whose ID belongs to the selected unit.
+
+For a target-date phase, select the matching `phase_topic_units` record, then derive decadal and yearly complete dynamic palace sets in fixed `[0,+4,+8,+6]` order. Bind every registered period star with `period_star_in_slot`. Keep phase transformations limited to the selected topic dynamic slot; bind both decadal and yearly sets completely, require at least one item across them, and allow either individual set to be empty. Judge natal baseline → decadal environment → yearly trigger; do not mix topics or claim four-palace transformation convergence.
+
+Every interpretive conclusion must state at least one observable condition that supports it and one that would weaken or contradict it. This is a reality check, not evidence that the chart predicts events.
 
 ### Unknown-time mode
 
@@ -147,20 +163,52 @@ Do not reconstruct full palace narratives from signatures or merge stars across 
 - `allowed`: “所选日期位于这个大限与流年结构中。”
 - `forbidden`: “这个索引证明该年一定发生某事。”
 
-### R-ZW-006 — A phase theme needs natal, decadal, and yearly context
+### R-ZW-006 — Legacy three-layer phase structure remains non-interpretive
 
-- `type`: traditional bounded synthesis
+- `type`: calculation/traditional structure
 - `source_status`: verified
 - `source_ids`: `SRC-ZW-IZTRO-HOROSCOPE-GUIDE`
 - `requires`: at least one material natal palace fact, one decadal fact, and one yearly fact from the same frozen calculation
-- `rule`: Interpret only a conditional phase theme or area of attention. State a convergence, tension, or shift across the three layers, plus a counter-reading and observable reality check.
-- `allowed`: “如果现实中该领域已经出现新责任，这组结构可用来检查资源与代价是否同时上升。”
-- `forbidden`: event certainty, exact timing, or a one-star/one-transformation verdict.
+- `rule`: Report that the frozen calculation contains all three layers, but do not synthesize an interpretive phase claim from arbitrary facts. Use R-ZW-009 and one emitted same-topic phase unit for bounded interpretation.
+- `allowed`: “本次计算同时保留本命、大限与流年三层结构；尚未按同一主题完成解释绑定。”
+- `forbidden`: any interpretive claim, cross-topic synthesis, event certainty, exact timing, or a one-star/one-transformation verdict.
+
+### R-ZW-007 — One topic requires its complete machine-bound palace unit
+
+- `type`: traditional bounded topic synthesis
+- `source_status`: verified for provenance and method scope only
+- `source_ids`: `SRC-ZW-IZTRO-2.6.0`, `SRC-ZW-IZTRO-PALACE-GUIDE`
+- `requires`: one supported topic unit and all four component palaces, including every registered same-palace major-star combination, emitted major-star brightness, and present 六吉六煞/禄存/天马 condition
+- `rule`: Treat the four palaces as one bounded evidence set. Prefer a registered same-palace combination over isolated single-star axes; treat context modifiers as conditions, not scores.
+- `allowed`: a conditional topic-level reflection with one support, one constraint, and an observable countercondition.
+- `forbidden`: partial 三方四正 citation, cross-topic substitution, a single-palace verdict, or an unsupported sixth topic.
+
+### R-ZW-008 — A natal transformation must match topic, star, and palace
+
+- `type`: traditional bounded transformation synthesis
+- `source_status`: verified for provenance and method scope only
+- `source_ids`: `SRC-ZW-IZTRO-2.6.0`, `SRC-ZW-IZTRO-MUTAGEN-GUIDE`
+- `requires`: a selected natal topic unit with a non-empty `natal_mutagen_fact_ids`, the referenced transformation fact, and the palace fact containing its named star
+- `rule`: The transformation ID must belong to the selected unit, and the wording must preserve its emitted transformation label, star, and palace.
+- `allowed`: describe a conditional process lens such as access, responsibility, legibility, or friction while retaining the competing evidence in the four-palace unit.
+- `forbidden`: attach a transformation to another star or palace, convert it into a good/bad score, or infer a guaranteed event.
+
+### R-ZW-009 — Natal baseline, decadal environment, yearly trigger
+
+- `type`: traditional bounded phase-topic synthesis
+- `source_status`: verified for provenance and method scope only
+- `source_ids`: `SRC-ZW-IZTRO-2.6.0`, `SRC-ZW-IZTRO-PALACE-GUIDE`, `SRC-ZW-IZTRO-HOROSCOPE-GUIDE`
+- `requires`: one phase topic unit; complete decadal and yearly dynamic four-palace sets `[0,+4,+8,+6]`; every registered period star in both scopes; and both complete transformation sets from the selected topic dynamic slot, with at least one item across them
+- `rule`: Judge natal baseline → decadal environment → yearly trigger. Period stars cover both dynamic four-palace sets; phase transformations cover only the selected topic dynamic slot. Formal criteria require natal focus axes + all decadal four-slot conditions + all yearly four-slot conditions + all selected-topic-slot processes, with no substitution.
+- `allowed`: one bounded category-level phase theme over the exact joint-stability interval.
+- `forbidden`: cross-topic mixing, omitted dynamic slots/stars, four-palace phase-transformation convergence, complete Zi Wei judgment, concrete events, or retrospective rewriting.
 
 ## Source status and school differences
 
 - `SRC-ZW-IZTRO-2.6.0` verifies the pinned implementation provenance and the narrow returned-field scope used by R-ZW-001 through R-ZW-003 and R-ZW-005. This documents the implementation path, not predictive validity.
-- `SRC-ZW-IZTRO-HOROSCOPE-GUIDE` supports only the natal → decadal → yearly analysis order and a bounded phase-theme framing under R-ZW-006. It is a modern method guide, not empirical evidence or permission for guaranteed events.
+- `SRC-ZW-IZTRO-HOROSCOPE-GUIDE` supports the natal → decadal → yearly analysis order. R-ZW-006 uses it only to report the legacy three-layer structure; bounded phase interpretation requires R-ZW-009's exact same-topic unit. The guide is not empirical evidence or permission for guaranteed events.
+- `SRC-ZW-IZTRO-PALACE-GUIDE` supports the target-palace plus complete 三方四正 method boundary used by R-ZW-007 and R-ZW-009. It does not validate a personality or event prediction.
+- `SRC-ZW-IZTRO-MUTAGEN-GUIDE` supports keeping transformations attached to their actual star and palace under R-ZW-008. It does not supply a universal good/bad score or predictive evidence.
 - `SRC-ZW-ZIWEI-QUANSHU` supplies historical provenance for bounded palace/star and soul/body terminology under R-ZW-001 and R-ZW-002. The registry records the host documentation's warning that the material can be exaggerated or internally inconsistent; it is not empirical evidence or permission for literal forecasting.
 - The pinned `iztro` bundle runs in a private local VM realm, so unrelated same-process `iztro` plugins or global configuration cannot alter the Fortune Teller chart.
 - A source entry verifies only its declared provenance and scope. It does not make an unchecked edition, quotation, commentary, chapter, page, or model-authored paraphrase verified.
@@ -170,11 +218,11 @@ Do not reconstruct full palace narratives from signatures or merge stars across 
 
 ## Evidence/audit example — not the ordinary answer
 
-> **计算事实**：`F-ZW-P01` 记录了当前 profile 下该宫位的名称、地支和星曜列表。`facts.summary` 还给出命宫、身宫及五行局等计算标签。
+> **主题绑定**：先引用一个 `F-ZW-U..` 主题单元，再按其中的 ID 引用主宫、`F-ZW-R..` 三方四正关系和全部四个 `F-ZW-P..` 宫位事实。不能从别的主题借一个更顺眼的星曜补结论。
 >
-> **传统解释**：若继续，可以把“星曜—宫位”组合当作反思主题，但这不是经验证的性格或事件预测。
+> **传统解释**：若继续，可以把语义匹配的“星曜—宫位—四化”组合作为条件性反思主题，同时写明支持条件和反例。这不是经验证的性格或事件预测。
 >
-> **阶段事实（仅在显式目标日期时）**：`facts.periods` 可以记录对应大限与流年；它允许进一步做本命—大限—流年的条件性主题综合，但不能直接写成未来事件。
+> **阶段事实（仅在显式目标日期时）**：按本命底色、大限四动态宫环境、流年四动态宫触发的顺序展开；阶段四化仍只取主题槽。它不能直接写成未来事件。
 
 ## Prohibited overreach
 
@@ -187,5 +235,6 @@ Never:
 - present the birthplace-civil calendar-day convention outside UTC+08:00 as universal or hide its qualified warning;
 - present `time_precision` as proof that the recorded birth time is accurate;
 - mix fields from different candidate hours or profiles;
+- omit part of a topic unit's four-palace evidence group, mix topics across phase layers, or describe a star/palace/transformation different from the referenced fact;
 - attribute a rule to a named school or classic without a verified source record;
 - describe agreement with BaZi or Western astrology as empirical confirmation.

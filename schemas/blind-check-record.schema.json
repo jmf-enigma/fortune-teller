@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:fortune-teller:schema:blind-check-record:3",
+  "title": "Reading-bound frozen blind-check commitment",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "record_type", "frozen_at", "reading_binding", "validation_receipt", "hypotheses", "commitment"],
+  "properties": {
+    "schema_version": { "const": "3.0.0" },
+    "record_type": { "const": "blind_check_commitment" },
+    "frozen_at": { "type": "string", "format": "date-time" },
+    "reading_binding": { "$ref": "#/$defs/readingBinding" },
+    "validation_receipt": { "$ref": "#/$defs/validationReceipt" },
+    "hypotheses": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5,
+      "items": { "$ref": "#/$defs/frozenHypothesis" }
+    },
+    "commitment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "scope", "hash"],
+      "properties": {
+        "algorithm": { "const": "sha256" },
+        "scope": { "const": "fortune-teller/blind-check/v3" },
+        "hash": { "$ref": "#/$defs/sha256" }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "semver": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$" },
+    "profile": { "oneOf": [{ "type": "string", "minLength": 1 }, { "type": "object" }] },
+    "calculationBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["system", "profile", "facts_hash", "reproducibility_hash"],
+      "properties": {
+        "system": { "enum": ["bazi", "ziwei", "western", "tarot", "iching", "meihua"] },
+        "profile": { "$ref": "#/$defs/profile" },
+        "facts_hash": { "$ref": "#/$defs/sha256" },
+        "reproducibility_hash": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "claimBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hypothesis_id", "claim_id", "calculation_facts_hash", "interpretation_profile_id", "rule_pack_hash"],
+      "properties": {
+        "hypothesis_id": { "type": "string", "pattern": "^H-0[1-5]$" },
+        "claim_id": { "type": "string", "pattern": "^C-[A-Za-z0-9_-]+$" },
+        "calculation_facts_hash": { "$ref": "#/$defs/sha256" },
+        "interpretation_profile_id": { "type": "string", "minLength": 1 },
+        "rule_pack_hash": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "readingBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope", "reading_payload_hash", "reading_hash", "systems", "level", "calculation_bindings", "claim_bindings"],
+      "properties": {
+        "scope": { "const": "fortune-teller/validated-reading/v1" },
+        "reading_payload_hash": { "$ref": "#/$defs/sha256" },
+        "reading_hash": { "$ref": "#/$defs/sha256" },
+        "systems": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["bazi", "ziwei", "western", "tarot", "iching", "meihua"] }
+        },
+        "level": { "enum": ["quick", "standard", "deep", "audit"] },
+        "calculation_bindings": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/calculationBinding" } },
+        "claim_bindings": { "type": "array", "minItems": 1, "maxItems": 5, "items": { "$ref": "#/$defs/claimBinding" } }
+      }
+    },
+    "validationReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope", "validator_contract", "status", "validated_at", "release_version", "engine_versions", "reading_payload_hash", "receipt_hash"],
+      "properties": {
+        "scope": { "const": "fortune-teller/blind-check-validation-receipt/v1" },
+        "validator_contract": { "type": "string", "pattern": "^fortune-teller/reading-validator/v\\d+$" },
+        "status": { "const": "valid_at_freeze" },
+        "validated_at": { "type": "string", "format": "date-time" },
+        "release_version": { "$ref": "#/$defs/semver" },
+        "engine_versions": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": { "$ref": "#/$defs/semver" }
+        },
+        "reading_payload_hash": { "$ref": "#/$defs/sha256" },
+        "receipt_hash": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "boundedText": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^\\S(?:[^\\r\\n]*\\S)?$"
+    },
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end"],
+      "properties": {
+        "start": { "type": "string", "format": "date" },
+        "end": { "type": "string", "format": "date" }
+      }
+    },
+    "criterion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["criterion_id", "polarity", "observable", "evidence_source"],
+      "properties": {
+        "criterion_id": { "type": "string", "pattern": "^K-[A-Za-z0-9_-]+$" },
+        "polarity": { "enum": ["supports", "contradicts", "unclear"] },
+        "observable": { "allOf": [{ "$ref": "#/$defs/boundedText" }, { "type": "string", "minLength": 12, "maxLength": 300 }] },
+        "evidence_source": {
+          "enum": ["self_report", "contemporaneous_record", "administrative_record", "third_party_record"]
+        }
+      }
+    },
+    "frozenHypothesis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hypothesis_id", "statement", "domain", "window", "criteria"],
+      "properties": {
+        "hypothesis_id": { "type": "string", "pattern": "^H-0[1-5]$" },
+        "statement": { "allOf": [{ "$ref": "#/$defs/boundedText" }, { "type": "string", "minLength": 12, "maxLength": 500 }] },
+        "domain": { "allOf": [{ "$ref": "#/$defs/boundedText" }, { "type": "string", "maxLength": 64 }] },
+        "window": { "$ref": "#/$defs/window" },
+        "criteria": { "type": "array", "minItems": 2, "maxItems": 15, "items": { "$ref": "#/$defs/criterion" } }
+      }
+    }
+  }
+}

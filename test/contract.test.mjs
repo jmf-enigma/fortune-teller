@@ -5,13 +5,19 @@ import { cpSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { astro } from "iztro";
-import { calculate, METHODS, validateReading } from "../src/index.mjs";
+import {
+  bindReadingToCalculations,
+  calculate,
+  INTERPRETATION_PROFILES,
+  METHODS,
+  validateReading,
+} from "../src/index.mjs";
 import { calculateFactsHash, calculateReproducibilityHash } from "../src/core/result.mjs";
 import { RULES } from "../src/data/rule-registry.mjs";
 import { SOURCES, SOURCE_VERIFICATION_NOTE } from "../src/data/source-registry.mjs";
 
 function calculationFactReading(calculation, factId) {
-  return {
+  const reading = {
     system: calculation.system,
     level: "standard",
     disclaimer: "Traditional reflection only; verify important decisions independently.",
@@ -38,6 +44,36 @@ function calculationFactReading(calculation, factId) {
       requires_input: [],
       reuses_frozen_calculation: true,
     }],
+  };
+  return bindReadingToCalculations({ calculation, reading }).reading;
+}
+
+function interpretationContract(system, topic = "overview") {
+  const profile = INTERPRETATION_PROFILES.find((item) => item.system === system);
+  assert.ok(profile, `missing interpretation profile for ${system}`);
+  return {
+    topic,
+    interpretation_profile_id: profile.id,
+    rule_pack_hash: profile.rule_pack_hash,
+    assessment: {
+      mode: "current_reflection",
+      domain: topic,
+      window: { kind: "current" },
+      criteria: [
+        {
+          criterion_id: "K-support",
+          polarity: "supports",
+          observable: "A dated record shows the named topic receiving repeated concrete attention.",
+          evidence_source: "contemporaneous_record",
+        },
+        {
+          criterion_id: "K-contradict",
+          polarity: "contradicts",
+          observable: "A dated record shows no concrete activity in the named topic during the review window.",
+          evidence_source: "contemporaneous_record",
+        },
+      ],
+    },
   };
 }
 
@@ -68,6 +104,17 @@ test("CLI accepts system inside a request envelope", () => {
   });
   assert.equal(result.status, 0, result.stderr);
   assert.equal(JSON.parse(result.stdout).facts.primary.king_wen_number, 1);
+});
+
+test("CLI root --help is usable and documents envelope and command-specific inline JSON", () => {
+  const result = spawnSync(process.execPath, ["scripts/fortune-teller.mjs", "--help"], {
+    cwd: new URL("..", import.meta.url),
+    encoding: "utf8",
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /calculate \[--system <id>\]/u);
+  assert.match(result.stdout, /system inside a request envelope/u);
+  assert.match(result.stdout, /score-check/u);
 });
 
 test("CLI exposes auditable source and rule registries with optional system filtering", () => {
@@ -500,7 +547,7 @@ test("randomness inputs cannot be silently ignored", () => {
 
 test("reading validator traces facts and rejects unsupported probabilities", () => {
   const calculation = calculate("iching", { question: "fixture", lines: [7, 7, 7, 7, 7, 7] });
-  const valid = validateReading({
+  const validPayload = bindReadingToCalculations({
     calculation,
     reading: {
       system: "iching",
@@ -521,34 +568,24 @@ test("reading validator traces facts and rejects unsupported probabilities", () 
         school_stability: "profile_specific",
         source_status: "verified",
         source_ids: ["SRC-YJ-ZHOUYI-WIKISOURCE"],
+        ...interpretationContract("iching", "overview"),
       }],
       next_steps: [],
     },
   });
+  const valid = validateReading(validPayload);
   assert.equal(valid.valid, true);
-  const invalid = validateReading({
-    calculation,
-    reading: {
-      system: "iching",
-      level: "standard",
-      disclaimer: "Traditional reflective interpretation, not a validated prediction.",
-      summary: "Fixture",
-      prediction_probability: 0.9,
-      claims: [{
-        claim_id: "C-01", statement: "x", epistemic_status: "interpretation", system: "iching",
-        profile: calculation.profile.id, fact_ids: ["missing"], rule_ids: [], calculation_certainty: "high",
-        input_sensitivity: { label: "stable", coverage: null }, school_stability: "profile_specific",
-        source_status: "engine_documented", source_ids: [],
-      }],
-      next_steps: [],
-    },
-  });
+  const invalidPayload = structuredClone(validPayload);
+  invalidPayload.reading.prediction_probability = 0.9;
+  invalidPayload.reading.claims[0].fact_ids = ["missing"];
+  invalidPayload.reading.claims[0].rule_ids = [];
+  const invalid = validateReading(invalidPayload);
   assert.equal(invalid.valid, false);
   assert.match(invalid.errors.join("\n"), /unknown fact_id/);
   assert.match(invalid.errors.join("\n"), /predictive probability/);
 });
 
-test("reading summaries are non-empty and only quick readings may use string next steps", () => {
+test("reading summaries are non-empty and every level requires structured next steps", () => {
   const calculation = calculate("iching", { question: "fixture", lines: [7, 7, 7, 7, 7, 7] });
   const reading = calculationFactReading(calculation, "F-YJ-H01");
 
@@ -566,46 +603,73 @@ test("reading summaries are non-empty and only quick readings may use string nex
   reading.next_steps = ["Tell me more"];
   const standard = validateReading({ calculation, reading });
   assert.equal(standard.valid, false);
-  assert.match(standard.errors.join("\n"), /structured object for reading.level=standard/);
+  assert.match(standard.errors.join("\n"), /structured (?:action )?object/);
 
   reading.level = "quick";
+  reading.title = "易经｜简要结果";
+  const quickString = validateReading({ calculation, reading });
+  assert.equal(quickString.valid, false);
+  assert.match(quickString.errors.join("\n"), /structured (?:action )?object/);
+  reading.next_steps = [];
   const quick = validateReading({ calculation, reading });
   assert.equal(quick.valid, true, quick.errors.join("\n"));
+});
+
+test("all six systems reject a calculation fact whose visible sentence says the opposite", () => {
+  const cases = [
+    [calculate("bazi", { date: "2000-08-16", time: "04:00", timezone: "Asia/Shanghai" }), "F-BZ-003", "日柱为甲子。"],
+    [calculate("ziwei", { date: "2000-08-16", time: "04:00", timezone: "Asia/Shanghai", chart_sex: "male" }), "F-ZW-P01", "紫微位于财帛宫。"],
+    [calculate("western", { date: "2000-08-16", time: "04:00", timezone: "Asia/Shanghai" }), "F-WA-P01", "太阳位于白羊座且处于逆行。"],
+    [calculate("tarot", { question: "fixture", spread: "one", cards: ["The Fool"] }), "F-TR-001", "焦点位抽到恶魔逆位。"],
+    [calculate("iching", { question: "fixture", lines: [7, 7, 7, 7, 7, 7] }), "F-YJ-H01", "本卦为坤。"],
+    [calculate("meihua", { first_number: 1, second_number: 1, moving_line: 1 }), "F-MH-T01", "上卦为坤。"],
+  ];
+  for (const [calculation, factId, falseStatement] of cases) {
+    const reading = calculationFactReading(calculation, factId);
+    const baseline = validateReading({ calculation, reading });
+    assert.equal(baseline.valid, true, `${calculation.system}: ${baseline.errors.join("\n")}`);
+    reading.summary = falseStatement;
+    reading.claims[0].statement = falseStatement;
+    const result = validateReading({ calculation, reading });
+    assert.equal(result.valid, false, `${calculation.system} unexpectedly accepted a false sentence`);
+    assert.match(result.errors.join("\n"), /calculation_fact statement must exactly equal the canonical fact rendering/u);
+  }
 });
 
 test("ordinary visible reading fields reject audit labels and exact calculation metadata", () => {
   const calculation = calculate("iching", { question: "fixture", lines: [7, 7, 7, 7, 7, 7] });
   const cases = [
-    ["title technical profile ID", (reading) => { reading.title = `profile_id=${calculation.profile.id}`; }],
-    ["user focus exact profile ID", (reading) => { reading.user_focus = calculation.profile.id; }],
-    ["user focus technical assignment", (reading) => { reading.user_focus = "node=24.9.0"; }],
-    ["disclaimer technical schema version", (reading) => { reading.disclaimer = `schema_version=${calculation.schema_version}`; }],
-    ["summary exact facts hash", (reading) => { reading.summary = calculation.facts_hash; }],
-    ["claim fact ID", (reading) => { reading.claims[0].statement = "F-YJ-H01"; }],
-    ["practical rule ID", (reading) => { reading.claims[0].practical_reflection = "rule_id R-YJ-003"; }],
+    ["title technical profile ID", (reading) => { reading.title = `profile_id=${calculation.profile.id}`; }, /contains backstage technical data/],
+    ["user focus exact profile ID", (reading) => { reading.user_focus = calculation.profile.id; }, /canonical unique claim-topic labels/],
+    ["user focus technical assignment", (reading) => { reading.user_focus = "node=24.9.0"; }, /canonical unique claim-topic labels/],
+    ["disclaimer technical schema version", (reading) => { reading.disclaimer = `schema_version=${calculation.schema_version}`; }, /contains backstage technical data/],
+    ["summary exact facts hash", (reading) => { reading.summary = calculation.facts_hash; }, /contains backstage technical data/],
+    ["claim fact ID", (reading) => { reading.claims[0].statement = "F-YJ-H01"; }, /contains backstage technical data/],
+    ["practical rule ID", (reading) => { reading.claims[0].practical_reflection = "rule_id R-YJ-003"; }, /contains backstage technical data/],
     ["uncertainty exact reproducibility hash", (reading) => {
       reading.uncertainty_summary = calculation.reproducibility_hash;
-    }],
-    ["visible next-step source ID", (reading) => { reading.next_steps[0].label = "source_id SRC-YJ-ZHOUYI-WIKISOURCE"; }],
-    ["sensitivity label", (reading) => { reading.summary = "Input sensitivity is stable."; }],
+    }, /contains backstage technical data/],
+    ["visible next-step source ID", (reading) => { reading.next_steps[0].label = "source_id SRC-YJ-ZHOUYI-WIKISOURCE"; }, /contains backstage technical data/],
+    ["sensitivity label", (reading) => { reading.summary = "Input sensitivity is stable."; }, /contains backstage technical data/],
     ["quick warning count", (reading) => {
       reading.level = "quick";
       reading.next_steps = ["warning_count: 1"];
-    }],
+    }, /contains backstage technical data/],
   ];
 
-  for (const [label, mutate] of cases) {
+  for (const [label, mutate, expected] of cases) {
     const reading = calculationFactReading(calculation, "F-YJ-H01");
     mutate(reading);
     const result = validateReading({ calculation, reading });
     assert.equal(result.valid, false, `${label} unexpectedly passed`);
-    assert.match(result.errors.join("\n"), /contains backstage technical data/, label);
+    assert.match(result.errors.join("\n"), expected, label);
   }
 
   const ordinaryWarning = calculationFactReading(calculation, "F-YJ-H01");
-  ordinaryWarning.summary = "A warning sign in the contract terms deserves independent review.";
-  ordinaryWarning.claims[0].statement = ordinaryWarning.summary;
-  const accepted = validateReading({ calculation, reading: ordinaryWarning });
+  ordinaryWarning.user_focus = "A warning sign in the contract terms deserves independent review.";
+  const reboundWarning = bindReadingToCalculations({ calculation, reading: ordinaryWarning }).reading;
+  assert.equal(reboundWarning.user_focus, "所问主题");
+  const accepted = validateReading({ calculation, reading: reboundWarning });
   assert.equal(accepted.valid, true, accepted.errors.join("\n"));
 
   for (const text of [
@@ -615,15 +679,18 @@ test("ordinary visible reading fields reject audit labels and exact calculation 
     "我整理了13张盘面设计草图，准备逐张核对。",
   ]) {
     const reading = calculationFactReading(calculation, "F-YJ-H01");
-    reading.summary = text;
-    reading.claims[0].statement = text;
-    const naturalLanguage = validateReading({ calculation, reading });
+    reading.user_focus = text;
+    const rebound = bindReadingToCalculations({ calculation, reading }).reading;
+    assert.equal(rebound.user_focus, "所问主题");
+    const naturalLanguage = validateReading({ calculation, reading: rebound });
     assert.equal(naturalLanguage.valid, true, `${text}: ${naturalLanguage.errors.join("\n")}`);
   }
 
   const ordinaryUserFocus = calculationFactReading(calculation, "F-YJ-H01");
   ordinaryUserFocus.user_focus = `I am comparing 3 candidates and package ${calculation.engine_version}.`;
-  const ordinaryUserFocusResult = validateReading({ calculation, reading: ordinaryUserFocus });
+  const reboundUserFocus = bindReadingToCalculations({ calculation, reading: ordinaryUserFocus }).reading;
+  assert.equal(reboundUserFocus.user_focus, "所问主题");
+  const ordinaryUserFocusResult = validateReading({ calculation, reading: reboundUserFocus });
   assert.equal(ordinaryUserFocusResult.valid, true, ordinaryUserFocusResult.errors.join("\n"));
 
   for (const text of [
@@ -652,8 +719,7 @@ test("ordinary visible reading fields reject audit labels and exact calculation 
 
   const unknownTimeBazi = calculate("bazi", { date: "2000-08-16", timezone: "Asia/Shanghai" });
   const leakedWarningDetail = calculationFactReading(unknownTimeBazi, "F-BZ-U01");
-  leakedWarningDetail.summary = unknownTimeBazi.warnings[0];
-  leakedWarningDetail.claims[0].statement = leakedWarningDetail.summary;
+  leakedWarningDetail.user_focus = unknownTimeBazi.warnings[0];
   leakedWarningDetail.claims[0].calculation_certainty = "qualified";
   leakedWarningDetail.claims[0].input_sensitivity = {
     label: "stable",
@@ -661,13 +727,15 @@ test("ordinary visible reading fields reject audit labels and exact calculation 
   };
   leakedWarningDetail.claims[0].school_stability = "profile_specific";
   const warningBaseline = structuredClone(leakedWarningDetail);
-  warningBaseline.summary = "The calculation has an unknown-time mode.";
-  warningBaseline.claims[0].statement = warningBaseline.summary;
+  warningBaseline.user_focus = "所问主题";
   const warningBaselineResult = validateReading({ calculation: unknownTimeBazi, reading: warningBaseline });
   assert.equal(warningBaselineResult.valid, true, warningBaselineResult.errors.join("\n"));
   const warningDetailResult = validateReading({ calculation: unknownTimeBazi, reading: leakedWarningDetail });
   assert.equal(warningDetailResult.valid, false);
-  assert.match(warningDetailResult.errors.join("\n"), /backstage technical data \(calculation warning detail\)/);
+  assert.match(
+    warningDetailResult.errors.join("\n"),
+    /backstage technical data \(calculation warning detail\)|canonical unique claim-topic labels/u,
+  );
 });
 
 test("Tarot and I Ching new-question choices cannot reuse a frozen draw or cast", () => {
@@ -700,7 +768,8 @@ test("Tarot and I Ching new-question choices cannot reuse a frozen draw or cast"
 
     reading.next_steps[0].action = "new_reading";
     reading.next_steps[0].reuses_frozen_calculation = false;
-    const valid = validateReading({ calculation, reading });
+    const rebound = bindReadingToCalculations({ calculation, reading }).reading;
+    const valid = validateReading({ calculation, reading: rebound });
     assert.equal(valid.valid, true, valid.errors.join("\n"));
   }
 
@@ -751,7 +820,14 @@ test("Tarot and I Ching new-question choices cannot reuse a frozen draw or cast"
     id: "filter-source", label: "核对传统来源", action: "inspect_evidence", available: true,
     requires_input: ["source"], reuses_frozen_calculation: true,
   }];
-  const evidenceFilterResult = validateReading({ calculation: tarotCalculation, reading: evidenceFilter });
+  const reboundEvidenceFilter = bindReadingToCalculations({
+    calculation: tarotCalculation,
+    reading: evidenceFilter,
+  }).reading;
+  const evidenceFilterResult = validateReading({
+    calculation: tarotCalculation,
+    reading: reboundEvidenceFilter,
+  });
   assert.equal(evidenceFilterResult.valid, true, evidenceFilterResult.errors.join("\n"));
 
   const unknownInput = calculationFactReading(tarotCalculation, "F-TR-001");
@@ -778,7 +854,10 @@ test("a specific future-income timing interpretation cannot bypass the rule floo
   const result = validateReading({ calculation, reading });
   assert.equal(result.valid, false);
   assert.match(result.errors.join("\n"), /interpretation requires at least one applicable rule_id/);
-  assert.match(result.errors.join("\n"), /unconditional future outcome assertion/);
+  assert.match(
+    result.errors.join("\n"),
+    /unconditional future outcome assertion|cannot introduce prospective content outside the closed Zi Wei phase route/u,
+  );
 });
 
 test("future assertions are status-aware, prefix-qualified, and checked in every visible result field", () => {
@@ -790,52 +869,57 @@ test("future assertions are status-aware, prefix-qualified, and checked in every
   mislabeledFact.claims[0].statement = mislabeledFact.summary;
   const factResult = validateReading({ calculation, reading: mislabeledFact });
   assert.equal(factResult.valid, false);
-  assert.match(factResult.errors.join("\n"), /classified as calculation_fact cannot state a future outcome/);
+  assert.match(
+    factResult.errors.join("\n"),
+    /classified as calculation_fact cannot state a future outcome|calculation_fact statement must exactly equal the canonical fact rendering/u,
+  );
 
   const assertiveUnresolved = structuredClone(base);
   assertiveUnresolved.summary = "未来三个月收入会上升，第三个月最明显。";
   Object.assign(assertiveUnresolved.claims[0], {
     statement: assertiveUnresolved.summary,
     epistemic_status: "unresolved",
-    fact_ids: [],
     calculation_certainty: "unavailable",
-    input_sensitivity: { label: "unavailable", coverage: null },
     school_stability: "not_assessed",
     source_status: "unavailable",
+    source_ids: [],
+    rule_ids: [],
   });
   const unresolvedResult = validateReading({ calculation, reading: assertiveUnresolved });
   assert.equal(unresolvedResult.valid, false);
-  assert.match(unresolvedResult.errors.join("\n"), /uncertain or cannot be determined/);
-  assert.match(unresolvedResult.errors.join("\n"), /unconditional future outcome assertion/);
+  assert.match(unresolvedResult.errors.join("\n"), /canonical unresolved rendering/u);
+  assert.match(unresolvedResult.errors.join("\n"), /unconditional future outcome assertion|canonical unresolved rendering/u);
 
-  const honestUnresolved = structuredClone(assertiveUnresolved);
-  honestUnresolved.summary = "当前信息不足，无法判断未来三个月收入是否会上升。";
-  honestUnresolved.claims[0].statement = honestUnresolved.summary;
-  honestUnresolved.user_focus = "未来三个月收入会上升吗？";
+  const honestUnresolved = bindReadingToCalculations({
+    calculation,
+    reading: structuredClone(assertiveUnresolved),
+  }).reading;
   const honestResult = validateReading({ calculation, reading: honestUnresolved });
   assert.equal(honestResult.valid, true, honestResult.errors.join("\n"));
+  assert.equal(honestUnresolved.user_focus, "所问主题");
+  assert.match(honestUnresolved.claims[0].statement, /当前资料不足，无法判断具体结果/u);
 
   const disguisedAssertion = structuredClone(honestUnresolved);
   disguisedAssertion.summary = "无法判断具体多少，但明年收入会增加。";
   disguisedAssertion.claims[0].statement = disguisedAssertion.summary;
   const disguisedResult = validateReading({ calculation, reading: disguisedAssertion });
   assert.equal(disguisedResult.valid, false);
-  assert.match(disguisedResult.errors.join("\n"), /must frame it as an unresolved whether question/);
+  assert.match(disguisedResult.errors.join("\n"), /canonical unresolved rendering|unconditional future outcome assertion/u);
 
   const negatedUnresolved = structuredClone(honestUnresolved);
   negatedUnresolved.summary = "This point is not unresolved; it is certain.";
   negatedUnresolved.claims[0].statement = negatedUnresolved.summary;
   const negatedUnresolvedResult = validateReading({ calculation, reading: negatedUnresolved });
   assert.equal(negatedUnresolvedResult.valid, false);
-  assert.match(negatedUnresolvedResult.errors.join("\n"), /must explicitly say that the point is uncertain/);
+  assert.match(negatedUnresolvedResult.errors.join("\n"), /canonical unresolved rendering|must explicitly say that the point is uncertain/u);
 
   const rhetoricalDenial = structuredClone(honestUnresolved);
   rhetoricalDenial.summary = "未来收入不确定？不，明年必升职。";
   rhetoricalDenial.claims[0].statement = rhetoricalDenial.summary;
   const rhetoricalDenialResult = validateReading({ calculation, reading: rhetoricalDenial });
   assert.equal(rhetoricalDenialResult.valid, false);
-  assert.match(rhetoricalDenialResult.errors.join("\n"), /must explicitly say that the point is uncertain/);
-  assert.match(rhetoricalDenialResult.errors.join("\n"), /unconditional future outcome assertion/);
+  assert.match(rhetoricalDenialResult.errors.join("\n"), /canonical unresolved rendering|must keep every prospective clause explicitly unresolved/u);
+  assert.match(rhetoricalDenialResult.errors.join("\n"), /unconditional future outcome assertion|canonical unresolved rendering/u);
 
   for (const text of [
     "明年收入肯定上涨。",
@@ -847,8 +931,8 @@ test("future assertions are status-aware, prefix-qualified, and checked in every
     synonymFact.claims[0].statement = text;
     const synonymResult = validateReading({ calculation, reading: synonymFact });
     assert.equal(synonymResult.valid, false, `${text} unexpectedly passed`);
-    assert.match(synonymResult.errors.join("\n"), /classified as calculation_fact cannot state a future outcome/);
-    assert.match(synonymResult.errors.join("\n"), /unconditional future outcome assertion/);
+    assert.match(synonymResult.errors.join("\n"), /classified as calculation_fact cannot state a future outcome|calculation_fact statement must exactly equal the canonical fact rendering/u);
+    assert.match(synonymResult.errors.join("\n"), /unconditional future outcome assertion|calculation_fact statement must exactly equal the canonical fact rendering/u);
   }
 
   const conditionalInterpretation = structuredClone(base);
@@ -862,23 +946,32 @@ test("future assertions are status-aware, prefix-qualified, and checked in every
     school_stability: "profile_specific",
     source_status: "verified",
     source_ids: ["SRC-YJ-ZHOUYI-WIKISOURCE"],
+    ...interpretationContract("iching", "overview"),
   });
-  const conditionalResult = validateReading({ calculation, reading: conditionalInterpretation });
-  assert.equal(conditionalResult.valid, true, conditionalResult.errors.join("\n"));
+  const conditionalPayload = bindReadingToCalculations({ calculation, reading: conditionalInterpretation });
+  const conditionalResult = validateReading(conditionalPayload);
+  assert.equal(conditionalResult.valid, false);
+  assert.match(conditionalResult.errors.join("\n"), /cannot introduce prospective content outside the closed Zi Wei phase route/u);
 
-  const ordinaryNoun = structuredClone(conditionalInterpretation);
+  const currentInterpretation = structuredClone(conditionalInterpretation);
+  currentInterpretation.summary = "先按现实条件整理当前选择，再决定是否继续推进。";
+  currentInterpretation.claims[0].statement = currentInterpretation.summary;
+  const boundCurrentInterpretation = bindReadingToCalculations({ calculation, reading: currentInterpretation }).reading;
+  assert.equal(validateReading({ calculation, reading: boundCurrentInterpretation }).valid, true);
+
+  const ordinaryNoun = structuredClone(boundCurrentInterpretation);
   ordinaryNoun.summary = "未来的职业机会值得先做现实核实。";
   ordinaryNoun.claims[0].statement = ordinaryNoun.summary;
   const ordinaryNounResult = validateReading({ calculation, reading: ordinaryNoun });
-  assert.equal(ordinaryNounResult.valid, true, ordinaryNounResult.errors.join("\n"));
+  assert.equal(ordinaryNounResult.valid, false);
+  assert.match(ordinaryNounResult.errors.join("\n"), /cannot introduce prospective content outside the closed Zi Wei phase route/u);
 
   for (const text of [
-    "明年必须继续做现实核实。",
-    "预计明年先核实条件，再作决定。",
+    "明年继续核对现实条件。",
+    "到2027年先核对条件，再作决定。",
   ]) {
-    const practicalAdvice = structuredClone(conditionalInterpretation);
-    practicalAdvice.summary = text;
-    practicalAdvice.claims[0].statement = text;
+    const practicalAdvice = structuredClone(boundCurrentInterpretation);
+    practicalAdvice.claims[0].practical_reflection = text;
     const practicalAdviceResult = validateReading({ calculation, reading: practicalAdvice });
     assert.equal(practicalAdviceResult.valid, true, `${text}: ${practicalAdviceResult.errors.join("\n")}`);
   }
@@ -890,11 +983,14 @@ test("future assertions are status-aware, prefix-qualified, and checked in every
     (reading) => { reading.title = "明年收入会上升"; },
     (reading) => { reading.next_steps[0].label = "明年收入会上升"; },
   ]) {
-    const reading = structuredClone(conditionalInterpretation);
+    const reading = structuredClone(boundCurrentInterpretation);
     mutate(reading);
     const result = validateReading({ calculation, reading });
     assert.equal(result.valid, false);
-    assert.match(result.errors.join("\n"), /unconditional future outcome assertion/);
+    assert.match(
+      result.errors.join("\n"),
+      /unconditional future outcome assertion|cannot introduce prospective content outside the closed Zi Wei phase route|cannot frame a result or action as a future event/u,
+    );
   }
 });
 
@@ -943,7 +1039,7 @@ test("professional source and rule registries are narrow, complete, and internal
 
 test("reading validator enforces rule scope, fact applicability, ceiling, and source bundle", () => {
   const calculation = calculate("iching", { question: "fixture", lines: [7, 7, 7, 7, 7, 7] });
-  const reading = {
+  const reading = bindReadingToCalculations({ calculation, reading: {
     system: "iching", level: "standard", disclaimer: "Not a validated prediction.", summary: "The source orders the six lines from bottom to top.",
     claims: [{
       claim_id: "C-01", statement: "The source orders the six lines from bottom to top.",
@@ -953,7 +1049,7 @@ test("reading validator enforces rule scope, fact applicability, ceiling, and so
       source_status: "verified", source_ids: ["SRC-YJ-ZHOUYI-WIKISOURCE"],
     }],
     next_steps: [],
-  };
+  } }).reading;
   assert.equal(validateReading({ calculation, reading }).valid, true);
 
   const wrongFact = structuredClone(reading);
@@ -976,29 +1072,30 @@ test("reading validator enforces rule scope, fact applicability, ceiling, and so
 
 test("compound comparison rules require evidence from every declared fact group", () => {
   const calculation = calculate("iching", { question: "fixture", lines: [7, 7, 7, 7, 7, 7] });
-  const reading = {
+  const completeReading = bindReadingToCalculations({ calculation, reading: {
     system: "iching", level: "standard", disclaimer: "Not a validated prediction.", summary: "The primary and transformed hexagrams are structurally compared.",
     claims: [{
       claim_id: "C-COMPOUND", statement: "The primary and transformed hexagrams are structurally compared.",
       epistemic_status: "traditional_rule", system: "iching", profile: calculation.profile.id,
-      scope: "structural_comparison", fact_ids: ["F-YJ-H01"], rule_ids: ["R-YJ-003"],
+      scope: "structural_comparison", fact_ids: ["F-YJ-H01", "F-YJ-H02"], rule_ids: ["R-YJ-003"],
       calculation_certainty: "high", input_sensitivity: { label: "stable", coverage: null },
       school_stability: "stable", source_status: "verified", source_ids: ["SRC-YJ-ZHOUYI-WIKISOURCE"],
     }],
     next_steps: [],
-  };
-  const missing = validateReading({ calculation, reading });
+  } }).reading;
+  assert.equal(validateReading({ calculation, reading: completeReading }).valid, true);
+  const missingReading = structuredClone(completeReading);
+  missingReading.claims[0].fact_ids = ["F-YJ-H01"];
+  const missing = validateReading({ calculation, reading: missingReading });
   assert.equal(missing.valid, false);
   assert.match(missing.errors.join("\n"), /required fact group 2/);
-  reading.claims[0].fact_ids.push("F-YJ-H02");
-  assert.equal(validateReading({ calculation, reading }).valid, true);
 });
 
 test("derived professional structure facts are valid rule evidence without claiming strength scores", () => {
   const calculation = calculate("bazi", {
     date: "2000-08-16", time: "04:00", timezone: "Asia/Shanghai",
   });
-  const reading = {
+  const reading = bindReadingToCalculations({ calculation, reading: {
     system: "bazi", level: "standard", disclaimer: "Traditional structure, not a validated prediction.",
     summary: "The emitted element counts are separate unweighted occurrence counts.",
     claims: [{
@@ -1010,7 +1107,7 @@ test("derived professional structure facts are valid rule evidence without claim
       source_ids: ["SRC-BZ-LUNAR-TS-1.8.6", "SRC-BZ-SANMING-WIKISOURCE"],
     }],
     next_steps: [],
-  };
+  } }).reading;
   const result = validateReading({ calculation, reading });
   assert.equal(result.valid, true, result.errors.join("\n"));
 });
@@ -1019,14 +1116,18 @@ test("Zi Wei star-palace interpretation cannot be padded with relation-only fact
   const calculation = calculate("ziwei", {
     date: "2000-08-16", time: "04:00", timezone: "Asia/Shanghai", chart_sex: "male",
   });
-  const reading = {
+  const reading = bindReadingToCalculations({ calculation, reading: {
     system: "ziwei", level: "deep", disclaimer: "Traditional reflection, not a validated prediction.",
     summary: "Two palace/star entries are considered together as a bounded traditional theme.",
     uncertainty_summary: "The interpretation remains bounded and non-predictive.",
     claims: [{
       claim_id: "C-ZW-STAR", statement: "Two palace/star entries are considered together as a bounded traditional theme.",
-      epistemic_status: "interpretation", system: "ziwei", profile: calculation.profile.id,
-      scope: "star_palace_context", fact_ids: ["F-ZW-R01", "F-ZW-R02"], rule_ids: ["R-ZW-001"],
+      epistemic_status: "traditional_rule", system: "ziwei", profile: calculation.profile.id,
+      scope: "star_palace_context", fact_ids: ["F-ZW-P01", "F-ZW-P05"], rule_ids: ["R-ZW-001"],
+      evidence_bindings: [
+        { ref: "F-ZW-P01", role: "support" },
+        { ref: "F-ZW-P05", role: "constraint" },
+      ],
       reasoning_summary: "The interpretation must retain actual palace entries containing the named stars.",
       alternative_readings: ["The same placements may support a different emphasis within the same school."],
       calculation_certainty: "high", input_sensitivity: { label: "stable", coverage: null },
@@ -1037,47 +1138,94 @@ test("Zi Wei star-palace interpretation cannot be padded with relation-only fact
       id: "inspect-evidence", label: "Inspect palace entries", action: "inspect_evidence", available: true,
       requires_input: [], reuses_frozen_calculation: true,
     }],
-  };
-  const relationOnly = validateReading({ calculation, reading });
-  assert.equal(relationOnly.valid, false);
-  assert.match(relationOnly.errors.join("\n"), /allowed fact prefix/);
-  reading.claims[0].fact_ids = ["F-ZW-P01", "F-ZW-P05"];
+  } }).reading;
   const palaceBound = validateReading({ calculation, reading });
   assert.equal(palaceBound.valid, true, palaceBound.errors.join("\n"));
+  const relationReading = structuredClone(reading);
+  relationReading.claims[0].fact_ids = ["F-ZW-R01", "F-ZW-R02"];
+  const relationOnly = validateReading({ calculation, reading: relationReading });
+  assert.equal(relationOnly.valid, false);
+  assert.match(relationOnly.errors.join("\n"), /allowed fact prefix/);
 });
 
-test("Zi Wei life-stage synthesis requires natal, decadal, and yearly facts together", () => {
+test("Zi Wei phase-topic synthesis requires one exact natal, decadal, and yearly topic unit", () => {
   const calculation = calculate("ziwei", {
     date: "2000-08-16", time: "04:00", timezone: "Asia/Shanghai", chart_sex: "male",
     target_date: "2026-08-23",
   });
-  const reading = {
+  const phaseUnit = calculation.facts.phase_topic_units.find((item) => item.topic === "career_study");
+  const natalUnit = calculation.facts.topic_units.find((item) => item.fact_id === phaseUnit.natal_topic_unit_id);
+  const natalPalace = calculation.facts.palaces.find((item) => item.fact_id === phaseUnit.natal_palace_id);
+  const phaseFactIds = [...new Set([
+    phaseUnit.fact_id,
+    phaseUnit.natal_topic_unit_id,
+    phaseUnit.natal_palace_id,
+    natalUnit.relation_fact_id,
+    ...natalUnit.component_palace_ids,
+    phaseUnit.target_fact_id,
+    phaseUnit.phase_validity_fact_id,
+    phaseUnit.decadal_star_palace_id,
+    phaseUnit.yearly_star_palace_id,
+    ...phaseUnit.decadal_component_star_palace_ids,
+    ...phaseUnit.yearly_component_star_palace_ids,
+    ...phaseUnit.decadal_transformation_fact_ids,
+    ...phaseUnit.yearly_transformation_fact_ids,
+  ])];
+  const contract = interpretationContract("ziwei", "career_study");
+  contract.assessment = {
+    ...contract.assessment,
+    mode: "bounded_phase",
+    window: {
+      kind: "bounded",
+      start: calculation.facts.periods.phase_validity.valid_from,
+      end: calculation.facts.periods.phase_validity.valid_to,
+    },
+  };
+  const reading = bindReadingToCalculations({ calculation, reading: {
     system: "ziwei", level: "deep", disclaimer: "Traditional reflection, not a validated prediction.",
-    summary: "Natal, decadal, and yearly placements are considered together as one bounded phase theme.",
-    uncertainty_summary: "The phase reading cannot establish a future outcome and may vary across traditional schools.",
+    summary: "The career topic is compared across one machine-bound natal, decadal, and yearly unit.",
+    uncertainty_summary: "This phase reading cannot predict a future outcome and may vary across traditional schools.",
     claims: [{
-      claim_id: "C-ZW-PHASE", statement: "Natal, decadal, and yearly placements are considered together as one bounded phase theme.",
+      claim_id: "C-ZW-PHASE", statement: "The career topic is compared across one machine-bound natal, decadal, and yearly unit.",
       epistemic_status: "interpretation", system: "ziwei", profile: calculation.profile.id,
-      scope: "life_stage", fact_ids: ["F-ZW-P03", "F-ZW-DM1", "F-ZW-YM1"], rule_ids: ["R-ZW-006"],
+      scope: "phase_topic_synthesis",
+      fact_ids: phaseFactIds,
+      rule_ids: ["R-ZW-009"],
+      topic_unit_id: "F-ZW-PH02",
+      semantic_bindings: [{
+        kind: "star_in_palace", fact_id: natalPalace.fact_id,
+        star: natalPalace.major_stars[0].name, palace: natalPalace.name, star_group: "major",
+      }],
+      evidence_bindings: phaseFactIds.map((ref, index) => ({
+        ref,
+        role: index === phaseFactIds.length - 1 ? "constraint" : "support",
+      })),
       reasoning_summary: "The natal palace supplies the baseline, the decadal scope supplies the longer context, and the yearly scope supplies the selected-year emphasis.",
       alternative_readings: ["The same structure may show up as attention or responsibility rather than a concrete external event."],
       practical_reflection: "Review one observable decision in this area before making a large commitment.",
       calculation_certainty: "high", input_sensitivity: { label: "stable", coverage: null },
       school_stability: "profile_specific", source_status: "verified",
-      source_ids: ["SRC-ZW-IZTRO-HOROSCOPE-GUIDE"],
+      source_ids: ["SRC-ZW-IZTRO-2.6.0", "SRC-ZW-IZTRO-PALACE-GUIDE", "SRC-ZW-IZTRO-HOROSCOPE-GUIDE"],
+      ...contract,
     }],
     next_steps: [{
       id: "inspect-evidence", label: "See why this phase was highlighted", action: "inspect_evidence",
       available: true, requires_input: [], reuses_frozen_calculation: true,
     }],
-  };
+  } }).reading;
   const complete = validateReading({ calculation, reading });
   assert.equal(complete.valid, true, complete.errors.join("\n"));
 
-  reading.claims[0].fact_ids = ["F-ZW-P03", "F-ZW-DM1"];
-  const missingYear = validateReading({ calculation, reading });
+  const missingYearReading = structuredClone(reading);
+  missingYearReading.claims[0].fact_ids = phaseFactIds.filter(
+    (factId) => factId !== phaseUnit.yearly_star_palace_id,
+  );
+  const missingYear = validateReading({ calculation, reading: missingYearReading });
   assert.equal(missingYear.valid, false);
-  assert.match(missingYear.errors.join("\n"), /required fact group 3/);
+  assert.match(
+    missingYear.errors.join("\n"),
+    /required fact group 7|same-topic natal, target-date, exact phase-validity, decadal(?:\/yearly four-palace|, yearly), and transformation facts/u,
+  );
 });
 
 test("unknown-time rules require the calculation mode value, not only its path", () => {
@@ -1086,17 +1234,18 @@ test("unknown-time rules require the calculation mode value, not only its path",
     date: "2000-08-16", time: "04:00", timezone: "Asia/Shanghai", chart_sex: "male",
   });
   for (const [calculation, ruleId] of [[knownBazi, "R-BZ-004"], [knownZiwei, "R-ZW-004"]]) {
-    const reading = {
-      system: calculation.system, level: "standard", disclaimer: "Calculation uncertainty only.", summary: "Fixture",
-      claims: [{
-        claim_id: `C-${calculation.system}`, statement: "This calculation used unknown-time sensitivity.",
-        epistemic_status: "unresolved", system: calculation.system, profile: calculation.profile.id,
-        scope: "unknown_time_sensitivity", fact_ids: ["jsonptr:/facts/mode"], rule_ids: [ruleId],
-        calculation_certainty: "qualified", input_sensitivity: { label: "unavailable", coverage: null },
-        school_stability: "profile_specific", source_status: "engine_documented", source_ids: [],
-      }],
-      next_steps: [],
-    };
+    const reading = calculationFactReading(calculation, "jsonptr:/facts/mode");
+    reading.summary = "This calculation used unknown-time sensitivity.";
+    Object.assign(reading.claims[0], {
+      claim_id: `C-${calculation.system}`,
+      statement: reading.summary,
+      epistemic_status: "unresolved",
+      scope: "unknown_time_sensitivity",
+      rule_ids: [ruleId],
+      calculation_certainty: "qualified",
+      input_sensitivity: { label: "unavailable", coverage: null },
+      school_stability: "profile_specific",
+    });
     const result = validateReading({ calculation, reading });
     assert.equal(result.valid, false);
     assert.match(result.errors.join("\n"), /requires cited \/facts\/mode to equal "unknown-time-sensitivity"/);
@@ -1107,30 +1256,33 @@ test("overseas Zi Wei warnings must survive into the reading contract", () => {
   const calculation = calculate("ziwei", {
     date: "2000-08-16", time: "04:00", timezone: "UTC", chart_sex: "male",
   });
-  const reading = {
+  const reading = bindReadingToCalculations({ calculation, reading: {
     system: "ziwei", level: "standard", disclaimer: "Traditional chart labels, not a validated prediction.",
     summary: "The first palace entry is present in this calculation.",
+    uncertainty_summary: "This chart retains the birthplace-civil day outside UTC+08:00; lineages may differ.",
+    warning_acknowledgements: ["CALENDAR_DAY_PROFILE_QUALIFIED"],
     claims: [{
       claim_id: "C-ZW-OVERSEAS", statement: "The first palace entry is present in this calculation.",
       epistemic_status: "calculation_fact", system: "ziwei", profile: calculation.profile.id,
-      fact_ids: ["F-ZW-P01"], rule_ids: [], calculation_certainty: "high",
-      input_sensitivity: { label: "stable", coverage: null }, school_stability: "stable",
+      fact_ids: ["F-ZW-P01"], rule_ids: [], calculation_certainty: "qualified",
+      input_sensitivity: { label: "stable", coverage: null }, school_stability: "profile_specific",
       source_status: "engine_documented", source_ids: [],
     }],
     next_steps: [],
-  };
-  const omitted = validateReading({ calculation, reading });
+  } }).reading;
+  const acknowledged = validateReading({ calculation, reading });
+  assert.equal(acknowledged.valid, true, acknowledged.errors.join("\n"));
+
+  const omittedReading = structuredClone(reading);
+  delete omittedReading.uncertainty_summary;
+  delete omittedReading.warning_acknowledgements;
+  omittedReading.claims[0].calculation_certainty = "high";
+  omittedReading.claims[0].school_stability = "stable";
+  const omitted = validateReading({ calculation, reading: omittedReading });
   assert.equal(omitted.valid, false);
   assert.match(omitted.errors.join("\n"), /warning_acknowledgements must include CALENDAR_DAY_PROFILE_QUALIFIED/);
   assert.match(omitted.errors.join("\n"), /calculation_certainty must be qualified/);
   assert.match(omitted.errors.join("\n"), /school_stability must be profile_specific/);
-
-  reading.uncertainty_summary = "This chart retains the birthplace-civil day outside UTC+08:00; lineages may differ.";
-  reading.warning_acknowledgements = ["CALENDAR_DAY_PROFILE_QUALIFIED"];
-  reading.claims[0].calculation_certainty = "qualified";
-  reading.claims[0].school_stability = "profile_specific";
-  const acknowledged = validateReading({ calculation, reading });
-  assert.equal(acknowledged.valid, true, acknowledged.errors.join("\n"));
 
   const leakedWarningCode = structuredClone(reading);
   leakedWarningCode.summary = "CALENDAR_DAY_PROFILE_QUALIFIED";
@@ -1143,7 +1295,7 @@ test("deep readings require alternatives, reasoning, uncertainty, and structured
   const calculation = calculate("tarot", {
     question: "fixture", spread: "three", cards: ["The Fool", "The Magician", "The High Priestess"],
   });
-  const reading = {
+  const reading = bindReadingToCalculations({ calculation, reading: {
     system: "tarot", level: "deep", disclaimer: "Traditional reflection, not a validated prediction.",
     summary: "The first two position-card pairs can prompt a bounded comparison of beginning and agency.",
     uncertainty_summary: "Card language is tradition-bound and supports more than one reflective reading.",
@@ -1156,12 +1308,17 @@ test("deep readings require alternatives, reasoning, uncertainty, and structured
       practical_reflection: "Name one small reversible experiment before committing.",
       calculation_certainty: "high", input_sensitivity: { label: "stable", coverage: null },
       school_stability: "profile_specific", source_status: "verified", source_ids: ["SRC-TR-WAITE-WIKISOURCE"],
+      evidence_bindings: [
+        { ref: "F-TR-001", role: "support" },
+        { ref: "F-TR-002", role: "constraint" },
+      ],
+      ...interpretationContract("tarot", "current_situation"),
     }],
     next_steps: [{
       id: "inspect-evidence", label: "Inspect the claim evidence", action: "inspect_evidence", available: true,
       requires_input: [], reuses_frozen_calculation: true,
     }],
-  };
+  } }).reading;
   const valid = validateReading({ calculation, reading });
   assert.equal(valid.valid, true, valid.errors.join("\n"));
 
@@ -1175,28 +1332,42 @@ test("deep readings require alternatives, reasoning, uncertainty, and structured
   assert.match(invalid.errors.join("\n"), /uncertainty_summary/);
   assert.match(invalid.errors.join("\n"), /reasoning_summary/);
   assert.match(invalid.errors.join("\n"), /alternative_readings/);
-  assert.match(invalid.errors.join("\n"), /structured object/);
+  assert.match(invalid.errors.join("\n"), /structured (?:action )?object/);
 });
 
 test("deep interpretive claims cannot pass with a single cited fact", () => {
-  const calculation = calculate("tarot", { question: "fixture", spread: "one", cards: ["The Fool"] });
-  const reading = {
+  const calculation = calculate("tarot", {
+    question: "fixture", spread: "three", cards: ["The Fool", "The Magician", "The High Priestess"],
+  });
+  const validReading = bindReadingToCalculations({ calculation, reading: {
     system: "tarot", level: "deep", disclaimer: "Traditional reflection, not a validated prediction.",
-    summary: "One card is not enough for a deep synthesis.",
-    uncertainty_summary: "Only one material card fact is available.",
+    summary: "Two frozen position-card facts support a bounded comparison.",
+    uncertainty_summary: "The traditional card vocabulary permits more than one reading.",
     claims: [{
-      claim_id: "C-ONE", statement: "This is only one bounded card observation.",
+      claim_id: "C-ONE", statement: "Two frozen position-card facts support a bounded comparison.",
       epistemic_status: "interpretation", system: "tarot", profile: calculation.profile.id,
-      scope: "reflective_theme", fact_ids: ["F-TR-001"], rule_ids: ["R-TR-002"],
-      reasoning_summary: "The claim cites one frozen card.", alternative_readings: ["Another context could foreground a different prompt."],
+      scope: "reflective_theme", fact_ids: ["F-TR-001", "F-TR-002"], rule_ids: ["R-TR-002", "R-TR-003"],
+      evidence_bindings: [
+        { ref: "F-TR-001", role: "support" },
+        { ref: "F-TR-002", role: "constraint" },
+      ],
+      reasoning_summary: "The claim cites two distinct frozen position-card facts.", alternative_readings: ["Another context could foreground a different prompt."],
       calculation_certainty: "high", input_sensitivity: { label: "stable", coverage: null },
       school_stability: "profile_specific", source_status: "verified", source_ids: ["SRC-TR-WAITE-WIKISOURCE"],
+      ...interpretationContract("tarot", "current_situation"),
     }],
     next_steps: [{
       id: "close", label: "Close", action: "close", available: true, requires_input: [],
       reuses_frozen_calculation: true,
     }],
-  };
+  } }).reading;
+  assert.equal(validateReading({ calculation, reading: validReading }).valid, true);
+
+  const reading = structuredClone(validReading);
+  reading.summary = "This is only one bounded card observation.";
+  reading.claims[0].statement = reading.summary;
+  reading.claims[0].fact_ids = ["F-TR-001"];
+  reading.claims[0].rule_ids = ["R-TR-002"];
   const result = validateReading({ calculation, reading });
   assert.equal(result.valid, false);
   assert.match(result.errors.join("\n"), /at least two distinct material fact roots/);
@@ -1216,33 +1387,42 @@ test("deep interpretive claims cannot pass with a single cited fact", () => {
   const containerAliasPadding = validateReading({ calculation, reading });
   assert.equal(containerAliasPadding.valid, false);
   assert.match(containerAliasPadding.errors.join("\n"), /broad fact container/);
-  assert.match(containerAliasPadding.errors.join("\n"), /at least two distinct material fact roots/);
-  assert.match(containerAliasPadding.errors.join("\n"), /rule R-TR-003 requires 2 cited fact/);
 });
 
 test("deep fact counts exclude explanatory metadata under a broad rule prefix", () => {
   const calculation = calculate("bazi", {
     date: "2000-08-16", time: "04:00", timezone: "Asia/Shanghai",
   });
-  const reading = {
+  const validReading = bindReadingToCalculations({ calculation, reading: {
     system: "bazi", level: "deep", disclaimer: "Traditional structure, not a validated prediction.",
-    summary: "A pillar plus a method note is not a compound chart pattern.",
-    uncertainty_summary: "The cited method note is not a second chart fact.",
+    summary: "Two calculated pillars support a bounded structural comparison.",
+    uncertainty_summary: "The comparison remains traditional structure rather than a validated prediction.",
     claims: [{
-      claim_id: "C-BZ-METADATA", statement: "This claim should remain a one-fact observation.",
+      claim_id: "C-BZ-METADATA", statement: "Two calculated pillars support a bounded structural comparison.",
       epistemic_status: "interpretation", system: "bazi", profile: calculation.profile.id,
-      scope: "chart_structure", fact_ids: ["F-BZ-001", "jsonptr:/facts/structure/basis"],
-      rule_ids: ["R-BZ-001"], reasoning_summary: "Only the year pillar is a material chart fact here.",
+      scope: "chart_structure", fact_ids: ["F-BZ-001", "F-BZ-002"],
+      rule_ids: ["R-BZ-001"], reasoning_summary: "The two cited pillar objects are distinct material chart facts.",
       alternative_readings: ["Another pillar or emitted structural fact would be needed for a compound reading."],
+      evidence_bindings: [
+        { ref: "F-BZ-001", role: "support" },
+        { ref: "F-BZ-002", role: "constraint" },
+      ],
       calculation_certainty: "high", input_sensitivity: { label: "stable", coverage: null },
       school_stability: "profile_specific", source_status: "verified",
       source_ids: ["SRC-BZ-LUNAR-TS-1.8.6", "SRC-BZ-SANMING-WIKISOURCE"],
+      ...interpretationContract("bazi", "overview"),
     }],
     next_steps: [{
       id: "inspect-evidence", label: "Inspect evidence", action: "inspect_evidence", available: true,
       requires_input: [], reuses_frozen_calculation: true,
     }],
-  };
+  } }).reading;
+  assert.equal(validateReading({ calculation, reading: validReading }).valid, true);
+
+  const reading = structuredClone(validReading);
+  reading.summary = "This claim should remain a one-fact observation.";
+  reading.claims[0].statement = reading.summary;
+  reading.claims[0].fact_ids = ["F-BZ-001", "jsonptr:/facts/structure/basis"];
   const result = validateReading({ calculation, reading });
   assert.equal(result.valid, false);
   assert.match(result.errors.join("\n"), /at least two distinct material fact roots/);
@@ -1251,26 +1431,31 @@ test("deep fact counts exclude explanatory metadata under a broad rule prefix", 
 
 test("malicious I Ching certainty and all-in advice fails the applicability and lexical floors", () => {
   const calculation = calculate("iching", { question: "fixture", lines: [7, 7, 7, 7, 7, 7] });
-  const result = validateReading({
-    calculation,
-    reading: {
-      system: "iching", level: "deep", disclaimer: "Traditional reflection, not a validated prediction.",
-      summary: "This proves you will become rich tomorrow.", uncertainty_summary: "No uncertainty.",
-      claims: [{
-        claim_id: "C-ATTACK", statement: "This proves you will become rich tomorrow.",
-        epistemic_status: "interpretation", system: "iching", profile: calculation.profile.id,
-        scope: "wealth_forecast", fact_ids: ["F-YJ-H01"], rule_ids: ["R-YJ-001"],
-        reasoning_summary: "Guaranteed by fate.", alternative_readings: ["No alternative is possible."],
-        practical_reflection: "Invest everything now.", calculation_certainty: "high",
-        input_sensitivity: { label: "stable", coverage: null }, school_stability: "stable",
-        source_status: "verified", source_ids: ["SRC-YJ-ZHOUYI-WIKISOURCE"],
-      }],
-      next_steps: [{
-        id: "act-now", label: "Invest everything now", action: "reflect", available: true,
-        requires_input: [], reuses_frozen_calculation: true,
-      }],
-    },
+  const reading = calculationFactReading(calculation, "F-YJ-H01");
+  Object.assign(reading, {
+    level: "deep",
+    summary: "This proves you will become rich tomorrow.",
+    uncertainty_summary: "No uncertainty.",
+    next_steps: [{
+      id: "act-now", label: "Invest everything now", action: "reflect", available: true,
+      requires_input: [], reuses_frozen_calculation: true,
+    }],
   });
+  Object.assign(reading.claims[0], {
+    claim_id: "C-ATTACK",
+    statement: reading.summary,
+    epistemic_status: "interpretation",
+    scope: "wealth_forecast",
+    rule_ids: ["R-YJ-001"],
+    reasoning_summary: "Guaranteed by fate.",
+    alternative_readings: ["No alternative is possible."],
+    practical_reflection: "Invest everything now.",
+    school_stability: "stable",
+    source_status: "verified",
+    source_ids: ["SRC-YJ-ZHOUYI-WIKISOURCE"],
+    ...interpretationContract("iching", "wealth_resources"),
+  });
+  const result = validateReading({ calculation, reading });
   assert.equal(result.valid, false);
   assert.match(result.errors.join("\n"), /scope is not allowed/);
   assert.match(result.errors.join("\n"), /allowed fact prefix/);
@@ -1280,19 +1465,10 @@ test("malicious I Ching certainty and all-in advice fails the applicability and 
 
 test("reading validator returns errors instead of crashing on wrong ID types", () => {
   const calculation = calculate("iching", { question: "fixture", lines: [7, 7, 7, 7, 7, 7] });
-  const result = validateReading({
-    calculation,
-    reading: {
-      system: "iching", level: "standard", disclaimer: "Not a validated prediction.", summary: "Fixture",
-      claims: [{
-        claim_id: "C-01", statement: "x", epistemic_status: "interpretation", system: "iching",
-        profile: calculation.profile.id, fact_ids: [42], rule_ids: ["R-YJ-001"], calculation_certainty: "high",
-        input_sensitivity: { label: "stable", coverage: null }, school_stability: "profile_specific",
-        source_status: "engine_documented", source_ids: "oops",
-      }],
-      next_steps: [],
-    },
-  });
+  const reading = calculationFactReading(calculation, "F-YJ-H01");
+  reading.claims[0].fact_ids = [42];
+  reading.claims[0].source_ids = "oops";
+  const result = validateReading({ calculation, reading });
   assert.equal(result.valid, false);
   assert.match(result.errors.join("\n"), /fact_ids entries must be strings/);
   assert.match(result.errors.join("\n"), /source_ids must be an array/);
@@ -1307,19 +1483,13 @@ test("reading validator returns errors instead of crashing on wrong ID types", (
 test("reading validator fails closed for prototype-like system IDs", () => {
   const calculation = calculate("iching", { question: "fixture", lines: [7, 7, 7, 7, 7, 7] });
   for (const system of ["__proto__", "constructor", "toString"]) {
-    const result = validateReading({
-      calculation,
-      reading: {
-        system: "iching", level: "standard", disclaimer: "Not a validated prediction.", summary: "Fixture",
-        claims: [{
-          claim_id: "C-01", statement: "x", epistemic_status: "traditional_rule", system,
-          profile: calculation.profile.id, fact_ids: [], rule_ids: ["R-X"], calculation_certainty: "unavailable",
-          input_sensitivity: { label: "unavailable", coverage: null }, school_stability: "not_assessed",
-          source_status: "unavailable", source_ids: [],
-        }],
-        next_steps: [],
-      },
+    const reading = calculationFactReading(calculation, "F-YJ-H01");
+    Object.assign(reading.claims[0], {
+      epistemic_status: "traditional_rule", system, rule_ids: ["R-X"],
+      calculation_certainty: "unavailable", input_sensitivity: { label: "unavailable", coverage: null },
+      school_stability: "not_assessed", source_status: "unavailable", source_ids: [],
     });
+    const result = validateReading({ calculation, reading });
     assert.equal(result.valid, false);
     assert.match(result.errors.join("\n"), /unsupported|does not match|unknown rule_id/);
   }
@@ -1327,21 +1497,16 @@ test("reading validator fails closed for prototype-like system IDs", () => {
 
 test("reading validator rejects tampered envelopes and mismatched claim bindings", () => {
   const calculation = calculate("iching", { question: "fixture", lines: [7, 7, 7, 7, 7, 7] });
+  const reading = calculationFactReading(calculation, "F-YJ-H01");
   const tampered = structuredClone(calculation);
   tampered.facts.primary.name = "tampered";
-  const result = validateReading({
-    calculation: tampered,
-    reading: {
-      system: "western", level: "standard", disclaimer: "Not a validated prediction.", summary: "Fixture",
-      claims: [{
-        claim_id: "C-01", statement: "x", epistemic_status: "interpretation", system: "western",
-        profile: "made-up-profile", fact_ids: ["F-YJ-H01"], rule_ids: ["R-FAKE-001"],
-        calculation_certainty: "high", input_sensitivity: { label: "stable", coverage: null },
-        school_stability: "stable", source_status: "verified", source_ids: ["S-FAKE"],
-      }],
-      next_steps: [],
-    },
+  reading.system = "western";
+  Object.assign(reading.claims[0], {
+    epistemic_status: "interpretation", system: "western", profile: "made-up-profile",
+    rule_ids: ["R-FAKE-001"], source_status: "verified", source_ids: ["S-FAKE"],
+    ...interpretationContract("western", "overview"),
   });
+  const result = validateReading({ calculation: tampered, reading });
   assert.equal(result.valid, false);
   assert.match(result.errors.join("\n"), /facts_hash does not match/);
   assert.match(result.errors.join("\n"), /reading.system must match/);
@@ -1352,27 +1517,13 @@ test("reading validator rejects tampered envelopes and mismatched claim bindings
 
 test("reading validator enforces the calculation schema at runtime", () => {
   const calculation = calculate("iching", { question: "fixture", lines: [7, 7, 7, 7, 7, 7] });
-  const makeReading = (system = calculation.system) => ({
-    system,
-    level: "standard",
-    disclaimer: "Not a validated prediction.",
-    summary: "Fixture",
-    claims: [{
-      claim_id: "C-01",
-      statement: "Calculated hexagram fact.",
-      epistemic_status: "calculation_fact",
-      system,
-      profile: calculation.profile.id,
-      fact_ids: ["F-YJ-H01"],
-      rule_ids: [],
-      calculation_certainty: "high",
-      input_sensitivity: { label: "stable", coverage: null },
-      school_stability: "stable",
-      source_status: "engine_documented",
-      source_ids: [],
-    }],
-    next_steps: [],
-  });
+  const boundReading = calculationFactReading(calculation, "F-YJ-H01");
+  const makeReading = (system = calculation.system) => {
+    const reading = structuredClone(boundReading);
+    reading.system = system;
+    reading.claims[0].system = system;
+    return reading;
+  };
 
   const forgedSystem = structuredClone(calculation);
   forgedSystem.system = "fake";
@@ -1398,27 +1549,16 @@ test("reading validator enforces the calculation schema at runtime", () => {
   });
   assert.equal(shapeResult.valid, false);
   assert.match(shapeResult.errors.join("\n"), /use calculation or calculations/);
-  assert.match(shapeResult.errors.join("\n"), /uncertainty_summary must be a string/);
-  assert.match(shapeResult.errors.join("\n"), /cross_system must be an object/);
+  assert.match(shapeResult.errors.join("\n"), /uncertainty_summary must be a string|canonical calculation-and-interpretation boundary/u);
+  assert.match(shapeResult.errors.join("\n"), /cross_system must be an object|cross_system must be absent/u);
 });
 
 test("reading validator reports malformed system types instead of coercing them", () => {
   const calculation = calculate("iching", { question: "fixture", lines: [7, 7, 7, 7, 7, 7] });
   const malformed = structuredClone(calculation);
   malformed.system = { toString: "private-value" };
-  const reading = {
-    system: ["iching", { toString: "private-value" }],
-    level: "standard",
-    disclaimer: "Not a validated prediction.",
-    summary: "Fixture",
-    claims: [{
-      claim_id: "C-01", statement: "x", epistemic_status: "calculation_fact", system: "iching",
-      profile: calculation.profile.id, fact_ids: ["F-YJ-H01"], rule_ids: [], calculation_certainty: "high",
-      input_sensitivity: { label: "stable", coverage: null }, school_stability: "stable",
-      source_status: "engine_documented", source_ids: [],
-    }],
-    next_steps: [],
-  };
+  const reading = calculationFactReading(calculation, "F-YJ-H01");
+  reading.system = ["iching", { toString: "private-value" }];
   const result = validateReading({ calculation: malformed, reading });
   assert.equal(result.valid, false);
   assert.match(result.errors.join("\n"), /system must be one of|entries must be supported|does not match/);
@@ -1426,19 +1566,11 @@ test("reading validator reports malformed system types instead of coercing them"
 
 test("reading validator reports object sensitivity fields instead of coercing them", () => {
   const calculation = calculate("bazi", { date: "2000-08-16", timezone: "Asia/Shanghai" });
-  const base = {
-    calculation,
-    reading: {
-      system: "bazi", level: "standard", disclaimer: "Not a validated prediction.", summary: "Fixture",
-      claims: [{
-        claim_id: "C-01", statement: "x", epistemic_status: "calculation_fact", system: "bazi",
-        profile: calculation.profile.id, fact_ids: ["jsonptr:/facts/mode"], rule_ids: [],
-        calculation_certainty: "qualified", input_sensitivity: { label: "stable", coverage: null },
-        school_stability: "profile_specific", source_status: "engine_documented", source_ids: [],
-      }],
-      next_steps: [],
-    },
-  };
+  const reading = calculationFactReading(calculation, "jsonptr:/facts/mode");
+  reading.claims[0].calculation_certainty = "qualified";
+  reading.claims[0].school_stability = "profile_specific";
+  const base = { calculation, reading };
+  assert.equal(validateReading(base).valid, true);
   for (const field of ["label", "coverage"]) {
     const payload = structuredClone(base);
     payload.reading.claims[0].input_sensitivity[field] = { toString: "private-value" };
@@ -1450,7 +1582,7 @@ test("reading validator reports object sensitivity fields instead of coercing th
 
 test("reading fact pointers cannot escape the calculation facts subtree", () => {
   const calculation = calculate("iching", { question: "fixture", lines: [7, 7, 7, 7, 7, 7] });
-  const reading = {
+  const reading = bindReadingToCalculations({ calculation, reading: {
     system: "iching", level: "standard", disclaimer: "Not a validated prediction.", summary: "x",
     claims: [{
       claim_id: "C-01", statement: "x", epistemic_status: "calculation_fact", system: "iching",
@@ -1459,7 +1591,7 @@ test("reading fact pointers cannot escape the calculation facts subtree", () => 
       school_stability: "stable", source_status: "engine_documented", source_ids: [],
     }],
     next_steps: [],
-  };
+  } }).reading;
   assert.equal(validateReading({ calculation, reading }).valid, true);
   for (const pointer of ["jsonptr:/facts_hash", "jsonptr:/profile/id", "jsonptr:/warnings/0"]) {
     const escaped = structuredClone(reading);
@@ -1472,10 +1604,10 @@ test("reading fact pointers cannot escape the calculation facts subtree", () => 
 
 test("reading validator checks sensitivity denominators", () => {
   const calculation = calculate("bazi", { date: "2000-08-16", timezone: "Asia/Shanghai" });
-  const result = validateReading({
+  const payload = bindReadingToCalculations({
     calculation,
     reading: {
-      system: "bazi", level: "standard", disclaimer: "Not a validated prediction.", summary: "Fixture",
+      system: "bazi", level: "standard", disclaimer: "Not a validated prediction.", summary: "x",
       claims: [{
         claim_id: "C-01", statement: "x", epistemic_status: "calculation_fact", system: "bazi",
         profile: calculation.profile.id, fact_ids: ["F-BZ-U01"], rule_ids: [], calculation_certainty: "qualified",
@@ -1485,19 +1617,21 @@ test("reading validator checks sensitivity denominators", () => {
       next_steps: [],
     },
   });
+  payload.reading.claims[0].input_sensitivity = { label: "partly_stable", coverage: "999/1" };
+  const result = validateReading(payload);
   assert.equal(result.valid, false);
   assert.match(result.errors.join("\n"), /0 <= n <= N/);
   assert.match(result.errors.join("\n"), /denominator must equal/);
 });
 
-test("unknown-time sensitivity labels require real BaZi, Zi Wei, and Western coverage totals", () => {
+test("unknown-time sensitivity is mechanically derived for BaZi, Zi Wei, and Western", () => {
   const calculations = [
     calculate("bazi", { date: "2000-08-16", timezone: "Asia/Shanghai" }),
     calculate("ziwei", { date: "2000-08-16", timezone: "Asia/Shanghai", chart_sex: "male" }),
     calculate("western", { date: "2000-08-16", timezone: "Asia/Shanghai" }),
   ];
   const totalOf = (calculation) => calculation.sensitivity.candidate_count ?? calculation.sensitivity.sample_count;
-  const makePayload = (calculation, label, coverage) => ({
+  const makePayload = (calculation) => bindReadingToCalculations({
     calculation,
     reading: {
       system: calculation.system,
@@ -1513,7 +1647,7 @@ test("unknown-time sensitivity labels require real BaZi, Zi Wei, and Western cov
         fact_ids: ["jsonptr:/facts/mode"],
         rule_ids: [],
         calculation_certainty: "qualified",
-        input_sensitivity: { label, coverage },
+        input_sensitivity: { label: "stable", coverage: null },
         school_stability: "profile_specific",
         source_status: "engine_documented",
         source_ids: [],
@@ -1524,36 +1658,36 @@ test("unknown-time sensitivity labels require real BaZi, Zi Wei, and Western cov
 
   for (const calculation of calculations) {
     const total = totalOf(calculation);
-    for (const label of ["stable", "partly_stable", "boundary_sensitive"]) {
-      const missing = validateReading(makePayload(calculation, label, null));
-      assert.equal(missing.valid, false);
-      assert.match(missing.errors.join("\n"), /requires n\/N coverage/);
-    }
-    const complete = validateReading(makePayload(calculation, "stable", `${total}/${total}`));
+    const canonical = makePayload(calculation);
+    assert.deepEqual(canonical.reading.claims[0].input_sensitivity, {
+      label: "unavailable",
+      coverage: `${total}/${total}`,
+    });
+    const complete = validateReading(canonical);
     assert.equal(complete.valid, true, complete.errors.join("\n"));
-    const incompleteStable = validateReading(makePayload(calculation, "stable", `${total - 1}/${total}`));
-    assert.equal(incompleteStable.valid, false);
-    assert.match(incompleteStable.errors.join("\n"), /stable coverage must include every candidate/);
-    const partial = validateReading(makePayload(calculation, "partly_stable", `1/${total}`));
-    assert.equal(partial.valid, true, partial.errors.join("\n"));
+
+    for (const tamperedSensitivity of [
+      { label: "stable", coverage: `${total}/${total}` },
+      { label: "partly_stable", coverage: `1/${total}` },
+      { label: "unavailable", coverage: null },
+      { label: "unavailable", coverage: `${total - 1}/${total}` },
+    ]) {
+      const tampered = structuredClone(canonical);
+      tampered.reading.claims[0].input_sensitivity = tamperedSensitivity;
+      const validation = validateReading(tampered);
+      assert.equal(validation.valid, false);
+      assert.match(validation.errors.join("\n"), /mechanically derived|requires n\/N coverage/u);
+    }
   }
 });
 
 test("multi-envelope readings require unique system/profile bindings", () => {
   const first = calculate("iching", { question: "first", lines: [7, 7, 7, 7, 7, 7] });
   const second = calculate("iching", { question: "second", lines: [8, 8, 8, 8, 8, 8] });
+  const reading = calculationFactReading(first, "F-YJ-H01");
   const result = validateReading({
     calculations: [first, second],
-    reading: {
-      system: "iching", level: "standard", disclaimer: "Not a validated prediction.", summary: "Fixture",
-      claims: [{
-        claim_id: "C-01", statement: "x", epistemic_status: "calculation_fact", system: "iching",
-        profile: first.profile.id, fact_ids: ["F-YJ-H01"], rule_ids: [], calculation_certainty: "high",
-        input_sensitivity: { label: "stable", coverage: null }, school_stability: "stable",
-        source_status: "engine_documented", source_ids: [],
-      }],
-      next_steps: [],
-    },
+    reading,
   });
   assert.equal(result.valid, false);
   assert.match(result.errors.join("\n"), /duplicates a system\/profile binding/);
@@ -1562,7 +1696,7 @@ test("multi-envelope readings require unique system/profile bindings", () => {
 test("multi-system readings bind each claim to its own calculation", () => {
   const iching = calculate("iching", { question: "first", lines: [7, 7, 7, 7, 7, 7] });
   const tarot = calculate("tarot", { question: "second", spread: "one", cards: ["The Fool"] });
-  const result = validateReading({
+  const payload = bindReadingToCalculations({
     calculations: [iching, tarot],
     reading: {
       system: ["iching", "tarot"], level: "audit", disclaimer: "Not a validated prediction.", summary: "x",
@@ -1590,13 +1724,16 @@ test("multi-system readings bind each claim to its own calculation", () => {
       }],
     },
   });
+  assert.deepEqual(payload.reading.cross_system, { relationship: "not_compared" });
+  assert.equal(payload.reading.user_focus, "所问主题");
+  const result = validateReading(payload);
   assert.equal(result.valid, true, result.errors.join("\n"));
 });
 
 test("multi-system next steps target one calculation before applying fresh-draw semantics", () => {
   const bazi = calculate("bazi", { date: "2000-08-16", time: "04:00", timezone: "Asia/Shanghai" });
   const tarot = calculate("tarot", { question: "current question", spread: "one", cards: ["The Fool"] });
-  const reading = {
+  const reading = bindReadingToCalculations({ calculations: [bazi, tarot], reading: {
     system: ["bazi", "tarot"],
     level: "standard",
     disclaimer: "Traditional reflection only; verify important decisions independently.",
@@ -1621,8 +1758,9 @@ test("multi-system next steps target one calculation before applying fresh-draw 
       id: "compare-bazi-profile", label: "比较八字的另一种传统设置", action: "compare_profile",
       target_system: "bazi", available: true, requires_input: ["profile"], reuses_frozen_calculation: true,
     }],
-  };
+  } }).reading;
 
+  assert.equal(reading.next_steps[0].label, "比较另一种传统排法");
   const baziTarget = validateReading({ calculations: [bazi, tarot], reading });
   assert.equal(baziTarget.valid, true, baziTarget.errors.join("\n"));
 
@@ -1669,6 +1807,13 @@ test("multi-system next steps target one calculation before applying fresh-draw 
 
   const coherentFreshAction = structuredClone(missingFreshInput);
   coherentFreshAction.next_steps[0].requires_input = ["question"];
-  const coherentFreshResult = validateReading({ calculations: [bazi, tarot], reading: coherentFreshAction });
+  const reboundCoherentFreshAction = bindReadingToCalculations({
+    calculations: [bazi, tarot],
+    reading: coherentFreshAction,
+  }).reading;
+  const coherentFreshResult = validateReading({
+    calculations: [bazi, tarot],
+    reading: reboundCoherentFreshAction,
+  });
   assert.equal(coherentFreshResult.valid, true, coherentFreshResult.errors.join("\n"));
 });

@@ -17,7 +17,21 @@ import {
 
 const UNKNOWN_TIME_SCAN_SECONDS = 60;
 const PERIOD_TARGET_TIME_INDEX = 0;
+const VALIDATED_MIN_DATE = Temporal.PlainDate.from("1900-01-01");
+const VALIDATED_MAX_DATE = Temporal.PlainDate.from("2100-12-31");
 const MUTAGEN_LABELS = ["禄", "权", "科", "忌"];
+const PHASE_COMPONENT_OFFSETS = Object.freeze([0, 4, 8, 6]);
+const TOPIC_SPECS = Object.freeze([
+  { topic: "overview", primary_palace_name: "命宫", secondary_context_palace_names: [] },
+  { topic: "career_study", primary_palace_name: "官禄", secondary_context_palace_names: [] },
+  { topic: "wealth_resources", primary_palace_name: "财帛", secondary_context_palace_names: [] },
+  { topic: "relationships", primary_palace_name: "夫妻", secondary_context_palace_names: [] },
+  {
+    topic: "wellbeing_rhythm",
+    primary_palace_name: "福德",
+    secondary_context_palace_names: ["疾厄"],
+  },
+]);
 const require = createRequire(import.meta.url);
 
 function loadIsolatedIztro() {
@@ -186,6 +200,90 @@ function periodRecordMatches(current, listed) {
     && sameValues(current.mutagen, listed.mutagen);
 }
 
+function horoscopeJson(functionalChart, date) {
+  const result = functionalChart.horoscope(date, PERIOD_TARGET_TIME_INDEX);
+  if (typeof result?.toJSON !== "function") {
+    throw new Error("the pinned iztro horoscope did not expose the expected serialization API");
+  }
+  return structuredClone(result.toJSON());
+}
+
+function dateDistance(start, end) {
+  return start.until(end, { largestUnit: "day" }).days;
+}
+
+function firstMatchingDate(lower, knownMatch, matches) {
+  if (matches(lower)) return lower;
+  let low = 0;
+  let high = dateDistance(lower, knownMatch);
+  while (high - low > 1) {
+    const middle = Math.floor((low + high) / 2);
+    if (matches(lower.add({ days: middle }))) high = middle;
+    else low = middle;
+  }
+  return lower.add({ days: high });
+}
+
+function lastMatchingDate(knownMatch, upper, matches) {
+  if (matches(upper)) {
+    throw new Error("could not bracket the end of the iztro yearly period");
+  }
+  let low = 0;
+  let high = dateDistance(knownMatch, upper);
+  while (high - low > 1) {
+    const middle = Math.floor((low + high) / 2);
+    if (matches(knownMatch.add({ days: middle }))) low = middle;
+    else high = middle;
+  }
+  return knownMatch.add({ days: low });
+}
+
+function phaseValidityFact(functionalChart, referenceHoroscope, calendarYear, targetDate, profile) {
+  const target = Temporal.PlainDate.from(targetDate);
+  const proposedLower = Temporal.PlainDate.from(`${calendarYear}-01-01`);
+  const proposedUpper = Temporal.PlainDate.from(`${calendarYear + 1}-03-15`);
+  const lower = Temporal.PlainDate.compare(proposedLower, VALIDATED_MIN_DATE) < 0
+    ? VALIDATED_MIN_DATE : proposedLower;
+  const upper = Temporal.PlainDate.compare(proposedUpper, VALIDATED_MAX_DATE) > 0
+    ? VALIDATED_MAX_DATE : proposedUpper;
+  if (Temporal.PlainDate.compare(target, lower) < 0 || Temporal.PlainDate.compare(target, upper) > 0) {
+    throw new Error("the active iztro yearly period fell outside its bracketing years");
+  }
+  const cache = new Map();
+  const matches = (date) => {
+    const key = date.toString();
+    if (!cache.has(key)) {
+      const candidate = horoscopeJson(functionalChart, key);
+      cache.set(key,
+        periodRecordMatches(referenceHoroscope.decadal, candidate.decadal)
+        && periodRecordMatches(referenceHoroscope.yearly, candidate.yearly));
+    }
+    return cache.get(key);
+  };
+  if (!matches(target)) throw new Error("target_date did not reproduce its active iztro yearly period");
+  if (matches(lower) || matches(upper)) {
+    throw new FortuneTellerError(
+      "TARGET_PHASE_OUTSIDE_VALIDATED_RANGE",
+      "the complete Zi Wei decadal/yearly joint-validity interval cannot be bracketed inside 1900-01-01 through 2100-12-31",
+    );
+  }
+  const validFrom = firstMatchingDate(lower, target, matches);
+  const validTo = lastMatchingDate(target, upper, matches);
+  return {
+    fact_id: "F-ZW-PV01",
+    kind: "derived_calculation_fact",
+    yearly_calendar_year: calendarYear,
+    valid_from: validFrom.toString(),
+    valid_to: validTo.toString(),
+    boundary_conventions: {
+      horoscope_divide: profile.horoscope_divide,
+      age_divide: profile.age_divide,
+    },
+    target_time_index: PERIOD_TARGET_TIME_INDEX,
+    derivation: "binary search over the pinned iztro horoscope API for the contiguous interval where both decadal and yearly records equal the target-date snapshot",
+  };
+}
+
 function natalStarLocations(starName, palaces) {
   const locations = [];
   for (const palace of palaces) {
@@ -286,7 +384,7 @@ function compactPeriod(period, palaces, factPrefix, extra = {}) {
   };
 }
 
-function calculatePeriodFacts(functionalChart, targetDate, palaces) {
+function calculatePeriodFacts(functionalChart, targetDate, palaces, profile) {
   if (
     typeof functionalChart.horoscope !== "function"
     || typeof functionalChart.decadalList !== "function"
@@ -336,6 +434,13 @@ function calculatePeriodFacts(functionalChart, targetDate, palaces) {
     nominal_age: activeYear.age,
     yearly_dec_star_raw: yearlyDecStar,
   });
+  const phaseValidity = phaseValidityFact(
+    functionalChart,
+    horoscope,
+    activeYear.year,
+    targetDate,
+    profile,
+  );
   return {
     mode: "target-date-decadal-yearly",
     target: {
@@ -349,6 +454,7 @@ function calculatePeriodFacts(functionalChart, targetDate, palaces) {
     },
     decadal,
     yearly,
+    phase_validity: phaseValidity,
     interpretation_limit: "calculated period indexing, palace mapping, mutagens, and stars only; no auspiciousness, event, or outcome is inferred",
   };
 }
@@ -407,6 +513,151 @@ function palaceStructure(palaces) {
   };
 }
 
+function exactlyOne(items, predicate, message) {
+  const matches = items.filter(predicate);
+  if (matches.length !== 1) throw new Error(message);
+  return matches[0];
+}
+
+function makeTopicUnits(palaces, structure) {
+  return TOPIC_SPECS.map((spec, index) => {
+    const primaryPalace = exactlyOne(
+      palaces,
+      (palace) => palace.name === spec.primary_palace_name,
+      `Zi Wei topic ${spec.topic} did not resolve to exactly one natal ${spec.primary_palace_name} palace`,
+    );
+    const relation = exactlyOne(
+      structure.palace_relations,
+      (item) => item.focus_palace_id === primaryPalace.fact_id,
+      `Zi Wei topic ${spec.topic} did not resolve to exactly one four-directions relation`,
+    );
+    if (
+      relation.four_directions_palace_ids.length !== 4
+      || new Set(relation.four_directions_palace_ids).size !== 4
+      || !relation.four_directions_palace_ids.includes(primaryPalace.fact_id)
+    ) {
+      throw new Error(`Zi Wei topic ${spec.topic} did not resolve to one complete four-directions component set`);
+    }
+    const componentIds = new Set(relation.four_directions_palace_ids);
+    const secondaryContext = spec.secondary_context_palace_names.map((palaceName) => {
+      const palace = exactlyOne(
+        palaces,
+        (item) => item.name === palaceName,
+        `Zi Wei topic ${spec.topic} did not resolve secondary context palace ${palaceName}`,
+      );
+      return {
+        palace_name: palace.name,
+        palace_id: palace.fact_id,
+        role: "secondary_context_only",
+      };
+    });
+    return {
+      fact_id: `F-ZW-U${String(index + 1).padStart(2, "0")}`,
+      kind: "derived_calculation_fact",
+      topic: spec.topic,
+      primary_palace_name: primaryPalace.name,
+      primary_palace_id: primaryPalace.fact_id,
+      relation_fact_id: relation.fact_id,
+      component_palace_ids: [...relation.four_directions_palace_ids],
+      natal_mutagen_fact_ids: structure.mutagen_locations
+        .filter((item) => componentIds.has(item.palace_id))
+        .map((item) => item.fact_id),
+      secondary_context: secondaryContext,
+      derivation: "fixed topic-to-primary-palace mapping joined to that palace's calculated three-directions/four-directions relation",
+      interpretation_limit: "an auditable fact index only; it does not assign auspiciousness, severity, events, or outcomes",
+    };
+  });
+}
+
+function transformationIdsAtPeriodSlot(period, starPalace) {
+  return period.mutagens
+    .filter((mutagen) => mutagen.natal_locations.some(
+      (location) => location.natal_palace_id === starPalace.natal_palace_id,
+    ))
+    .map((mutagen) => mutagen.fact_id);
+}
+
+function phaseComponentStarPalaceIds(period, focusStarPalace, topic) {
+  if (!Array.isArray(period.star_palaces) || period.star_palaces.length !== 12) {
+    throw new Error(`Zi Wei topic ${topic} period did not expose twelve star-palace slots`);
+  }
+  const starPalaceByNatalIndex = new Map();
+  const factIds = new Set();
+  for (const slot of period.star_palaces) {
+    if (
+      !Number.isInteger(slot.natal_palace_index)
+      || slot.natal_palace_index < 0
+      || slot.natal_palace_index > 11
+      || starPalaceByNatalIndex.has(slot.natal_palace_index)
+    ) {
+      throw new Error(`Zi Wei topic ${topic} period star-palace indices were not one complete 0-11 cycle`);
+    }
+    if (typeof slot.fact_id !== "string" || factIds.has(slot.fact_id)) {
+      throw new Error(`Zi Wei topic ${topic} period star-palace fact IDs were not unique`);
+    }
+    starPalaceByNatalIndex.set(slot.natal_palace_index, slot);
+    factIds.add(slot.fact_id);
+  }
+  if (starPalaceByNatalIndex.size !== 12) {
+    throw new Error(`Zi Wei topic ${topic} period star-palace indices were not one complete 0-11 cycle`);
+  }
+  if (starPalaceByNatalIndex.get(focusStarPalace.natal_palace_index)?.fact_id !== focusStarPalace.fact_id) {
+    throw new Error(`Zi Wei topic ${topic} focus slot was not part of its period star-palace cycle`);
+  }
+  return PHASE_COMPONENT_OFFSETS.map((offset) => {
+    const targetIndex = (focusStarPalace.natal_palace_index + offset) % 12;
+    const slot = starPalaceByNatalIndex.get(targetIndex);
+    if (!slot) throw new Error(`Zi Wei topic ${topic} period component offset ${offset} did not resolve`);
+    return slot.fact_id;
+  });
+}
+
+function makePhaseTopicUnits(topicUnits, periods) {
+  return topicUnits.map((topicUnit, index) => {
+    const decadalStarPalace = exactlyOne(
+      periods.decadal.star_palaces,
+      (slot) => slot.period_palace_name === topicUnit.primary_palace_name,
+      `Zi Wei topic ${topicUnit.topic} did not resolve to exactly one decadal ${topicUnit.primary_palace_name} slot`,
+    );
+    const yearlyStarPalace = exactlyOne(
+      periods.yearly.star_palaces,
+      (slot) => slot.period_palace_name === topicUnit.primary_palace_name,
+      `Zi Wei topic ${topicUnit.topic} did not resolve to exactly one yearly ${topicUnit.primary_palace_name} slot`,
+    );
+    const decadalComponentStarPalaceIds = phaseComponentStarPalaceIds(
+      periods.decadal,
+      decadalStarPalace,
+      topicUnit.topic,
+    );
+    const yearlyComponentStarPalaceIds = phaseComponentStarPalaceIds(
+      periods.yearly,
+      yearlyStarPalace,
+      topicUnit.topic,
+    );
+    return {
+      fact_id: `F-ZW-PH${String(index + 1).padStart(2, "0")}`,
+      kind: "derived_calculation_fact",
+      topic: topicUnit.topic,
+      palace_name: topicUnit.primary_palace_name,
+      natal_topic_unit_id: topicUnit.fact_id,
+      natal_palace_id: topicUnit.primary_palace_id,
+      target_fact_id: periods.target.fact_id,
+      phase_validity_fact_id: periods.phase_validity.fact_id,
+      decadal_period_id: periods.decadal.fact_id,
+      decadal_star_palace_id: decadalStarPalace.fact_id,
+      decadal_component_star_palace_ids: decadalComponentStarPalaceIds,
+      decadal_transformation_fact_ids: transformationIdsAtPeriodSlot(periods.decadal, decadalStarPalace),
+      yearly_period_id: periods.yearly.fact_id,
+      yearly_star_palace_id: yearlyStarPalace.fact_id,
+      yearly_component_star_palace_ids: yearlyComponentStarPalaceIds,
+      yearly_transformation_fact_ids: transformationIdsAtPeriodSlot(periods.yearly, yearlyStarPalace),
+      component_relation_offsets: [...PHASE_COMPONENT_OFFSETS],
+      derivation: "same palace name joined across the natal topic, decadal period_palace_name, and yearly period_palace_name; within each period independently, its focus slot natal_palace_index selects actual star_palace facts at offsets 0, +4, +8, and +6 modulo the complete 0-11 cycle; transformation IDs are included only when their natal location occupies that period's focus slot",
+      interpretation_limit: "a phase-alignment index only; it does not infer whether an activation is favorable, adverse, or event-producing",
+    };
+  });
+}
+
 function makeChart(date, timeIndex, gender, profile, targetDate = null) {
   const functionalChart = astro.withOptions({
     type: "solar",
@@ -419,6 +670,9 @@ function makeChart(date, timeIndex, gender, profile, targetDate = null) {
   });
   const result = structuredClone(functionalChart.toJSON());
   const palaces = result.palaces.map(compactPalace);
+  const structure = palaceStructure(palaces);
+  const topicUnits = makeTopicUnits(palaces, structure);
+  const periods = targetDate ? calculatePeriodFacts(functionalChart, targetDate, palaces, profile) : null;
   return {
     summary: {
       gender: result.gender,
@@ -436,8 +690,12 @@ function makeChart(date, timeIndex, gender, profile, targetDate = null) {
       body_palace_branch: result.earthlyBranchOfBodyPalace,
     },
     palaces,
-    structure: palaceStructure(palaces),
-    ...(targetDate ? { periods: calculatePeriodFacts(functionalChart, targetDate, palaces) } : {}),
+    structure,
+    topic_units: topicUnits,
+    ...(periods ? {
+      periods,
+      phase_topic_units: makePhaseTopicUnits(topicUnits, periods),
+    } : {}),
   };
 }
 
@@ -596,7 +854,9 @@ export function calculateZiwei(rawInput, profileOverride = {}) {
         summary: chart.summary,
         palaces: chart.palaces,
         structure: chart.structure,
+        topic_units: chart.topic_units,
         ...(chart.periods ? { periods: chart.periods } : {}),
+        ...(chart.phase_topic_units ? { phase_topic_units: chart.phase_topic_units } : {}),
       },
       warnings,
       meta: {

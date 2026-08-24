@@ -2,13 +2,13 @@
 
 [![CI](https://github.com/jmf-enigma/fortune-teller/actions/workflows/ci.yml/badge.svg)](https://github.com/jmf-enigma/fortune-teller/actions/workflows/ci.yml)
 
-[English](README.en.md) · [方法范围](docs/SCOPE.md) · [专业解读协议](references/professional-reading.md) · [可核验基准](BENCHMARK.md) · [发布审计](docs/RELEASE_AUDIT.md)
+[English](README.en.md) · [方法范围](docs/SCOPE.md) · [证据约束深读协议](references/professional-reading.md) · [准确性评估](references/accuracy-evaluation.md) · [可核验基准](BENCHMARK.md) · [发布审计](docs/RELEASE_AUDIT.md)
 
-一个结果优先、本地计算的中西术数 Agent Skill。它不追求堆最多的方法，而是优先做好四件事：**先回答用户真正想看的事、排盘不乱猜、解读有依据、操作顺手**。
+一个准确性优先、结果优先、本地计算的中西术数 Agent Skill。这里的“准确性优先”是先减少可纠正的错误：排错盘、用错规则、挑选证据和自由改写结论。它不等于现实预测效度已被证明。项目不追求堆最多的方法，而是优先做好四件事：**先回答用户真正想看的事、排盘不乱猜、解读有依据、操作顺手**。
 
 固定版本的本地程序负责排盘、起卦和随机抽取；对话模型只负责收集资料、解释、比较和审计。项目不宣称命理、占星或占卜具有经科学验证的预测能力。
 
-> 当前版本：`0.2.0`。公开仓库：[jmf-enigma/fortune-teller](https://github.com/jmf-enigma/fortune-teller)。
+> 当前版本：`0.4.0`。公开仓库：[jmf-enigma/fortune-teller](https://github.com/jmf-enigma/fortune-teller)。
 
 ## 先看结果，不先看术语
 
@@ -19,15 +19,15 @@
 3. 想问当前正在发生的一件事；
 4. 已经选好了具体方法。
 
-出生盘解读先给“人生主轴、主要优势、主要制约和最关心的领域”；当前问事先给“直接答案、当前局面、真正阻力、有利条件、风险和一个现实下一步”。盘面、牌面、来源和技术核对放在后面的“为什么这样看”里。
+出生盘和阶段解读使用固定的白话层级：**先说结论 → 阶段时间轴（有则显示） → 分主题卡片 → 现实核对 → 不确定性 → 下一步**。每张主题卡再按 **结论 → 白话解读 → 盘面依据（术语） → 什么情况要改判 → 现实提醒** 展开。summary 与白话说明按句拆成要点，术语依据按分号拆分，改判条件逐条显示，让普通人可以快速扫读。没有被精确计算的阶段就不显示时间轴。先回答“这对你意味着什么”，再把必要星曜、宫位或四化放在盘面依据里；术语表、原始盘面、来源和技术核对全部后置。阶段结论只用“协作与表达支持、资源承托、摩擦或突发压力、移动与转换、关系互动、缓冲与解题”这类白话类别，详细星曜后置到依据层。普通结果仍直接显示“为什么这样看”“反例与另一种解释”，以及“什么现实表现算较符合、什么表现算不符合、什么时候暂不能判断”。
 
-排盘口径、资料影响记录、两套核对码、程序版本和完整技术记录都继续存在，因为它们能防止排错盘、偷换口径和在时辰不明时硬断；但默认不会抢占结果首页。只有它们确实改变结论时，用户才会看到一句自然说明，例如“出生时间未知，所以这部分暂时不能判断”。
+排盘口径、资料影响和必要的技术记录都保留在后台，用来重算盘面、拦截口径偷换，并在输入不足时停止硬断。内部哈希只是记录变化的次要工具，不提高准确性、不证明来源，普通结果也不显示。只有资料或口径确实影响结论时，用户才会看到一句自然说明，例如“出生时间未知，所以这部分暂时不能判断”。
 
 可以直接这样说：
 
 ```text
 用 $fortune-teller 看我的人生整体，先说事业、财富和长期关系。
-用 $fortune-teller 看我今年处于什么阶段，哪些方面最值得留意。
+用 $fortune-teller 看 2027-06-01 所处的阶段，哪些主题最值得留意。
 用 $fortune-teller 抽一次塔罗：我该先接受这个机会，还是继续谈条件？
 ```
 
@@ -39,14 +39,14 @@
 
 后台会分别记录计算状态、资料变化是否影响结果、传统来源覆盖和外部复核状态；普通解读只翻译它们造成的实际影响，不把内部枚举扔给用户。
 
-如果用户想拿过去经历检验，Skill 会先冻结几条具体判断，再收集一个明确时间段的反馈，并把“吻合、不吻合、说不清”全部保留。它不会在听完经历后改时辰、换规则、重抽牌或把原话改宽来追求“说中”。这比迎合式校准更诚实，但仍不能据此宣称已经得到科学准确率。
+过去经历可以用于讨论某条解读哪里符合或不符合，但不能伪装成盲测。当前可执行的前向核对只开放给紫微 `R-ZW-009`：大限与流年必须各自具有完整动态四宫槽 `[0,+4,+8,+6]`，并纳入其中全部已登记运限星条件；目标主题动态槽的大限与流年四化集合都必须存在并完整纳入，二者合计至少一项，单层可以为空。完整四宫十四主星轴保留在“为什么这样看”里；正式标准联合核对本命焦点组全部主星轴、大限四槽全部已登记运限星条件、流年四槽全部已登记运限星条件，以及精确主题槽的全部阶段四化过程。本命底色、大限环境与流年触发三层不能互相替代。`palace_axis_groups` 固定按 `focus(0)`、`trine_plus_4(4)`、`trine_plus_8(8)`、`opposite_plus_6(6)` 分组；非主宫组可以没有十四主星，主宫没有已登记主星时关闭且不借星，未知、畸形或重复记录也关闭。运限星覆盖大限和流年的动态四宫，但阶段四化只覆盖精确目标主题槽，不代表四宫阶段四化会照，更不是完整紫微论断。观察窗口是当前 profile 下、目标日所在的“大限与流年记录都保持不变”的精确连续区间，不是默认公历整年。若受支持日期上界（包括接近 2100 年）限制而不能完整括定两端，只能关闭阶段深读。它检查这个完整三层组合是否反复突出，不是只看“这个领域忙不忙”，也不预测升职、录取、结婚、离职、疾病等具体事件或结果。这仍不能建立科学准确率。
 
 ## 当前支持
 
 | 方法 | 状态 | 已实现边界与专业深度 |
 |---|---|---|
-| 四柱八字 | stable，受历法参考限制 | 公历输入、IANA 时区、午夜/子初日界、未知时辰真实民用日扫描；输出日主、月令、显干/地支/藏干分项计数、十神出现与明示合冲关系。**只有每个实际出生瞬间的 UTC 偏移为 `+08:00` 才放行**；其他偏移失败关闭，不手工换算。当前不输出旺衰、格局、用神或大运应期 |
-| 紫微斗数 | qualified | `iztro` 默认与中州 profile、十二宫、三方四正结构索引和四化落点；出生时刻明确时，可按用户显式指定的日期返回本命—大限—流年三层结构。未知时辰扫描真实存在的当地时间，不合成单盘，也不做目标日期阶段判断。海外统一声明为 `birthplace-civil` calendar-day profile；在 UTC+08:00 以外显示流派口径提醒。太阳时 override 当前失败关闭 |
+| 四柱八字 | stable，受历法参考限制 | 公历输入、IANA 时区、午夜/子初日界、未知时辰真实民用日扫描；已知时刻可显式选择传统顺逆参数，计算精确起运时刻、24 步大运、立春换年的目标流年及原局—大运—流年具名关系。专业裁决保留强弱竞争假设，以《子平真诠》已核章节的复合路线判格局成败救应，并把格局、扶抑、调候、通关、病药分轨。轻重、位置、合化未闭合时只报候选/受损。**只有每个实际出生瞬间的 UTC 偏移为 `+08:00` 才放行**；其他偏移失败关闭，不手工换算 |
+| 紫微斗数 | qualified | `iztro` 默认与中州 profile、十二宫、三方四正结构索引和四化落点；对整体、事业学业、财富资源、长期关系、身心节奏五个主题，提供机器绑定的完整四宫主题单元。只有 `R-ZW-007/008/009` 进入封闭意义层。`R-ZW-007/009` 读取四宫十四主星同宫组合、庙旺、六吉六煞、禄存天马；规则包登记 24 主星组合、14 本命修饰项和 11 运限修饰项。`R-ZW-008` 纳入主题全部本命四化。`R-ZW-009` 按本命底色 → 大限环境 → 流年触发综合；大限与流年分别纳入动态四宫 `[0,+4,+8,+6]` 及其全部已登记运限星条件，而阶段四化仍只取主题宫动态槽的大限与流年完整集合（两层合计至少一项，单层可空）。这不是四宫阶段四化会照或完整紫微论断。窗口必须是当前 profile 下大限与流年记录都不变且能完整重放的精确连续区间；未知时辰不合成单盘，也不做目标日期阶段判断 |
 | 西洋本命盘 | stable-whole-sign | 热带黄道、十大天体、上升/中天、whole-sign 宫位、五类相位、非加权元素/模式计数和紧密相位；运动方向用前后 `6/12/24` 小时多窗口一致性判断，不一致时标为不确定；未知时刻省略角点与宫位 |
 | 塔罗 | stable | 78 张本地牌名与原创短关键词、5 种牌阵、安全随机、seed 回放、实体/手工牌面 |
 | 周易三钱 | stable | 逐枚硬币 transcript、六爻自下而上、64 卦 King Wen 映射、动爻变卦、seed 回放 |
@@ -57,10 +57,26 @@
 
 ## 为什么它能做得更深入
 
-`0.2.0` 增加了一层窄而可审计的专业知识合同：
+`0.4.0` 把专业深度集中到“结论是否真的由这张盘支持”，而不是继续增加方法数量：
 
-- [10 个来源记录](src/data/source-registry.mjs)覆盖固定计算实现、有限历史术语与紫微阶段解读顺序；
-- [26 条机器可读规则](src/data/rule-registry.mjs)声明适用体系、claim scope、最低事实引用、来源束和允许的认识状态；
+- [14 个来源记录](src/data/source-registry.mjs)覆盖固定计算实现、有限历史术语、八字成败救应/岁运章节，以及紫微宫位、四化、阶段解读边界；
+- [31 条机器可读规则](src/data/rule-registry.mjs)声明适用体系、claim scope、最低事实引用、来源束和允许的认识状态；
+- 八字不再以“月令本气透出”直接判成格；必须命中已登记复合成格路线。只有闭合的受损路线可以自动判破格，只有与该受损路线配对的闭合救应可以判救应；其他路线明确停在 `screening_only`；
+- 八字大运按精确起运时刻生成完整十年区间，目标日期撞起运或立春边界时保持未决；原局—大运—流年的关系只称“三层结构相连”，不冒充已闭合格局引动，时间层十神也只作为复合路线候选输入；
+- 八字机械裁决可由 `adjudicateBazi`/`adjudicate-bazi` 重放。一般 reading 的 `R-BZ-005/006` 在专用 typed binding 完成前只允许 `unresolved`，避免模型引用真规则后自由写出更强格局或应期；
+- 每份 reading 先绑定到本次计算的完整事实版本，每条 claim 再逐项绑定到所引用事实的精确路径和值；旧解读换到另一张盘、或证据值被替换时会失败；
+- 紫微五个重点主题使用机器生成的 `topic_units`；主题综合保留主宫、两个三合宫和对宫的完整四宫集合，并读取十四主星同宫组合、主星庙旺、六吉六煞、禄存天马；固定规则包登记 24 主星组合、14 本命修饰项与 11 运限修饰项，修饰项是条件而非加分表；
+- 当且仅当紫微 claim 通过 `R-ZW-007`、`R-ZW-008` 或 `R-ZW-009` 时，封闭意义层才从 5 个主题标记、14 主星的建设性/过度轴和 4 个四化过程镜头生成 `meaning_binding`。`fortune-teller/ziwei-meaning-binding/v2` 中，`R-ZW-007/009` 的 `palace_axis_groups` 必须按固定角色和 offset 覆盖完整四宫十四主星轴集合；`bind-reading` 机械覆写 `statement`、`reasoning_summary`、`alternative_readings`、`practical_reflection` 和 `assessment`，`validate-reading` 再独立重算并精确核对，防止模型只引了真盘面却自由写出反向结论；
+- `R-ZW-008` 不允许挑选某一个有利四化；必须绑定所选主题单元的全部本命四化。`R-ZW-009` 按“本命底色 → 大限环境 → 流年触发”组织：大限和流年各自完整绑定 `[0,+4,+8,+6]` 动态四宫及已登记运限星；阶段四化仍只绑定精确主题宫动态槽的大限与流年完整集合（两层合计至少一项，单层可空），不外推为四宫四化会照；
+- 另有开发者用的紫微通用裁决接口，但它只接受三条不可变、可重放的结构候选，用来阻止任意格局名、假计算引用和跨层重复事实；它不是 45 格局库，也未进入普通结果路径，不能借接口名称宣传成完整紫微格局识别；
+- 语义绑定中，本命主星使用 `star_in_palace` 并携带盘面已有的 `brightness`；大限/流年动态槽的运限星使用 `period_star_in_slot`，把 scope、关系角色、星曜、运限宫与本命宫一起锁定；
+- 这个意义层不生成具体大事或结果。主宫没有已登记主星时不会从三合宫或对宫借星；四宫主星集合、四化或阶段窗口无法完整重算，证据不完整，或用户问升职/离职/结婚等具体事件时，必须降级为盘面事实、有界主题或 `unresolved`，不用模型直觉补全；
+- 六个已实现体系中的卦名/爻位、牌名/牌位/正逆、四柱/干支关系、行星/星座/运行状态/相位、星宫/四化等技术断言，都必须由类型化绑定从实际 facts 机械生成；自由正文不能另写或反说技术事实；
+- 解释性结论必须给出具体、可观察的支持条件与反例；常见的“两边都说、怎么都对”式表述会被拒绝；
+- 提供 reading 绑定的前向现实检验：正式标准联合要求本命焦点组全部轴、大限四槽全部已登记运限星条件、流年四槽全部已登记运限星条件，以及精确主题槽全部阶段四化过程；三层不能互相替代。窗口结束后由逐条证据机械得出支持、反驳或不清楚，不把四宫阶段四化会照、泛化领域活跃或内部完整性码当作准确性证据；
+- `bind-reading` 还固定结果标题、按全部 claim 顺序去重后的主题 `user_focus`、非预测说明、不确定性摘要、精确材料 warning code 集合，以及下一步的显示名称/不可用原因；claim 不接受自由文本 `dependencies`，输入条件只能落在计算确定性、资料敏感性或明确的 `unresolved` 里。单体系省略 `cross_system`；多体系固定为 `{relationship: "not_compared"}`，当前不声称机器能判定体系间同构、互补或冲突，也不允许胜者、投票或自由调和结论；
+- 三条封闭路径之外的 claim 一律不得写未来事件断言；没有规则与封闭意义支持时只能输出事实、当前反思或 `unresolved`；
+- 解读 profile 和规则包固定登记，混入自定义紫微排盘口径或未登记规则时不能冒充已复核深读；
 - `validate-reading` 不只检查 ID 是否存在，还检查规则是否适用于被引用的事实和 claim scope，并验证登记来源；
 - 所有解释性 claim 都必须引用至少一条适用规则；没有规则覆盖时只能保留计算事实或标为未解决，不能把模型联想当成专业解读；
 - `standard`、`deep` 与 `audit` 的后续选择都必须使用结构化动作，程序会区分沿用原盘与开始新一轮，并拒绝把后台字段塞进普通结果；
@@ -100,7 +116,7 @@ npm start
 
 西占会在已知出生时间时直接询问可选经纬度；夏令时回拨的重复时刻会列出较早/较晚两个真实 UTC 瞬间供选择，跳时中不存在的钟表时间只允许修改。海外紫微会在确认计算前显示 `birthplace-civil` 日历日口径及其流派限定。
 
-向导负责固定、可核对的排盘或抽取，不会在终端里凭空补写命运结论。在 Agent 中使用 `$fortune-teller` 时，会在同一冻结结果上先给综合答案，再继续追问；除非你主动改了关键资料或明确开始新问题，否则不会重排或重抽。
+向导负责固定、可核对的排盘或抽取。八字已知时刻路径会直接显示机械裁决与原局—大运—流年的结构关系；其余不受封闭意义层支持的内容不会在终端里凭空补写命运结论。在 Agent 中使用 `$fortune-teller` 时，会在同一冻结结果上先给综合答案，再继续追问；除非你主动改了关键资料或明确开始新问题，否则不会重排或重抽。
 
 ## 结构化计算
 
@@ -124,7 +140,9 @@ node scripts/fortune-teller.mjs sources --system bazi --pretty
   "input": {
     "date": "2000-08-16",
     "time": "04:00",
-    "timezone": "Asia/Shanghai"
+    "timezone": "Asia/Shanghai",
+    "chart_sex": "male",
+    "target_date": "2026-08-24"
   },
   "profile": "bazi-civil-midnight-consistent-v1"
 }
@@ -136,16 +154,25 @@ node scripts/fortune-teller.mjs sources --system bazi --pretty
 node scripts/fortune-teller.mjs calculate --input request.local.json --pretty
 ```
 
+把计算结果保存为新文件后，可直接生成八字机械裁决：
+
+```bash
+node scripts/fortune-teller.mjs adjudicate-bazi --input calculation.local.json --pretty
+```
+
 输出不会覆盖已有文件；使用 `--output` 时目标文件必须尚不存在。八字输入必须保留出生地原始民用时间，不要为了满足 `+08:00` 限制自行换算。
 
 Agent 生成结构化解读后，先校验再渲染普通用户结果：
 
 ```bash
-node scripts/fortune-teller.mjs validate-reading --input reading.local.json --pretty
-node scripts/fortune-teller.mjs render-reading --input reading.local.json
+node scripts/fortune-teller.mjs bind-reading --input reading-draft.local.json --output reading-bound.local.json --pretty
+node scripts/fortune-teller.mjs validate-reading --input reading-bound.local.json --pretty
+node scripts/fortune-teller.mjs render-reading --input reading-bound.local.json
 ```
 
-第二条命令只展示结论、分主题重点、现实小步骤、必要限制和后续选择，不显示 profile ID、warning code、事实 ID 或哈希。
+第一条命令只做精确绑定，不替解释背书；它会把受支持的技术事实渲染为不可手改的 `technical_summary`，并固定标题、按全部 claim 顺序去重后的用户焦点、非预测说明、不确定性摘要、材料 warning code、单/多体系展示状态与下一步标签。第二条负责拒绝不合格解读；第三条按“先说结论 → 阶段时间轴（有则显示） → 分主题卡片（结论/白话解读/盘面依据/什么情况要改判/现实提醒） → 现实核对 → 不确定性 → 下一步”展示；术语与技术记录后置，不显示 profile ID、warning code、事实 ID 或哈希。
+
+若想做前向核对，先绑定并验证一条紫微 `R-ZW-009` `prospective_hypothesis`：它必须纳入完整四宫十四主星轴，大限和流年各自完整的 `[0,+4,+8,+6]` 动态四宫及其全部已登记运限星条件，精确主题槽完整的大限与流年四化过程（两层合计至少一项，单层可空），以及引擎重放得出的当前 profile 共同稳定区间。正反/不清楚标准联合要求本命焦点轴、大限四槽条件、流年四槽条件和精确主题槽阶段四化过程，三层不能互相替代。所有正文和标准都由封闭意义层生成，不能自由改写成事件预测、四宫阶段四化会照或完整紫微论断。再用 `freeze-check` 选择 claim ID。`verify-check` 同时核对保存的 record 与原 reading；所有窗口结束后，`score-check` 才接受逐项日期和证据记录，并机械派生结果。工具不独立核验用户录入证据，也没有可信外部时间戳。完整文件格式见 [references/accuracy-evaluation.md](references/accuracy-evaluation.md)。
 
 ### 随机回放
 
@@ -162,7 +189,7 @@ node scripts/fortune-teller.mjs render-reading --input reading.local.json
 }
 ```
 
-请自行保管返回的 seed；工具不会持久化它。之后把 seed 显式传回即可重放。比较 replay 时看 `facts_hash`：fresh 与 replay 的随机来源元数据不同，所以完整 `reproducibility_hash` 可以不同。
+请自行保管返回的 seed；工具不会持久化它。之后把 seed 显式传回即可重放。核对 replay 时先比较实际牌面/卦面事实；`facts_hash` 只作为后台次要比对信号。fresh 与 replay 的随机来源元数据不同，所以完整 `reproducibility_hash` 可以不同。
 
 ## 作为 Agent Skill 使用
 
@@ -180,7 +207,7 @@ ln -s /absolute/path/to/fortune-teller ~/.codex/skills/fortune-teller
 
 ```text
 用 $fortune-teller 看我的人生整体，先讲事业、财富和长期关系。
-用 $fortune-teller 看 2026 年处于什么阶段；先说结论，再讲为什么。
+用 $fortune-teller 看 2027-06-01 所处的阶段；先说结论，再讲为什么。
 用 $fortune-teller 抽塔罗看我该怎样比较两个工作机会。
 ```
 
@@ -194,15 +221,15 @@ Pro 或更大推理预算更适合长篇多因素综合、多体系/多 profile 
 
 ## 输出与证据合同
 
-每次计算返回：
+每次计算都保留一份后台复核记录。准确性检查的优先顺序是：先用固定引擎重算或结构复核，再检查规则和含义绑定，最后才把哈希当作序列化记录是否发生变化的次要信号。普通用户输出不显示这些字段。完整技术记录包含：
 
-- `facts_hash`：承诺 engine version、system、profile 与计算/抽取事实；
-- `reproducibility_hash`：承诺除生成时间外的完整审计 envelope，包括规范化输入、warnings、sensitivity、引擎元数据与 Node/ICU/tzdb 运行时；
+- `facts_hash`：后台比较 engine version、system、profile 与计算/抽取事实的完整性字段；
+- `reproducibility_hash`：后台比较除生成时间外的完整审计 envelope，包括规范化输入、warnings、sensitivity、引擎元数据与 Node/ICU/tzdb 运行时；
 - `meta.time_runtime`：记录影响历史时区换算的运行环境；
 - `profile`：明确日界、时间基础、宫制、逆位规则等口径；
 - `sensitivity`：明确输入不足时哪些稳定、哪些变化、哪些不可用。
 
-解释层使用 `calculation_fact`、`traditional_rule`、`interpretation`、`unresolved` 四层合同。`validate-reading` 会重算 envelope 哈希，检查系统/profile 绑定、fact ID、规则的路径与必要取值、登记来源、材料性 warning 承接、候选分母和禁止的概率/投票字段。它也对明确的宿命断言、孤注一掷财务建议、停止治疗等危险措辞设有保守底线，但不能理解自由文本的全部含义。
+解释层使用 `calculation_fact`、`traditional_rule`、`interpretation`、`unresolved` 四层合同。`validate-reading` 会先重算或结构复核计算 facts，再检查系统/profile 绑定、fact ID、规则的路径与必要取值、登记来源、材料性 warning 承接、候选分母和禁止的概率/投票字段。受支持的精确技术断言必须与机械摘要逐字一致；紫微封闭意义层的绑定、正文、反向读法、实际步骤和评估标准也会被重算后逐项核对。验证器也对明确的宿命断言、孤注一掷财务建议、停止治疗等危险措辞设有保守底线。紫微三条封闭路径之外的自由叙事仍不能被机器证明。
 
 ## 隐私与安全
 
@@ -224,15 +251,15 @@ npm run check
 npm run package:skill
 ```
 
-GitHub Actions 会在 Node 20、22 和 24 上运行相同检查，并检查 npm 包与 Skill archive。发布前还应在干净临时目录解压 archive，重新 `npm ci --ignore-scripts` 和 `npm run check`。
+GitHub Actions 会在 Node 20、22 和 24 上运行相同检查，并检查 npm 包与 Skill archive。`release-files.json` 的发布清单固定为 90 项，打包结果必须精确匹配。发布前还应在干净临时目录解压 archive，重新 `npm ci --ignore-scripts` 和 `npm run check`。
 
-本地发布候选的逐项结果与已知限制见 [docs/RELEASE_AUDIT.md](docs/RELEASE_AUDIT.md)，架构见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，贡献规则见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+本地发布的逐项结果与已知限制见 [docs/RELEASE_AUDIT.md](docs/RELEASE_AUDIT.md)，架构见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，贡献规则见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## 和现有项目相比
 
 本项目不以方法数量取胜。它可以有证据地争取在较小支持范围内做好：失败关闭的时间/历法边界、未知时辰处理、随机回放、统一 envelope、规则适用性验证、窄来源追踪、专业深读合同和连续中文交互。
 
-它仍明显不如头部项目的地方包括方法数量、完整古籍知识库、图盘、MCP/HTTP API、外部用户规模和独立领域专家复核；八字旺衰/用神/大运、西占更多宫制与推运仍未实现，紫微目前也只到本命—大限—流年的结构性阶段主题，不含流月/日/时、应期或必然事件。因此这里不作“整体最好”或“更准”的宣传。逐项资料和许可边界见 [docs/COMPETITOR_AUDIT.md](docs/COMPETITOR_AUDIT.md)，可复核的比较规则见 [BENCHMARK.md](BENCHMARK.md)。
+它仍明显不如头部项目的地方包括方法数量、完整古籍知识库、图盘、MCP/HTTP API、外部用户规模和独立领域专家复核；八字现有旺衰仍是有界竞争假设，尚缺完整轻重/位置/制化状态机、特殊格、核定调候表、动态复合路线重判和人生事件映射；西占尚缺更多宫制与推运；紫微目前也只到五个主题的本命—大限—流年结构，不含流月/日/时、应期或必然事件。当前通过的是自动化夹具与反例审计，尚未完成独立命理专家评审，也没有建立现实预测效度。因此这里不作“整体最好”或“更准”的宣传。逐项资料和许可边界见 [docs/COMPETITOR_AUDIT.md](docs/COMPETITOR_AUDIT.md)，专业覆盖表见 [docs/PROFESSIONAL_COVERAGE.md](docs/PROFESSIONAL_COVERAGE.md)。
 
 ## 许可证
 

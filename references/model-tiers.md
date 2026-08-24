@@ -22,7 +22,7 @@ Expose `quick`, `standard`, `deep`, and `audit` modes. Do not attempt to infer p
 | Collect and confirm input | Yes | Yes |
 | Run one local engine | Yes | Yes |
 | Explain one topic | Yes, with structured cards | Yes |
-| Zi Wei explicit target-date phase | Yes, when natal + decadal + yearly facts and R-ZW-006 are present | Longer multi-domain synthesis and second review |
+| Zi Wei explicit target-date phase | Yes, for one of five supported topics when its R-ZW-009 same-topic natal/decadal/yearly unit is present | Longer multi-topic synthesis and second review |
 | Tarot current question | Yes, answer-first with multi-card interaction | Longer decision comparison and second review |
 | One-system deep reading | Yes, when rules and sources cover the requested scope; narrow otherwise | Recommended for a longer synthesis and second-pass review |
 | Summarize engine-produced time sensitivity | Yes | Yes |
@@ -48,13 +48,16 @@ Standard mode is complete, not a teaser. It must provide a useful answer, visibl
 
 ## 4. Deep mode contract
 
-Deep mode is a professional synthesis contract, not a promise of predictive accuracy. It follows `professional-reading.md` and requires:
+Deep mode is an evidence-bound synthesis contract with professional depth, not a professional certification or a promise of predictive accuracy. It follows `professional-reading.md` and requires:
 
 - one declared system and profile by default;
 - compound observations rather than isolated-symbol keyword lists;
 - reasoning summaries, dependencies, counter-readings, source coverage, and sensitivity for every material interpretation;
+- an exact calculation/fact-value binding, a registered interpretation rule pack, and concrete observations that support and contradict every interpretation;
+- typed technical bindings for exact BaZi, Zi Wei, Western, Tarot, I Ching, and Meihua assertions, with canonical technical summaries rather than hand-written identities or placements;
+- for Zi Wei, one complete emitted topic unit and semantic bindings for every named star, palace, or transformation relation;
 - explicit refusal to fill specialist gaps such as unsupported strength/useful-god, Zi Wei flow-month/day/hour or event timing, or uncalculated Western techniques;
-- a final narrative review after machine validation.
+- a final narrative review after machine validation, because unrestricted prose remains `not_machine_verified`.
 
 A standard/general model may complete deep mode when the scope is narrow and the registry covers the requested rules. Recommend a stronger model for many interacting facts or a formal second pass. If the knowledge layer is missing, both tiers must narrow the answer; a stronger model cannot repair missing rules or sources.
 
@@ -70,7 +73,7 @@ It may include:
 - claim-to-fact and claim-to-rule mappings;
 - source coverage, disputed rules, and unverified-source gaps;
 - alternative interpretations and counterarguments;
-- normalized input, engine version, profile, warnings, and reproducibility hash;
+- normalized input, engine version, profile, warnings, calculation replay/structural-verification status, and optional backstage integrity receipts;
 - machine-readable evidence cards;
 - a second pass that checks the narrative against the frozen result envelopes.
 
@@ -81,6 +84,8 @@ Audit mode must not:
 - infer an unknown birth time from narrative convenience;
 - reinterpret calculation uncertainty as predictive probability;
 - claim that greater reasoning depth produces greater supernatural accuracy.
+
+Internal hashes, when shown in an audit appendix, only help compare serialized records. They neither authenticate engine origin nor establish calculation, interpretive, or predictive accuracy.
 
 ## 6. Complexity routing
 

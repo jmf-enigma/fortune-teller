@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-This file covers every production package resolved by `package-lock.json` for version 0.2.0. Versions are exact. No code, prompts, data tables, translations, or knowledge assets from the competitor repositories in `docs/COMPETITOR_AUDIT.md` are included.
+This file covers every production and test-only package resolved by `package-lock.json` for version 0.4.0. Versions are exact. No code, prompts, data tables, translations, or knowledge assets from the competitor repositories in `docs/COMPETITOR_AUDIT.md` are included.
 
 ## Dependency inventory
 
@@ -15,6 +15,12 @@ This file covers every production package resolved by `package-lock.json` for ve
 | `i18next` | 23.16.8 | transitive via iztro | MIT | Copyright (c) 2024 i18next | [i18next](https://github.com/i18next/i18next) |
 | `@babel/runtime` | 7.29.7 | transitive via i18next | MIT | Copyright (c) 2014-present Sebastian McKenzie and other contributors | [Babel](https://github.com/babel/babel) |
 | `lunar-lite` | 0.2.8 | transitive via iztro | MIT | Copyright (c) 2023 Sylar | [lunar-lite](https://github.com/SylarLong/lunar-lite) |
+| `ajv` | 8.20.0 | direct development dependency for release-schema tests | MIT | Copyright (c) 2015–2021 Evgeny Poberezkin | [Ajv](https://github.com/ajv-validator/ajv) |
+| `ajv-formats` | 3.0.1 | direct development dependency for date/date-time schema formats | MIT | Copyright (c) 2020 Evgeny Poberezkin | [ajv-formats](https://github.com/ajv-validator/ajv-formats) |
+| `fast-deep-equal` | 3.1.3 | transitive via Ajv | MIT | Copyright (c) 2017 Evgeny Poberezkin | [fast-deep-equal](https://github.com/epoberezkin/fast-deep-equal) |
+| `fast-uri` | 3.1.6 | transitive via Ajv | BSD-3-Clause | Copyright (c) 2011–2021 Gary Court; 2021-present The Fastify team | [fast-uri](https://github.com/fastify/fast-uri) |
+| `json-schema-traverse` | 1.0.0 | transitive via Ajv | MIT | Copyright (c) 2017 Evgeny Poberezkin | [json-schema-traverse](https://github.com/epoberezkin/json-schema-traverse) |
+| `require-from-string` | 2.0.2 | transitive via Ajv | MIT | Copyright (c) Vsevolod Strukchinsky | [require-from-string](https://github.com/floatdrop/require-from-string) |
 
 The installed npm packages retain their own complete license files. The applicable terms are reproduced or identified below. If this project later vendors dependency source or bundles `node_modules`, the corresponding upstream license files must remain with the distribution.
 
@@ -40,17 +46,25 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 When redistributing JSBI source or object form, preserve the package's license and any notices required by Sections 4 and 6 of Apache-2.0. No local modifications to JSBI are included in this project.
 
+## BSD-3-Clause — `fast-uri`
+
+`fast-uri@3.1.6` is distributed under the BSD 3-Clause License. Source and binary redistributions must retain its copyright notice, license conditions, and disclaimer; neither the copyright holders' names nor contributor names may be used to endorse derived products without prior written permission. The complete authoritative text remains in `node_modules/fast-uri/LICENSE` after installation. No local modifications to `fast-uri` are included in this project.
+
 ## Linked source-registry records
 
-Version 0.2.0 contains 10 machine-readable source **records**. These records store bibliographic or implementation metadata, a URL, a deliberately narrow supported scope, and limitations. They do not vendor the linked pages, copy their prose, or turn them into production dependencies.
+Version 0.4.0 contains 14 machine-readable source **records**. These records store bibliographic or implementation metadata, a URL, a deliberately narrow supported scope, and limitations. They do not vendor the linked pages, copy their prose, or turn them into production dependencies.
 
 | Registry ID | Linked work or implementation | Relationship to this project |
 |---|---|---|
 | `SRC-BZ-LUNAR-TS-1.8.6` | [`lunar-typescript` v1.8.6](https://github.com/6tail/lunar-typescript/tree/v1.8.6) | Pinned implementation provenance for calculated Four Pillars fields; the installed package is separately covered in the dependency inventory above |
 | `SRC-BZ-SANMING-WIKISOURCE` | [《三命通會》Wikisource transcription](https://zh.wikisource.org/wiki/%E4%B8%89%E5%91%BD%E9%80%9A%E6%9C%83) | Historical provenance for bounded traditional terminology; no passage is bundled |
+| `SRC-BZ-ZIPING-ZHENQUAN-NLC` | [《子平真诠》National Library scan](https://upload.wikimedia.org/wikipedia/commons/f/fe/NLC416-11jh010455-35296_%E5%AD%90%E5%B9%B3%E7%9C%9F%E8%A9%AE.pdf) | Chapter-level method provenance for bounded formation, damage, paired rescue, and whole-decade analysis; no passage is bundled |
+| `SRC-BZ-DITIAN-SUI-WIKISOURCE` | [《滴天髓》Wikisource transcription](https://zh.wikisource.org/zh-hant/%E6%BB%B4%E5%A4%A9%E9%AB%93) | Historical method provenance for relational strength, body/use, month-command context, and natal/luck/year hierarchy; no passage is bundled |
 | `SRC-ZW-IZTRO-2.6.0` | [`iztro` v2.6.0](https://github.com/SylarLong/iztro/tree/v2.6.0) | Pinned implementation provenance for chart fields; the installed package is separately covered above |
 | `SRC-ZW-ZIWEI-QUANSHU` | [`iztro` historical-text guide for 《紫微斗數全書》](https://docs.iztro.com/learn/ancientBook) | Historical-reference metadata and an explicit caution about exaggerated or inconsistent material; no guide or source-text content is bundled |
 | `SRC-ZW-IZTRO-HOROSCOPE-GUIDE` | [`iztro` Zi Wei horoscope guide](https://docs.iztro.com/learn/horoscope) | Method-order metadata for bounded natal–decadal–yearly phase synthesis; the local reading map is an original paraphrase and no guide prose is bundled |
+| `SRC-ZW-IZTRO-PALACE-GUIDE` | [`iztro` Zi Wei palace guide](https://docs.iztro.com/learn/palace) | Method provenance for keeping one selected palace together with its complete three-directions/four-alignments unit; no guide prose is bundled |
+| `SRC-ZW-IZTRO-MUTAGEN-GUIDE` | [`iztro` Zi Wei transformations guide](https://docs.iztro.com/learn/mutagen) | Method provenance for keeping each transformation attached to its actual star and palace; no guide prose is bundled |
 | `SRC-WA-ASTRONOMY-2.1.19` | [Astronomy Engine 2.1.19 JavaScript source](https://github.com/cosinekitty/astronomy/tree/v2.1.19/source/js) | Pinned astronomy implementation provenance; the installed package is separately covered above |
 | `SRC-WA-TETRABIBLOS-PG70850` | [Ptolemy's *Tetrabiblos*, Project Gutenberg ebook 70850](https://www.gutenberg.org/ebooks/70850) | Historical provenance for limited zodiacal and aspect terminology; no ebook or passage is bundled |
 | `SRC-TR-WAITE-WIKISOURCE` | [A. E. Waite, *The Pictorial Key to the Tarot*, Wikisource](https://en.wikisource.org/wiki/The_Pictorial_Key_to_the_Tarot) | Historical provenance for card identity and orientation vocabulary; project prompts are independently authored, not quotations |
@@ -63,6 +77,6 @@ The registry's `verified` label means only that the project checked the identity
 
 - The Tarot names and compact keywords in this project are independently authored labels and short prompts; no modern guidebook text is bundled.
 - The King Wen line-pattern mapping is an implementation table used for calculation. No copyrighted translation of the hexagram or line texts is bundled.
-- The 26 machine-readable rules and method references contain conservative, independently written workflow constraints; they do not reproduce linked source prose or competitor knowledge bases.
+- The 31 machine-readable rules and method references contain conservative, independently written workflow constraints; they do not reproduce linked source prose or competitor knowledge bases.
 - The compact Zi Wei life-area, major-star, transformation, and phase prompts are project-authored bounded summaries. They are not quotations or a copied modern knowledge base.
 - Linked historical sources document terminology or traditional provenance only. Pinned engine records document implementation provenance only. Neither establishes the predictive validity of any traditional system.

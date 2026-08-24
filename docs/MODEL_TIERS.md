@@ -4,7 +4,7 @@ The complete operational contract lives in [`references/model-tiers.md`](../refe
 
 ## Release conclusion
 
-A standard/general model is sufficient for the complete core path: route one request, collect and confirm inputs, run one local engine, explain one focused topic, summarize engine-produced sensitivity, and emit a small set of evidence cards. This includes one explicit Zi Wei target-date phase or one Tarot current-question reading. It can also complete a focused one-system `deep` pass when the machine-readable rules and sources cover the requested scope.
+A standard/general model is sufficient for the complete core path: route one request, collect and confirm inputs, run one local engine, explain one focused topic, summarize engine-produced sensitivity, bind and validate a small set of evidence cards, and show observable support and counterevidence. This includes one of the five supported Zi Wei target-date topics or one Tarot current-question reading. It can also complete a focused one-system `deep` pass when the machine-readable rules and sources cover the requested scope.
 
 A Pro/audit model is recommended, not required, when the task has many interacting facts, more than two systems or profiles, many materially different candidates, a full conflict matrix, complete rule/source coverage, or an adversarial second pass.
 

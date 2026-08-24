@@ -107,6 +107,17 @@ export function listProfiles(system) {
   }));
 }
 
+export function getRegisteredProfile(system, id) {
+  const match = (PRESETS[system] || []).find((preset) => preset.profile.id === id);
+  return match ? clone(match.profile) : null;
+}
+
+export function isCanonicalRegisteredProfile(system, profile) {
+  if (!profile || typeof profile !== "object" || Array.isArray(profile)) return false;
+  const registered = getRegisteredProfile(system, profile.id);
+  return registered !== null && same(profile, registered);
+}
+
 export function resolveProfile(system, rawOverride = {}) {
   const presets = PRESETS[system];
   if (!presets) throw new FortuneTellerError("UNSUPPORTED_SYSTEM", `no profile is defined for ${system}`);

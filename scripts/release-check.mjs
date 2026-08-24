@@ -4,7 +4,7 @@ import { join, posix } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
-const expectedReleaseFileCount = 72;
+const expectedReleaseFileCount = 99;
 const expectedControlledRoots = [
   ".github", "agents", "assets", "docs", "references", "schemas", "scripts", "src", "test",
 ];
@@ -12,14 +12,21 @@ const required = [
   ".github/workflows/ci.yml", ".gitignore", "release-files.json", "package.json", "package-lock.json",
   "SKILL.md", "README.md", "README.en.md", "LICENSE", "SECURITY.md", "THIRD_PARTY_NOTICES.md",
   "BENCHMARK.md", "CHANGELOG.md", "CONTRIBUTING.md", "docs/ARCHITECTURE.md", "docs/MODEL_TIERS.md",
-  "docs/COMPETITOR_AUDIT.md", "docs/RELEASE_AUDIT.md", "docs/SCOPE.md",
+  "docs/COMPETITOR_AUDIT.md", "docs/PROFESSIONAL_COVERAGE.md", "docs/RELEASE_AUDIT.md", "docs/SCOPE.md",
   "agents/openai.yaml", "assets/README.md", "scripts/fortune-teller.mjs", "scripts/doctor.mjs",
   "scripts/package-skill.mjs", "scripts/release-check.mjs", "src/index.mjs",
-  "src/data/source-registry.mjs", "src/data/rule-registry.mjs", "references/professional-reading.md",
-  "references/systems/ziwei-reading-map.md",
+  "src/core/bazi-adjudicator.mjs", "src/core/blind-check.mjs", "src/core/calculation-verifier.mjs", "src/core/claim-semantics.mjs", "src/core/meaning-layer.mjs",
+  "src/core/ziwei-adjudicator.mjs", "src/data/bazi-adjudication-rulepack.mjs", "src/data/source-registry.mjs", "src/data/rule-registry.mjs",
+  "src/data/meaning-registry.mjs", "src/data/ziwei-adjudication-rulepack.mjs", "src/data/ziwei-sanhe-rulepack.mjs",
+  "src/data/interpretation-profile-registry.mjs", "references/accuracy-evaluation.md", "references/professional-reading.md",
+  "references/systems/bazi-professional.md", "references/systems/ziwei-adjudication.md", "references/systems/ziwei-reading-map.md",
+  "schemas/blind-check-input.schema.json", "schemas/blind-check-record.schema.json",
+  "schemas/blind-check-adjudications.schema.json", "schemas/blind-check-score.schema.json",
   "schemas/calculation-result.schema.json", "schemas/request.schema.json", "schemas/reading.schema.json",
   "schemas/evidence-card.schema.json", "schemas/error.schema.json", "schemas/reading-validation-payload.schema.json",
-  "test/contract.test.mjs", "test/interactive.test.mjs", "test/offline.test.mjs",
+  "test/bazi-adjudication-v04.test.mjs", "test/bazi-luck-cycles.test.mjs", "test/blind-check.test.mjs", "test/claim-semantics.test.mjs",
+  "test/contract.test.mjs", "test/interactive.test.mjs", "test/offline.test.mjs", "test/professional-v03.test.mjs",
+  "test/ziwei-adjudication-v04.test.mjs", "test/ziwei-phase-components.test.mjs",
 ];
 const errors = [];
 for (const path of required) {
@@ -232,19 +239,60 @@ try {
       errors.push(`package-lock root dependency does not match ${name}@${version}`);
     }
   }
+  const rootLockDevDependencies = lock.packages?.[""]?.devDependencies || {};
+  for (const [name, version] of Object.entries(manifest.devDependencies || {})) {
+    if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version)) {
+      errors.push(`development dependency ${name} is not pinned to one exact version`);
+    }
+    if (rootLockDevDependencies[name] !== version) {
+      errors.push(`package-lock root development dependency does not match ${name}@${version}`);
+    }
+  }
 } catch (error) {
   errors.push(`cannot validate pinned dependencies: ${error.message}`);
 }
 
 try {
-  const [{ SOURCES, SOURCE_VERIFICATION_NOTE }, { RULES }] = await Promise.all([
+  const [{ SOURCES, SOURCE_VERIFICATION_NOTE }, { RULES }, { INTERPRETATION_PROFILES }] = await Promise.all([
     import(new URL("../src/data/source-registry.mjs", import.meta.url)),
     import(new URL("../src/data/rule-registry.mjs", import.meta.url)),
+    import(new URL("../src/data/interpretation-profile-registry.mjs", import.meta.url)),
   ]);
-  if (SOURCES.length !== 10) errors.push(`expected 10 registered sources, found ${SOURCES.length}`);
-  if (RULES.length !== 26) errors.push(`expected 26 registered rules, found ${RULES.length}`);
+  if (SOURCES.length !== 14) errors.push(`expected 14 registered sources, found ${SOURCES.length}`);
+  if (RULES.length !== 31) errors.push(`expected 31 registered rules, found ${RULES.length}`);
+  if (INTERPRETATION_PROFILES.length !== 6) {
+    errors.push(`expected 6 registered interpretation profiles, found ${INTERPRETATION_PROFILES.length}`);
+  }
+  if (INTERPRETATION_PROFILES.some((profile) => profile.professional_label_allowed !== false)) {
+    errors.push("interpretation profile permits an unearned professional label");
+  }
+  if (INTERPRETATION_PROFILES.some((profile) => profile.predictive_validity !== "not_established")) {
+    errors.push("interpretation profile overstates predictive validity");
+  }
+  if (INTERPRETATION_PROFILES.some((profile) => profile.review_status !== "automated_fixture_reviewed")) {
+    errors.push("interpretation profile overstates review status");
+  }
+  const rulePackHashes = INTERPRETATION_PROFILES.map((profile) => profile.rule_pack_hash);
+  if (rulePackHashes.some((hash) => !/^[a-f0-9]{64}$/u.test(hash))) {
+    errors.push("interpretation profile has an invalid rule-pack hash");
+  }
+  if (new Set(rulePackHashes).size !== rulePackHashes.length) {
+    errors.push("interpretation profiles must have distinct rule-pack hashes");
+  }
   if (!SOURCE_VERIFICATION_NOTE.includes("does not validate divinatory predictions")) {
     errors.push("source registry verification note lost its predictive-validity boundary");
+  }
+  const notices = await readFile(join(root, "THIRD_PARTY_NOTICES.md"), "utf8");
+  if (!notices.includes("contains 14 machine-readable source **records**")) {
+    errors.push("THIRD_PARTY_NOTICES.md has a stale source-record count");
+  }
+  if (!notices.includes("The 31 machine-readable rules")) {
+    errors.push("THIRD_PARTY_NOTICES.md has a stale rule count");
+  }
+  for (const source of SOURCES) {
+    if (!notices.includes(`\`${source.id}\``)) {
+      errors.push(`THIRD_PARTY_NOTICES.md omits registered source: ${source.id}`);
+    }
   }
   const systemsWithSources = new Set(SOURCES.flatMap((source) => source.systems));
   const systemsWithRules = new Set(RULES.map((rule) => rule.system));
@@ -257,6 +305,8 @@ try {
 }
 
 for (const name of [
+  "blind-check-input.schema.json", "blind-check-record.schema.json",
+  "blind-check-adjudications.schema.json", "blind-check-score.schema.json",
   "calculation-result.schema.json", "request.schema.json", "reading.schema.json", "evidence-card.schema.json",
   "error.schema.json", "reading-validation-payload.schema.json",
 ]) {

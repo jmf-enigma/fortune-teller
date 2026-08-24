@@ -6,6 +6,7 @@ import { resolveProfile } from "../core/profiles.mjs";
 import {
   civilDayBounds,
   normalizeBirthInput,
+  normalizeDate,
   resolveCalculationTime,
   resolveZonedCalculationTime,
   serializeResolvedTime,
@@ -28,12 +29,30 @@ const CALENDAR_REFERENCE_OFFSET = "+08:00";
 const STEM_COMBINATIONS = [["甲", "己"], ["乙", "庚"], ["丙", "辛"], ["丁", "壬"], ["戊", "癸"]];
 const BRANCH_HARMONIES = [["子", "丑"], ["寅", "亥"], ["卯", "戌"], ["辰", "酉"], ["巳", "申"], ["午", "未"]];
 const BRANCH_CLASHES = [["子", "午"], ["丑", "未"], ["寅", "申"], ["卯", "酉"], ["辰", "戌"], ["巳", "亥"]];
+const STEM_CLASHES = [["甲", "庚"], ["乙", "辛"], ["丙", "壬"], ["丁", "癸"]];
+const BRANCH_HARMS = [["子", "未"], ["丑", "午"], ["寅", "巳"], ["卯", "辰"], ["申", "亥"], ["酉", "戌"]];
+const BRANCH_BREAKS = [["子", "酉"], ["丑", "辰"], ["寅", "亥"], ["卯", "午"], ["巳", "申"], ["未", "戌"]];
+const BRANCH_PUNISHMENTS = [["寅", "巳"], ["巳", "申"], ["申", "寅"], ["丑", "戌"], ["戌", "未"], ["未", "丑"], ["子", "卯"]];
+const SELF_PUNISHMENT_BRANCHES = new Set(["辰", "午", "酉", "亥"]);
+const BRANCH_HIDDEN_STEMS = Object.freeze({
+  子: ["癸"], 丑: ["己", "癸", "辛"], 寅: ["甲", "丙", "戊"], 卯: ["乙"],
+  辰: ["戊", "乙", "癸"], 巳: ["丙", "戊", "庚"], 午: ["丁", "己"], 未: ["己", "丁", "乙"],
+  申: ["庚", "壬", "戊"], 酉: ["辛"], 戌: ["戊", "辛", "丁"], 亥: ["壬", "甲"],
+});
 const BRANCH_THREE_HARMONIES = [
   { branches: ["申", "子", "辰"], element: "水" },
   { branches: ["亥", "卯", "未"], element: "木" },
   { branches: ["寅", "午", "戌"], element: "火" },
   { branches: ["巳", "酉", "丑"], element: "金" },
 ];
+const BRANCH_THREE_MEETINGS = [
+  { branches: ["寅", "卯", "辰"], element: "木" },
+  { branches: ["巳", "午", "未"], element: "火" },
+  { branches: ["申", "酉", "戌"], element: "金" },
+  { branches: ["亥", "子", "丑"], element: "水" },
+];
+const BAZI_LUCK_ONSET_SECT = 2;
+const BAZI_LUCK_PERIOD_COUNT = 24;
 
 function ensureCalendarReferenceOffset(zoned, birth) {
   if (zoned.offset === CALENDAR_REFERENCE_OFFSET) return;
@@ -69,6 +88,278 @@ function tenGod(dayStem, otherStem) {
   if ((dayElement + 2) % 5 === otherElement) return samePolarity ? "偏财" : "正财";
   if ((otherElement + 1) % 5 === dayElement) return samePolarity ? "偏印" : "正印";
   return samePolarity ? "七杀" : "正官";
+}
+
+function stemBranchLayerFact(factId, stemBranch, dayStem, extra = {}) {
+  const [heavenlyStem, earthlyBranch] = [...stemBranch];
+  const hiddenStems = BRANCH_HIDDEN_STEMS[earthlyBranch] || [];
+  return {
+    fact_id: factId,
+    kind: "calculation_fact",
+    stem_branch: stemBranch,
+    heavenly_stem: heavenlyStem,
+    earthly_branch: earthlyBranch,
+    stem_element: STEM_ELEMENTS[STEMS.indexOf(heavenlyStem)],
+    branch_element: BRANCH_ELEMENTS[BRANCHES.indexOf(earthlyBranch)],
+    ten_god_stem: tenGod(dayStem, heavenlyStem),
+    hidden_stems: hiddenStems,
+    ten_gods_hidden_stems: hiddenStems.map((stem) => tenGod(dayStem, stem)),
+    ...extra,
+  };
+}
+
+function matchesUndirectedPair(left, right, pairs) {
+  return pairs.some(([first, second]) => (
+    (first === left && second === right) || (first === right && second === left)
+  ));
+}
+
+function stemControlDirection(left, right) {
+  const leftElement = Math.floor(STEMS.indexOf(left) / 2);
+  const rightElement = Math.floor(STEMS.indexOf(right) / 2);
+  if ((leftElement + 2) % 5 === rightElement) return "left_controls_right";
+  if ((rightElement + 2) % 5 === leftElement) return "right_controls_left";
+  return null;
+}
+
+function periodInteractionFacts(natalPillars, decadal, yearly) {
+  const interactions = [];
+  const seen = new Set();
+  const add = (relationship, left, right, extra = {}) => {
+    const key = JSON.stringify([relationship, left.fact_id, right.fact_id, extra.traditional_element_label || null]);
+    if (seen.has(key)) return;
+    seen.add(key);
+    interactions.push({
+      fact_id: `F-BZ-I${String(interactions.length + 1).padStart(2, "0")}`,
+      kind: "derived_calculation_fact",
+      relationship,
+      layer_fact_ids: [left.fact_id, right.fact_id],
+      layers: [left.layer, right.layer],
+      values: [left.stem_branch, right.stem_branch],
+      ...extra,
+    });
+  };
+  const relate = (left, right) => {
+    if (left.heavenly_stem === right.heavenly_stem) add("stem_repetition", left, right);
+    if (matchesUndirectedPair(left.heavenly_stem, right.heavenly_stem, STEM_COMBINATIONS)) {
+      add("stem_five_combination", left, right);
+    }
+    if (matchesUndirectedPair(left.heavenly_stem, right.heavenly_stem, STEM_CLASHES)) add("stem_clash", left, right);
+    const controlDirection = stemControlDirection(left.heavenly_stem, right.heavenly_stem);
+    if (controlDirection) add("stem_control", left, right, { control_direction: controlDirection });
+    if (left.earthly_branch === right.earthly_branch) {
+      add("branch_repetition", left, right);
+      if (SELF_PUNISHMENT_BRANCHES.has(left.earthly_branch)) add("branch_self_punishment", left, right);
+    }
+    if (matchesUndirectedPair(left.earthly_branch, right.earthly_branch, BRANCH_HARMONIES)) {
+      add("branch_six_harmony", left, right);
+    }
+    const branchClash = matchesUndirectedPair(left.earthly_branch, right.earthly_branch, BRANCH_CLASHES);
+    if (branchClash) add("branch_clash", left, right);
+    if (matchesUndirectedPair(left.earthly_branch, right.earthly_branch, BRANCH_HARMS)) add("branch_harm", left, right);
+    if (matchesUndirectedPair(left.earthly_branch, right.earthly_branch, BRANCH_BREAKS)) add("branch_break", left, right);
+    if (matchesUndirectedPair(left.earthly_branch, right.earthly_branch, BRANCH_PUNISHMENTS)) {
+      add("branch_punishment", left, right);
+    }
+    if (left.stem_branch === right.stem_branch) {
+      add(right.layer === "natal" ? "layer_natal_pillar_repetition" : "decadal_yearly_repetition", left, right);
+    }
+    if (controlDirection && branchClash) add("heavenly_control_earthly_clash", left, right);
+  };
+  const activeLayers = [
+    { ...decadal, layer: "decadal" },
+    { ...yearly, layer: "yearly" },
+  ];
+  const natalLayers = natalPillars.map((pillar) => ({ ...pillar, layer: "natal" }));
+  for (const active of activeLayers) {
+    for (const natal of natalLayers) relate(active, natal);
+  }
+  relate(activeLayers[1], activeLayers[0]);
+
+  const natalBranches = new Set(natalLayers.map((item) => item.earthly_branch));
+  const allLayers = [...natalLayers, ...activeLayers];
+  for (const [relationship, groups] of [
+    ["active_layer_completes_three_harmony", BRANCH_THREE_HARMONIES],
+    ["active_layer_completes_three_meeting", BRANCH_THREE_MEETINGS],
+  ]) {
+    for (const group of groups) {
+      const participants = allLayers.filter((item) => group.branches.includes(item.earthly_branch));
+      const present = new Set(participants.map((item) => item.earthly_branch));
+      const activeParticipants = participants.filter((item) => item.layer !== "natal");
+      if (
+        group.branches.every((branch) => present.has(branch))
+        && !group.branches.every((branch) => natalBranches.has(branch))
+        && activeParticipants.length > 0
+      ) {
+        interactions.push({
+          fact_id: `F-BZ-I${String(interactions.length + 1).padStart(2, "0")}`,
+          kind: "derived_calculation_fact",
+          relationship,
+          layer_fact_ids: uniqueFactIds(participants.map((item) => item.fact_id)),
+          layers: [...new Set(participants.map((item) => item.layer))],
+          values: group.branches,
+          traditional_element_label: group.element,
+        });
+      }
+    }
+  }
+  return interactions;
+}
+
+function uniqueFactIds(values) {
+  return [...new Set(values)];
+}
+
+function plainDateTimeFromLibrarySolar(solar) {
+  const [dateText, timeText] = solar.toYmdHms().split(" ");
+  return Temporal.PlainDateTime.from(`${dateText}T${timeText}`);
+}
+
+function plainDateTimeText(value) {
+  return value.toString({ smallestUnit: "second" });
+}
+
+function comparePlainDateTimes(left, right) {
+  return Temporal.PlainDateTime.compare(left, right);
+}
+
+function exactYearPillarsForDate(date, dayStem) {
+  const parsed = Temporal.PlainDate.from(date);
+  const probes = [
+    { label: "day_start", hour: 0, minute: 0, second: 0 },
+    { label: "day_end", hour: 23, minute: 59, second: 59 },
+  ].map((probe) => {
+    const solar = Solar.fromYmdHms(
+      parsed.year,
+      parsed.month,
+      parsed.day,
+      probe.hour,
+      probe.minute,
+      probe.second,
+    );
+    const stemBranch = solar.getLunar().getEightChar().getYear();
+    return { ...probe, stem_branch: stemBranch };
+  });
+  const alternatives = [...new Set(probes.map((probe) => probe.stem_branch))];
+  if (alternatives.length === 1) {
+    return {
+      status: "resolved_for_full_civil_date",
+      yearly: stemBranchLayerFact("F-BZ-Y01", alternatives[0], dayStem, {
+        date,
+        boundary_basis: "solar-term year pillar; stable at both ends of the requested civil date",
+      }),
+    };
+  }
+  return {
+    status: "solar_term_boundary_on_requested_date",
+    yearly: null,
+    yearly_alternatives: alternatives.map((stemBranch, index) => stemBranchLayerFact(
+      `F-BZ-Y01${String.fromCharCode(65 + index)}`,
+      stemBranch,
+      dayStem,
+      { date, boundary_basis: "requested date contains the solar-term year transition" },
+    )),
+  };
+}
+
+function activeLuckPeriodForDate(date, onset, decadal) {
+  const dayStart = Temporal.PlainDate.from(date).toPlainDateTime({ hour: 0 });
+  const dayEnd = dayStart.add({ days: 1 });
+  const periodAt = (moment) => decadal.find((period) => (
+    comparePlainDateTimes(moment, Temporal.PlainDateTime.from(period.start_local)) >= 0
+    && comparePlainDateTimes(moment, Temporal.PlainDateTime.from(period.end_local_exclusive)) < 0
+  ));
+  const atStart = periodAt(dayStart);
+  const atEnd = periodAt(dayEnd.subtract({ nanoseconds: 1 }));
+  if (atStart?.fact_id === atEnd?.fact_id) {
+    if (atStart) return { status: "resolved_for_full_civil_date", active_decadal_fact_id: atStart.fact_id };
+    if (comparePlainDateTimes(dayEnd, onset) <= 0) {
+      return { status: "before_first_decadal_luck_cycle", active_decadal_fact_id: null };
+    }
+    return { status: "outside_released_luck_cycle_table", active_decadal_fact_id: null };
+  }
+  return {
+    status: "luck_cycle_boundary_on_requested_date",
+    active_decadal_fact_id: null,
+    active_decadal_alternatives: [...new Set([atStart?.fact_id || "pre_luck", atEnd?.fact_id || "pre_luck"])],
+  };
+}
+
+function luckCycleFacts(chart, input) {
+  if (!input.chart_sex) {
+    return {
+      fact_id: "F-BZ-L01",
+      kind: "calculation_fact",
+      status: "not_requested",
+      reason: "chart_sex was not supplied, so luck-cycle direction and periods were not inferred",
+    };
+  }
+  const value = chart.resolved.local;
+  const solar = Solar.fromYmdHms(value.year, value.month, value.day, value.hour, value.minute, value.second);
+  const eightChar = solar.getLunar().getEightChar();
+  const gender = input.chart_sex === "male" ? 1 : 0;
+  const yun = eightChar.getYun(gender, BAZI_LUCK_ONSET_SECT);
+  const onset = plainDateTimeFromLibrarySolar(yun.getStartSolar());
+  const dayStem = chart.pillars.find((pillar) => pillar.pillar === "day").heavenly_stem;
+  const libraryPeriods = yun.getDaYun(BAZI_LUCK_PERIOD_COUNT).slice(1);
+  const decadal = libraryPeriods.map((period, index) => {
+    const start = onset.add({ years: index * 10 });
+    const end = onset.add({ years: (index + 1) * 10 });
+    return stemBranchLayerFact(`F-BZ-D${String(index + 1).padStart(2, "0")}`, period.getGanZhi(), dayStem, {
+      index: index + 1,
+      start_year: period.getStartYear(),
+      end_year: period.getEndYear(),
+      start_age: period.getStartAge(),
+      end_age: period.getEndAge(),
+      start_local: plainDateTimeText(start),
+      end_local_exclusive: plainDateTimeText(end),
+      boundary_note: "exact onset anniversary is used; start_year/end_year are the dependency's conventional year labels",
+    });
+  });
+  const facts = {
+    fact_id: "F-BZ-L01",
+    kind: "calculation_fact",
+    status: input.target_date ? "available_with_target" : "available",
+    chart_sex_parameter: input.chart_sex,
+    direction: yun.isForward() ? "forward" : "backward",
+    direction_basis: "year-stem polarity and the explicitly supplied traditional male/female algorithm parameter",
+    start: {
+      fact_id: "F-BZ-L02",
+      kind: "calculation_fact",
+      local_date_time: plainDateTimeText(onset),
+      elapsed_years: yun.getStartYear(),
+      elapsed_months: yun.getStartMonth(),
+      elapsed_days: yun.getStartDay(),
+      elapsed_hours: yun.getStartHour(),
+      method: "pinned minute conversion: 4320 minutes per traditional year, 360 per month, 12 per day",
+      school_variance: "other schools may use a different onset conversion; this result does not average them",
+    },
+    decadal,
+  };
+  if (!input.target_date) return facts;
+  const activePeriod = activeLuckPeriodForDate(input.target_date, onset, decadal);
+  const yearly = exactYearPillarsForDate(input.target_date, dayStem);
+  facts.target = {
+    fact_id: "F-BZ-T01",
+    kind: "calculation_fact",
+    date: input.target_date,
+    ...activePeriod,
+    yearly_status: yearly.status,
+    yearly: yearly.yearly,
+    ...(yearly.yearly_alternatives ? { yearly_alternatives: yearly.yearly_alternatives } : {}),
+    interpretation_limit: "the decadal layer is context and the yearly layer is a trigger; neither layer alone names an event or probability",
+  };
+  const activeDecadal = facts.target.active_decadal_fact_id
+    ? decadal.find((period) => period.fact_id === facts.target.active_decadal_fact_id)
+    : null;
+  if (activeDecadal && facts.target.yearly) {
+    facts.target.interaction_status = "resolved";
+    facts.target.interactions = periodInteractionFacts(chart.pillars, activeDecadal, facts.target.yearly);
+  } else {
+    facts.target.interaction_status = "unavailable_at_boundary";
+    facts.target.interactions = [];
+  }
+  return facts;
 }
 
 function normalizedTimePillar(eightChar, hour) {
@@ -398,8 +689,19 @@ function unknownTimeCalculation(birth, profile) {
 
 export function calculateBazi(rawInput, profileOverride = {}) {
   const profile = resolveProfile("bazi", profileOverride);
-  const birth = normalizeBirthInput(rawInput);
+  const normalizedBirth = normalizeBirthInput(rawInput);
+  const birth = {
+    ...normalizedBirth,
+    ...(rawInput.chart_sex ? { chart_sex: rawInput.chart_sex } : {}),
+    ...(rawInput.target_date ? { target_date: normalizeDate(rawInput.target_date) } : {}),
+  };
   ensureValidatedRange(birth);
+  if (birth.target_date) {
+    ensureValidatedRange({ date: birth.target_date });
+    if (birth.target_date < birth.date) {
+      throw new FortuneTellerError("TARGET_BEFORE_BIRTH", "BaZi target_date cannot be earlier than the birth date");
+    }
+  }
   if (!birth.time) return unknownTimeCalculation(birth, profile);
   const chart = chartAt(birth, profile);
   const warnings = [];
@@ -427,6 +729,7 @@ export function calculateBazi(rawInput, profileOverride = {}) {
       lunar_date: chart.lunar_date,
       pillars: chart.pillars,
       structure: chartStructure(chart.pillars),
+      luck_cycles: luckCycleFacts(chart, birth),
       auxiliary: chart.auxiliary,
     },
     warnings,

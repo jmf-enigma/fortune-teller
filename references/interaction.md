@@ -16,7 +16,7 @@ Maintain the following state internally. Do not expose state names unless useful
 | `COMPUTE` | Produce a structured local result envelope | Engine succeeds or a failure branch is taken |
 | `ANSWER` | Give the direct answer and useful themes before any audit or chart dump | User receives a usable first answer |
 | `DEEPEN` | Expand one selected topic | Topic is answered with evidence cards |
-| `COMPARE` | Compare already calculated systems without voting | Conflict matrix is delivered |
+| `COMPARE` | Place independently validated systems side by side without voting or machine-classifying their relationship | Each original claim and scope remains visible; machine metadata stays `not_compared` |
 | `AUDIT` | Expose reproducibility and source trace | Audit package is complete |
 | `CLOSE` | Summarize scope and unresolved items | No open request remains |
 
@@ -91,7 +91,7 @@ Collect:
 - the categorical value and calendar/school profile required by the installed engine.
 - an explicit Gregorian `target_date` only when the user requests a current or named phase. Never let a CLI or model silently read today's date into a reproducible calculation.
 
-Explain that unknown hour usually changes the chart structure. Do not create a single chart when multiple candidates remain, and do not run a target-date phase view without an exact birth time. In ordinary language, confirm that the chart uses the birth place's local calendar day; outside UTC+08:00, explain that other schools can produce a different chart. Keep the internal convention and warning code only in the audit payload. Mean/apparent-solar overrides are disabled and must fail closed rather than shifting the recorded civil clock.
+For an overview or one selected life domain, offer the optional `target_date` during the initial known-time intake so the user does not have to calculate and then edit merely to see the requested phase. Explain that unknown hour usually changes the chart structure. Do not create a single chart when multiple candidates remain, and do not run a target-date phase view without an exact birth time. In ordinary language, confirm that the chart uses the birth place's local calendar day; outside UTC+08:00, explain that other schools can produce a different chart. Keep the internal convention and warning code only in the audit payload. Mean/apparent-solar overrides are disabled and must fail closed rather than shifting the recorded civil clock.
 
 ### Western natal astrology
 
@@ -247,14 +247,13 @@ Represent continuation choices as structured actions in machine-readable reading
 
 ```yaml
 - id: deepen-career
-  label: 深入看事业与学习
   action: deepen
   available: true
   requires_input: []
   reuses_frozen_calculation: true
 ```
 
-Registered actions are `deepen`, `change_focus`, `inspect_evidence`, `inspect_sensitivity`, `compare_profile`, `correct_input`, `new_reading`, `audit`, `export`, `reflect`, and `close`. `change_focus` must reuse the frozen calculation; `new_reading` must not. Every structured action needs a stable `id`, visible `label`, `available`, `requires_input`, and `reuses_frozen_calculation`; when unavailable, add a concrete `reason`. Standard, deep, and audit readings require structured next steps and cannot use free-form strings here; quick receipts may use a short string only when no state transition is implied. Do not imply a capability the current engine does not have.
+Registered actions are `deepen`, `change_focus`, `inspect_evidence`, `inspect_sensitivity`, `compare_profile`, `correct_input`, `new_reading`, `audit`, `export`, `reflect`, and `close`. `change_focus` must reuse the frozen calculation; `new_reading` must not. Every draft structured action needs a stable `id`, `action`, `available`, `requires_input`, and `reuses_frozen_calculation`; add `target_system` where required. Do not author the visible `label` or an unavailable `reason`: `bind-reading` generates both canonically and removes `reason` when the action is available. In particular, `compare_profile` is shown to users as **“比较另一种传统排法”**, not “比较不同排盘口径”. Standard, deep, and audit readings require structured next steps and cannot use free-form strings here.
 
 ### Frozen session and corrections
 
@@ -272,7 +271,22 @@ If the user edits an input or profile:
 
 Starting a new session clears the frozen in-memory result before collecting the next input. On close, say whether anything was saved. The bundled CLI does not persist a session unless the user explicitly exports JSON. Before showing or exporting full audit JSON, warn that it contains the normalized birth data or private question.
 
-If the user says the result does not fit, do not enter an open-ended search for confirmatory biography. Identify the disputed claim, then offer input correction, an explanation of the traditional rule and its counter-reading, or stopping the reading. A past-event check must freeze the hypotheses before feedback and retain misses as well as matches.
+If the user says the result does not fit, do not enter an open-ended search for confirmatory biography. Identify the disputed claim, then offer input correction, an explanation of the traditional rule and its counter-reading, or stopping the reading. Known past events may be discussed only as informal fit/mismatch feedback, retaining misses and unclear cases; they cannot be converted into a blind score after the outcome was knowable.
+
+Every interpretive result should include a compact `现实核对`: one observation that would support the conclusion and one that would count against it. These must be independently observable and must not restate the narrative in vaguer words. Hide their internal criterion IDs and evidence-source enums from ordinary output.
+
+### Ordinary birth and phase result shape
+
+Use one fixed, glanceable hierarchy for a natal or target-date result:
+
+1. **先说结论** — one or two plain sentences answering the user's focus; render each sentence as a bullet.
+2. **阶段时间轴** — when available, show it immediately after the conclusion with exact interval dates. State the phase only in category-level plain language—collaboration/expression support, resource support, friction or sudden pressure, movement/change, relationship interaction, or buffering/problem-solving—and keep detailed stars in the evidence layer.
+3. **分主题卡片** — requested topic first. Within every card preserve: **结论** (when not identical to the headline) → **白话解读** → **盘面依据（术语）** → **什么情况要改判** → **现实提醒**.
+4. **怎么判断这条解读是否贴合** — show support, contradiction, and unclear reality checks.
+5. **需要留意** — show material uncertainty in plain language.
+6. **接下来可以看** — show canonical available next steps; the disclaimer follows last.
+
+Split summary and plain-language interpretation at sentence boundaries, terminology evidence at semicolons, and revision conditions one per bullet. Put complete lists, sources, profiles, warnings, integrity fields, and raw JSON after this result layer. “为什么这样看” and “反例与另一种解释” remain directly reachable. If a field cannot be supported, omit or mark it unavailable.
 
 ### Current-question answer shape
 
@@ -298,8 +312,8 @@ Only enter `COMPARE` after each component reading has independently passed its i
 1. Freeze each system's normalized input, profile, warnings, and result hash.
 2. Choose user-requested topics; do not compare every field by keyword.
 3. Preserve each system's original statement and evidence card.
-4. Classify relationships using the conflict protocol in `evidence-contract.md`.
-5. Show convergence, construct differences, and direct conflicts separately.
+4. Let `bind-reading` omit `cross_system` for one system and set multi-system metadata exactly to `{relationship: "not_compared"}`. Do not ask the model to classify equivalence, complementarity, or conflict.
+5. In ordinary prose, place the original validated claims side by side with their own scopes and limitations. If they sound similar or different, describe only the quoted claim-level difference and state that no machine relationship was established.
 6. Ask which original evidence the user wants to inspect.
 
 Never rewrite earlier readings merely to make the final narrative harmonious.

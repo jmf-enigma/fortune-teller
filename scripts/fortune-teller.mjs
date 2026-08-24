@@ -5,10 +5,17 @@ import { createInterface } from "node:readline/promises";
 import { asFortuneTellerError, FortuneTellerError } from "../src/core/errors.mjs";
 
 let calculate;
+let adjudicateBazi;
 let METHODS;
 let validateReading;
+let bindReadingToCalculations;
+let freezeBlindCheck;
+let scoreBlindCheck;
+let verifyBlindCheckReading;
+let verifyBlindCheckRecord;
 let RULES;
 let SOURCES;
+let INTERPRETATION_PROFILES;
 let SOURCE_VERIFICATION_NOTE;
 let normalizeBirthInput;
 let resolveCalculationTime;
@@ -16,7 +23,9 @@ let civilDayBounds;
 
 async function ensureFortuneTellerLoaded() {
   if (
-    calculate && METHODS && validateReading && RULES && SOURCES && SOURCE_VERIFICATION_NOTE
+    calculate && adjudicateBazi && METHODS && validateReading && bindReadingToCalculations
+    && freezeBlindCheck && scoreBlindCheck && verifyBlindCheckReading && verifyBlindCheckRecord
+    && RULES && SOURCES && INTERPRETATION_PROFILES && SOURCE_VERIFICATION_NOTE
     && normalizeBirthInput && resolveCalculationTime && civilDayBounds
   ) return;
   try {
@@ -26,10 +35,17 @@ async function ensureFortuneTellerLoaded() {
     ]);
     ({
       calculate,
+      adjudicateBazi,
       METHODS,
       validateReading,
+      bindReadingToCalculations,
+      freezeBlindCheck,
+      scoreBlindCheck,
+      verifyBlindCheckReading,
+      verifyBlindCheckRecord,
       RULES,
       SOURCES,
+      INTERPRETATION_PROFILES,
       SOURCE_VERIFICATION_NOTE,
     } = api);
     ({ normalizeBirthInput, resolveCalculationTime, civilDayBounds } = time);
@@ -75,8 +91,13 @@ function validateCommandArgs(command, args) {
     ["methods", new Set(["_", "json", "output", "compact", "pretty", "help"])],
     ["sources", new Set(["_", "system", "output", "compact", "pretty", "help"])],
     ["calculate", new Set(["_", "system", "input", "json", "profile", "output", "compact", "pretty", "help"])],
+    ["adjudicate-bazi", new Set(["_", "input", "json", "output", "compact", "pretty", "help"])],
     ["validate-reading", new Set(["_", "input", "json", "output", "compact", "pretty", "help"])],
+    ["bind-reading", new Set(["_", "input", "json", "output", "compact", "pretty", "help"])],
     ["render-reading", new Set(["_", "input", "json", "output", "help"])],
+    ["freeze-check", new Set(["_", "input", "json", "reading", "claim-ids", "output", "compact", "pretty", "help"])],
+    ["verify-check", new Set(["_", "input", "json", "record", "reading", "output", "compact", "pretty", "help"])],
+    ["score-check", new Set(["_", "input", "json", "record", "reading", "adjudications", "output", "compact", "pretty", "help"])],
     ["interactive", new Set(["_", "help"])],
   ]);
   const allowed = allowedByCommand.get(command);
@@ -86,7 +107,7 @@ function validateCommandArgs(command, args) {
   if (args._.length) {
     throw new FortuneTellerError("INVALID_COMMAND_ARGUMENT", `received ${args._.length} unexpected positional argument(s)`);
   }
-  for (const key of ["input", "output", "profile", "system"]) {
+  for (const key of ["input", "output", "profile", "system", "reading", "record", "adjudications", "claim-ids"]) {
     if (args[key] != null && typeof args[key] !== "string") {
       throw new FortuneTellerError("INVALID_COMMAND_ARGUMENT", `--${key} requires a value`);
     }
@@ -107,6 +128,26 @@ function validateCommandArgs(command, args) {
   }
   if (args.input != null && args.json != null) {
     throw new FortuneTellerError("INVALID_COMMAND_ARGUMENT", "use --input or --json, not both");
+  }
+  const splitInputs = {
+    "freeze-check": ["reading", "claim-ids"],
+    "verify-check": ["record", "reading"],
+    "score-check": ["record", "reading", "adjudications"],
+  }[command];
+  if (splitInputs) {
+    const supplied = splitInputs.filter((key) => args[key] != null);
+    if (supplied.length && (args.input != null || args.json != null)) {
+      throw new FortuneTellerError(
+        "INVALID_COMMAND_ARGUMENT",
+        `use --input/--json or the complete ${command} file set, not both`,
+      );
+    }
+    if (supplied.length && supplied.length !== splitInputs.length) {
+      throw new FortuneTellerError(
+        "INVALID_COMMAND_ARGUMENT",
+        `${command} split-file mode requires: ${splitInputs.map((key) => `--${key}`).join(", ")}`,
+      );
+    }
   }
   if (args.compact && args.pretty) {
     throw new FortuneTellerError("INVALID_COMMAND_ARGUMENT", "use --compact or --pretty, not both");
@@ -172,11 +213,18 @@ function printHelp() {
   stdout.write(`Commands:\n`);
   stdout.write(`  methods\n`);
   stdout.write(`  sources [--system <id>]\n`);
-  stdout.write(`  calculate --system <id> --input <file|-> [--profile <file>] [--output <new-file>]\n`);
+  stdout.write(`  calculate [--system <id>] --input <file|-> [--profile <file>] [--output <new-file>]\n`);
+  stdout.write(`  adjudicate-bazi --input <calculation-file|-> [--output <new-file>]\n`);
   stdout.write(`  validate-reading --input <file|->\n`);
+  stdout.write(`  bind-reading --input <file|->\n`);
   stdout.write(`  render-reading --input <file|-> [--output <new-file>]\n`);
+  stdout.write(`  freeze-check --reading <file> --claim-ids <id,id> [--output <new-file>]\n`);
+  stdout.write(`  verify-check --record <file> --reading <file>\n`);
+  stdout.write(`  score-check --record <file> --reading <file> --adjudications <file> [--output <new-file>]\n`);
   stdout.write(`  interactive\n`);
-  stdout.write(`\nUse --json '{...}' instead of --input for a small inline request.\n`);
+  stdout.write(`\nThe three blind-check commands also accept one composite --input file; use --json='{...}' for a small inline request.\n`);
+  stdout.write(`For calculate, adjudicate-bazi, validate-reading, or bind-reading, use --json='{...}' instead of --input for a small inline request.\n`);
+  stdout.write(`calculate also accepts system inside a request envelope, so --system is optional in that form.\n`);
 }
 
 function isPlainJsonObject(value) {
@@ -301,6 +349,18 @@ function compactText(value) {
   return typeof value === "string" ? value.replace(/\s+/gu, " ").trim() : "";
 }
 
+function readableSentenceBlock(value) {
+  const normalized = compactText(value);
+  const sentences = normalized.match(/[^。！？]+[。！？]?/gu)?.map((item) => item.trim()).filter(Boolean) || [];
+  return sentences.length >= 3 ? sentences.map((sentence) => `- ${sentence}`).join("\n") : normalized;
+}
+
+function readableClauseBlock(value) {
+  const normalized = compactText(value).replace(/。$/u, "");
+  const clauses = normalized.split("；").map((item) => item.trim()).filter(Boolean);
+  return clauses.length >= 3 ? clauses.map((clause) => `- ${clause}`).join("\n") : compactText(value);
+}
+
 function shortenText(value, maximum = 180) {
   const normalized = compactText(value);
   const characters = [...normalized];
@@ -392,10 +452,22 @@ function renderReadingText(reading) {
   sections.push(compactText(reading.title) || "你的解读");
 
   const userFocus = compactText(reading.user_focus);
-  if (userFocus) sections.push(`你关心的是：${userFocus}`);
+  if (userFocus) sections.push(`这次重点看：${userFocus}`);
 
   const summary = compactText(reading.summary);
-  if (summary) sections.push(`先说结论\n${summary}`);
+  if (summary) sections.push(`先说结论\n${readableSentenceBlock(summary)}`);
+
+  const timelineRows = [];
+  for (const claim of reading.claims) {
+    const phase = claim?.meaning_binding?.phase;
+    const window = claim?.assessment?.window;
+    if (window?.kind !== "bounded" || !window.start || !window.end) continue;
+    const label = READING_TOPIC_LABELS[claim.topic] || "所问主题";
+    const target = phase?.requested_date ? `，目标日 ${phase.requested_date}` : "";
+    const row = `- ${label}：本命结构 → ${window.start} 至 ${window.end} 的阶段重点${target} → 区间结束后重新看下一阶段`;
+    if (!timelineRows.includes(row)) timelineRows.push(row);
+  }
+  if (timelineRows.length) sections.push(`阶段时间轴\n${timelineRows.join("\n")}`);
 
   const claimsByTopic = new Map();
   reading.claims.forEach((claim, index) => {
@@ -406,14 +478,46 @@ function renderReadingText(reading) {
   for (const topic of READING_TOPIC_ORDER) {
     const claims = claimsByTopic.get(topic);
     if (!claims?.length) continue;
-    const lines = [];
+    const cards = [];
     for (const { claim, index } of claims) {
       const isSummaryClaim = index === 0 && compactText(claim.statement).normalize("NFKC") === summary.normalize("NFKC");
-      if (!isSummaryClaim) lines.push(`- ${compactText(claim.statement)}`);
+      const lines = [];
+      if (!isSummaryClaim) lines.push(`结论：${compactText(claim.statement)}`);
+      const reasoning = compactText(claim.reasoning_summary);
+      if (reasoning) lines.push(`白话解读：\n${readableSentenceBlock(reasoning)}`);
+      const technicalSummary = compactText(claim.technical_summary);
+      if (technicalSummary) lines.push(`盘面依据（术语）：\n${readableClauseBlock(technicalSummary)}`);
+      if (Array.isArray(claim.alternative_readings)) {
+        const alternatives = claim.alternative_readings.map(compactText).filter(Boolean);
+        if (alternatives.length) lines.push(`什么情况要改判：\n${alternatives.map((item) => `- ${item}`).join("\n")}`);
+      }
       const reflection = compactText(claim.practical_reflection);
-      if (reflection) lines.push(`${isSummaryClaim ? "-" : " "} 可尝试：${reflection}`);
+      if (reflection) lines.push(`现实提醒：${reflection}`);
+      if (lines.length) cards.push(lines.join("\n"));
     }
-    if (lines.length) sections.push(`${READING_TOPIC_LABELS[topic] || "解读重点"}\n${lines.join("\n")}`);
+    if (cards.length) sections.push(`${READING_TOPIC_LABELS[topic] || "解读重点"}\n${cards.join("\n\n")}`);
+  }
+
+  const realityChecks = [];
+  if (reading.level === "audit") {
+    for (const claim of reading.claims) {
+      if (claim?.epistemic_status !== "interpretation" || !Array.isArray(claim?.assessment?.criteria)) continue;
+      const label = READING_TOPIC_LABELS[claim.topic] || "这项判断";
+      for (const criterion of claim.assessment.criteria) {
+        const observable = compactText(criterion?.observable);
+        if (!observable) continue;
+        if (criterion.polarity === "supports") {
+          realityChecks.push(`- ${label}｜比较贴合时：${observable}`);
+        } else if (criterion.polarity === "contradicts") {
+          realityChecks.push(`- ${label}｜需要改判时：${observable}`);
+        } else if (criterion.polarity === "unclear") {
+          realityChecks.push(`- ${label}｜资料还不够时：${observable}`);
+        }
+      }
+    }
+  }
+  if (realityChecks.length) {
+    sections.push(`怎么判断这条解读是否贴合\n${realityChecks.join("\n")}`);
   }
 
   const uncertainty = compactText(reading.uncertainty_summary);
@@ -593,8 +697,10 @@ async function askOptionalCoordinates(rl) {
   );
 }
 
-async function askChartSex(rl) {
-  stdout.write("该参数只用于紫微斗数的传统排盘算法，不用于推断身份。\n");
+async function askChartSex(rl, system = "ziwei") {
+  stdout.write(system === "bazi"
+    ? "该传统二元参数只用于决定八字大运顺逆，不用于推断或评价身份。\n"
+    : "该参数只用于紫微斗数的传统排盘算法，不用于推断身份。\n");
   return askMenu(rl, "请选择排盘参数：1 男  2 女：", [
     { keys: ["1", "男", "male"], value: "male" },
     { keys: ["2", "女", "female"], value: "female" },
@@ -612,13 +718,14 @@ async function collectBirth(rl, system, { includeTargetDate = false } = {}) {
     const coordinates = await askOptionalCoordinates(rl);
     if (coordinates) Object.assign(input, coordinates);
   }
-  if (system === "ziwei") {
-    input.chart_sex = await askChartSex(rl);
+  if (["bazi", "ziwei"].includes(system) && includeTargetDate && !time) {
+    stdout.write("出生时刻未知时可以比较候选本命结构，但不能可靠定位指定日期的大限与流年；本轮先不做阶段计算。\n");
+  }
+  if (system === "ziwei" || (system === "bazi" && includeTargetDate && time)) {
+    input.chart_sex = await askChartSex(rl, system);
     if (time && includeTargetDate) {
       const targetDate = await askTargetDate(rl, input.date);
       if (targetDate) input.target_date = targetDate;
-    } else if (!time && includeTargetDate) {
-      stdout.write("出生时刻未知时可以比较候选本命盘，但不能可靠定位指定日期的大限与流年；本轮先不做阶段计算。\n");
     }
   }
   return input;
@@ -736,7 +843,9 @@ async function collectMeihua(rl) {
 async function collectInput(rl, route) {
   const { system } = route;
   if (["bazi", "ziwei", "western"].includes(system)) {
-    return collectBirth(rl, system, { includeTargetDate: system === "ziwei" && route.goal === "life_overview" });
+    return collectBirth(rl, system, {
+      includeTargetDate: ["bazi", "ziwei"].includes(system) && ["life_overview", "life_domain"].includes(route.goal),
+    });
   }
   if (system === "tarot") return collectTarot(rl);
   if (system === "iching") return collectIching(rl);
@@ -746,7 +855,7 @@ async function collectInput(rl, route) {
 async function chooseBirthSystem(rl) {
   stdout.write("适合出生资料的方式：\n");
   stdout.write("  1. 紫微斗数（推荐；时刻明确时可加看指定日期的大限与流年）\n");
-  stdout.write("  2. 四柱八字（看四柱基础结构；当前不算旺衰、用神或大运）\n");
+  stdout.write("  2. 四柱八字（看旺衰竞争假设、格局成败救应及大运流年引动）\n");
   stdout.write("  3. 西洋本命盘（看本命结构；当前不算行运）\n");
   return askMenu(rl, "请选择出生盘方式（默认 1）：", [
     { keys: ["1", "紫微", "ziwei"], value: "ziwei" },
@@ -841,6 +950,10 @@ function birthRows(system, input) {
       rows.push(["海外日期提醒", "这张盘按出生地当天处理；有些紫微流派对海外出生日期采用不同规则，结果可能变化"]);
     }
   }
+  if (system === "bazi" && input.chart_sex) {
+    rows.push(["大运顺逆参数", input.chart_sex === "male" ? "男" : "女"]);
+    if (input.target_date) rows.push(["想看的日期", input.target_date]);
+  }
   if (input.disambiguation === "earlier") rows.push(["重复时刻", "采用夏令时回拨中较早出现的一次"]);
   if (input.disambiguation === "later") rows.push(["重复时刻", "采用夏令时回拨中较晚出现的一次"]);
   if (input.latitude != null && input.longitude != null) rows.push(["坐标", `${input.latitude}, ${input.longitude}`]);
@@ -916,8 +1029,14 @@ async function editBirth(rl, state) {
     { key: "2", label: "出生时间", field: "time" },
     { key: "3", label: "出生地时区", field: "timezone" },
   ];
-  if (state.system === "ziwei") options.push({ key: "4", label: "排盘参数", field: "chart_sex" });
-  if (state.system === "ziwei" && state.input.time) {
+  if (state.system === "ziwei" || (
+    state.system === "bazi"
+    && state.input.time
+    && (state.input.chart_sex || ["life_overview", "life_domain"].includes(state.goal))
+  )) {
+    options.push({ key: String(options.length + 1), label: state.system === "bazi" ? "大运顺逆参数" : "排盘参数", field: "chart_sex" });
+  }
+  if (["bazi", "ziwei"].includes(state.system) && state.input.time && state.input.chart_sex) {
     options.push({ key: String(options.length + 1), label: "想看的日期（大限与流年）", field: "target_date" });
   }
   if (state.system === "western") options.push({ key: String(options.length + 1), label: "经纬度（用于上升点和宫位）", field: "coordinates" });
@@ -930,7 +1049,8 @@ async function editBirth(rl, state) {
     if (time) {
       const hadTime = Boolean(state.input.time);
       state.input.time = time;
-      if (state.system === "ziwei" && !hadTime && state.goal === "life_overview") {
+      if (["bazi", "ziwei"].includes(state.system) && !hadTime && ["life_overview", "life_domain"].includes(state.goal)) {
+        if (!state.input.chart_sex) state.input.chart_sex = await askChartSex(rl, state.system);
         const targetDate = await askTargetDate(rl, state.input.date, state.input.target_date);
         if (targetDate) state.input.target_date = targetDate;
       }
@@ -940,6 +1060,7 @@ async function editBirth(rl, state) {
         delete state.input.target_date;
         stdout.write("已移除阶段日期：没有明确出生时刻时，不能定位大限与流年。\n");
       }
+      if (state.system === "bazi") delete state.input.chart_sex;
     }
   }
   if (field === "timezone") state.input.timezone = await askTimezone(rl, state.input.timezone);
@@ -947,7 +1068,7 @@ async function editBirth(rl, state) {
     delete state.input.disambiguation;
     delete state.input.utc_offset;
   }
-  if (field === "chart_sex") state.input.chart_sex = await askChartSex(rl);
+  if (field === "chart_sex") state.input.chart_sex = await askChartSex(rl, state.system);
   if (field === "target_date") {
     const targetDate = await askTargetDate(rl, state.input.date, state.input.target_date);
     if (targetDate) state.input.target_date = targetDate;
@@ -1132,7 +1253,21 @@ function palaceLabel(name) {
 function resultSummaryLines(result) {
   const facts = result.facts;
   if (result.system === "bazi") {
-    if (facts.pillars) return [`四柱：${facts.pillars.map((item) => `${PILLAR_LABELS_ZH[item.pillar]} ${item.stem_branch}`).join(" ｜ ")}`];
+    if (facts.pillars) {
+      const lines = [`四柱：${facts.pillars.map((item) => `${PILLAR_LABELS_ZH[item.pillar]} ${item.stem_branch}`).join(" ｜ ")}`];
+      const target = facts.luck_cycles?.target;
+      if (target) {
+        lines.unshift(`指定日期：${target.requested_date}`);
+        const active = facts.luck_cycles.decadal?.find((item) => item.fact_id === target.active_decadal_fact_id);
+        lines.push(active
+          ? `当前大运：${active.stem_branch}（${active.start_local.slice(0, 10)} 起，至 ${active.end_local_exclusive.slice(0, 10)} 前）`
+          : "当前大运：目标日处在起运边界，暂不硬选前后一步");
+        lines.push(target.yearly
+          ? `流年：${target.yearly.stem_branch}（以立春换年；目标日内唯一稳定）`
+          : "流年：目标日处在立春节气边界，保留前后候选");
+      }
+      return lines;
+    }
     const stable = facts.stable_pillars.map((item) => {
       const values = item.alternatives.map((alternative) => alternative.value).join(" / ");
       return `${PILLAR_LABELS_ZH[item.pillar]}：${values}${item.status === "stable" ? "（全天稳定）" : "（随时段变化）"}`;
@@ -1174,6 +1309,15 @@ function resultSummaryLines(result) {
   ];
 }
 
+function safeBaziAdjudication(result) {
+  if (result.system !== "bazi" || typeof adjudicateBazi !== "function") return null;
+  try {
+    return adjudicateBazi(result);
+  } catch {
+    return null;
+  }
+}
+
 function homeWarnings(result) {
   const prefixes = [
     "CALENDAR_DAY_PROFILE_QUALIFIED", "No birth time was supplied", "Latitude is too close",
@@ -1183,9 +1327,22 @@ function homeWarnings(result) {
 }
 
 function showResultHome(result, state) {
+  const baziProfessional = safeBaziAdjudication(result);
   stdout.write("\n＝＝＝＝ 排盘 / 抽取完成 ＝＝＝＝\n");
   stdout.write(`你想看：${state.focus}\n`);
   stdout.write(`使用：${SYSTEM_LABELS[result.system]}\n`);
+  if (baziProfessional) {
+    stdout.write("\n先说结论：\n");
+    stdout.write(`${baziProfessional.conclusion}\n`);
+    stdout.write(`${baziProfessional.plain_language}\n`);
+    if (baziProfessional.phase?.decadal?.status === "available" || baziProfessional.phase?.yearly?.status === "available") {
+      stdout.write("\n当前阶段：\n");
+      if (baziProfessional.phase.decadal?.conclusion) stdout.write(`- ${baziProfessional.phase.decadal.conclusion}\n`);
+      if (baziProfessional.phase.yearly?.conclusion) stdout.write(`- ${baziProfessional.phase.yearly.conclusion}\n`);
+      if (baziProfessional.phase.joint_activation?.conclusion) stdout.write(`- ${baziProfessional.phase.joint_activation.conclusion}\n`);
+    }
+    stdout.write("\n盘面起点：\n");
+  }
   for (const line of resultSummaryLines(result)) stdout.write(`${line}\n`);
   const visibleWarnings = homeWarnings(result);
   if (visibleWarnings.length) {
@@ -1215,6 +1372,16 @@ function showDetails(result) {
       if (structure.relationships.length) {
         stdout.write(`明示结构关系：${structure.relationships.map((item) => `${item.pillars.map((pillar) => PILLAR_LABELS_ZH[pillar]).join("-")} ${item.values.join("")}（${RELATIONSHIP_LABELS_ZH[item.relationship] || "结构关系"}）`).join("；")}\n`);
       }
+    }
+    const professional = safeBaziAdjudication(result);
+    if (professional?.status === "completed") {
+      stdout.write("\n—— 专业裁决 ——\n");
+      stdout.write(`旺衰：${professional.lenses.strength.conclusion}\n`);
+      stdout.write(`格局：${professional.lenses.pattern.conclusion}\n`);
+      const activeViews = professional.lenses.useful_god_views.filter((view) => view.state !== "未决");
+      if (activeViews.length) stdout.write(`已成立的取用视角：${activeViews.map((view) => `${view.lens}（${view.conclusion}）`).join("；")}\n`);
+      if (professional.lenses.conflicts.length) stdout.write(`流派分歧：${professional.lenses.conflicts.map((item) => item.explanation).join("；")}\n`);
+      stdout.write(`改判边界：${professional.lenses.pattern.hypothesis.change_conditions.join("；")}\n`);
     }
     return;
   }
@@ -1505,7 +1672,14 @@ async function interactive() {
 }
 
 async function main() {
-  const [command = "help", ...rest] = process.argv.slice(2);
+  const rawArguments = process.argv.slice(2);
+  if (rawArguments[0] === "--help") {
+    if (rawArguments.length !== 1) {
+      throw new FortuneTellerError("INVALID_COMMAND_ARGUMENT", "--help accepts no additional arguments");
+    }
+    return printHelp();
+  }
+  const [command = "help", ...rest] = rawArguments;
   const args = parseArgs(rest);
   if (command === "help") {
     if (args._.length || Object.keys(args).some((key) => !["_", "help"].includes(key)) || (args.help != null && args.help !== true)) {
@@ -1515,7 +1689,10 @@ async function main() {
   }
   validateCommandArgs(command, args);
   if (args.help) return printHelp();
-  if (["methods", "sources", "interactive", "calculate", "validate-reading", "render-reading"].includes(command)) {
+  if ([
+    "methods", "sources", "interactive", "calculate", "adjudicate-bazi", "bind-reading", "validate-reading", "render-reading",
+    "freeze-check", "verify-check", "score-check",
+  ].includes(command)) {
     await ensureFortuneTellerLoaded();
   }
   if (command === "methods") return emit({ schema_version: "1.0.0", methods: METHODS }, args);
@@ -1531,6 +1708,9 @@ async function main() {
       filter: args.system || null,
       sources,
       rules,
+      interpretation_profiles: args.system
+        ? INTERPRETATION_PROFILES.filter((profile) => profile.system === args.system)
+        : INTERPRETATION_PROFILES,
     }, args);
   }
   if (command === "interactive") return interactive();
@@ -1579,12 +1759,33 @@ async function main() {
     const input = looksEnveloped ? payload.input : payload;
     return emit(calculate(system, input, rawProfile), args);
   }
+  if (command === "adjudicate-bazi") {
+    const payload = await readJson(args.input, args.json);
+    if (!isPlainJsonObject(payload)) {
+      throw new FortuneTellerError("BAZI_ADJUDICATION_INPUT_INVALID", "adjudicate-bazi input must be one calculation object or {calculation, options}");
+    }
+    if (Object.hasOwn(payload, "calculation") || Object.hasOwn(payload, "options")) {
+      const unknown = Object.keys(payload).filter((key) => !["calculation", "options"].includes(key));
+      if (unknown.length || !isPlainJsonObject(payload.calculation)) {
+        throw new FortuneTellerError("BAZI_ADJUDICATION_INPUT_INVALID", "the wrapper must contain calculation and optional options only");
+      }
+      if (Object.hasOwn(payload, "options") && !isPlainJsonObject(payload.options)) {
+        throw new FortuneTellerError("BAZI_ADJUDICATION_INPUT_INVALID", "adjudication options must be a JSON object");
+      }
+      return emit(adjudicateBazi(payload.calculation, payload.options || {}), args);
+    }
+    return emit(adjudicateBazi(payload), args);
+  }
   if (command === "validate-reading") {
     const payload = await readJson(args.input, args.json);
     const result = validateReading(payload);
     await emit(result, args);
     if (!result.valid) process.exitCode = 2;
     return;
+  }
+  if (command === "bind-reading") {
+    const payload = await readJson(args.input, args.json);
+    return emit(bindReadingToCalculations(payload), args);
   }
   if (command === "render-reading") {
     const payload = await readJson(args.input, args.json);
@@ -1606,6 +1807,61 @@ async function main() {
       );
     }
     return emitText(renderedText, args);
+  }
+  if (command === "freeze-check") {
+    const payload = args.reading
+      ? {
+          reading_payload: await readJson(args.reading),
+          claim_ids: args["claim-ids"].split(",").map((value) => value.trim()),
+        }
+      : await readJson(args.input, args.json);
+    return emit(freezeBlindCheck(payload), args);
+  }
+  if (command === "verify-check") {
+    const payload = args.record
+      ? { record: await readJson(args.record), reading_payload: await readJson(args.reading) }
+      : await readJson(args.input, args.json);
+    let result;
+    if (isPlainJsonObject(payload) && (Object.hasOwn(payload, "record") || Object.hasOwn(payload, "reading_payload"))) {
+      const unknown = Object.keys(payload).filter((key) => !["record", "reading_payload"].includes(key));
+      if (unknown.length || !Object.hasOwn(payload, "record") || !Object.hasOwn(payload, "reading_payload")) {
+        throw new FortuneTellerError(
+          "BLIND_CHECK_VERIFY_INPUT_INVALID",
+          "reading-bound verify-check requires exactly record and reading_payload",
+        );
+      }
+      result = verifyBlindCheckReading(payload.record, payload.reading_payload);
+    } else {
+      result = verifyBlindCheckRecord(payload);
+    }
+    await emit(result, args);
+    if (!result.valid) process.exitCode = 2;
+    return;
+  }
+  if (command === "score-check") {
+    const payload = args.record
+      ? {
+          record: await readJson(args.record),
+          reading_payload: await readJson(args.reading),
+          adjudications: await readJson(args.adjudications),
+        }
+      : await readJson(args.input, args.json);
+    if (
+      !isPlainJsonObject(payload)
+      || !Object.hasOwn(payload, "record")
+      || !Object.hasOwn(payload, "reading_payload")
+      || !Object.hasOwn(payload, "adjudications")
+    ) {
+      throw new FortuneTellerError(
+        "BLIND_CHECK_SCORE_INPUT_INVALID",
+        "score-check requires record, reading_payload, and adjudications",
+      );
+    }
+    const unknown = Object.keys(payload).filter((key) => !["record", "reading_payload", "adjudications"].includes(key));
+    if (unknown.length) {
+      throw new FortuneTellerError("BLIND_CHECK_SCORE_INPUT_INVALID", "score-check received unknown fields");
+    }
+    return emit(scoreBlindCheck(payload.record, payload.reading_payload, payload.adjudications), args);
   }
   throw new FortuneTellerError("UNKNOWN_COMMAND", "unknown command");
 }

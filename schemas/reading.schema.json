@@ -1,17 +1,475 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:fortune-teller:schema:reading:1",
+  "$id": "urn:fortune-teller:schema:reading:3",
   "title": "Fortune Teller interpretive reading",
   "type": "object",
   "additionalProperties": false,
   "$defs": {
+    "calculationBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["system", "profile", "facts_hash", "reproducibility_hash"],
+      "properties": {
+        "system": { "enum": ["bazi", "ziwei", "western", "tarot", "iching", "meihua"] },
+        "profile": { "oneOf": [{ "type": "string", "minLength": 1 }, { "type": "object" }] },
+        "facts_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "reproducibility_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
+    "qualityStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "calculation_verification", "technical_assertions", "narrative_status", "review_status",
+        "professional_label_allowed", "predictive_validity"
+      ],
+      "properties": {
+        "calculation_verification": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["system", "status"],
+            "properties": {
+              "system": { "enum": ["bazi", "ziwei", "western", "tarot", "iching", "meihua"] },
+              "status": {
+                "enum": [
+                  "replayed_facts", "user_supplied_recomputed",
+                  "structural_only_origin_unverified", "unavailable"
+                ]
+              }
+            }
+          }
+        },
+        "technical_assertions": { "const": "typed_bindings_only" },
+        "narrative_status": { "const": "not_machine_verified" },
+        "review_status": { "const": "automated_fixture_reviewed" },
+        "professional_label_allowed": { "const": false },
+        "predictive_validity": { "const": "not_established" }
+      }
+    },
+    "evidenceBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "path", "value_hash", "role"],
+      "properties": {
+        "ref": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "pattern": "^/facts/" },
+        "value_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "role": { "enum": ["support", "constraint", "context"] }
+      }
+    },
+    "assessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "domain", "window", "criteria"],
+      "properties": {
+        "mode": { "enum": ["current_reflection", "bounded_phase", "prospective_hypothesis"] },
+        "domain": { "$ref": "#/$defs/claimTopic" },
+        "window": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": {
+            "kind": { "enum": ["current", "bounded"] },
+            "start": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+            "end": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" }
+          }
+        },
+        "criteria": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["criterion_id", "polarity", "observable", "evidence_source"],
+            "properties": {
+              "criterion_id": { "type": "string", "pattern": "^K-[A-Za-z0-9_-]+$" },
+              "polarity": { "enum": ["supports", "contradicts", "unclear"] },
+              "observable": { "type": "string", "minLength": 12 },
+              "evidence_source": { "enum": ["self_report", "contemporaneous_record", "administrative_record", "third_party_record"] }
+            }
+          }
+        }
+      }
+    },
+    "ziweiMajorStarAxis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["meaning_id", "fact_id", "star", "palace"],
+      "properties": {
+        "meaning_id": { "type": "string", "pattern": "^ZW-STAR-[A-Z]+$" },
+        "fact_id": { "type": "string", "minLength": 1 },
+        "star": { "type": "string", "minLength": 1 },
+        "palace": { "type": "string", "minLength": 1 }
+      }
+    },
+    "ziweiPalaceAxisGroup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["relation_role", "relation_offset", "palace", "major_star_axes"],
+      "properties": {
+        "relation_role": {
+          "enum": ["focus", "trine_plus_4", "trine_plus_8", "opposite_plus_6"]
+        },
+        "relation_offset": { "enum": [0, 4, 8, 6] },
+        "palace": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["fact_id", "name"],
+          "properties": {
+            "fact_id": { "type": "string", "minLength": 1 },
+            "name": { "type": "string", "minLength": 1 }
+          }
+        },
+        "major_star_axes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/ziweiMajorStarAxis" }
+        }
+      }
+    },
+    "ziweiFourPalaceAxisGroups": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "prefixItems": [
+        {
+          "allOf": [
+            { "$ref": "#/$defs/ziweiPalaceAxisGroup" },
+            {
+              "type": "object",
+              "properties": {
+                "relation_role": { "const": "focus" },
+                "relation_offset": { "const": 0 },
+                "major_star_axes": { "type": "array", "minItems": 1 }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            { "$ref": "#/$defs/ziweiPalaceAxisGroup" },
+            { "type": "object", "properties": { "relation_role": { "const": "trine_plus_4" }, "relation_offset": { "const": 4 } } }
+          ]
+        },
+        {
+          "allOf": [
+            { "$ref": "#/$defs/ziweiPalaceAxisGroup" },
+            { "type": "object", "properties": { "relation_role": { "const": "trine_plus_8" }, "relation_offset": { "const": 8 } } }
+          ]
+        },
+        {
+          "allOf": [
+            { "$ref": "#/$defs/ziweiPalaceAxisGroup" },
+            { "type": "object", "properties": { "relation_role": { "const": "opposite_plus_6" }, "relation_offset": { "const": 6 } } }
+          ]
+        }
+      ],
+      "items": false
+    },
+    "ziweiMeaningBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema", "registry_id", "system", "origin", "review_status", "predictive_validity",
+        "professional_label_allowed", "event_generation", "rule_id", "route", "assessment_mode",
+        "topic", "topic_meaning_id", "topic_unit_id", "primary_palace", "palace_axis_groups",
+        "transformation_lenses", "source_fact_ids"
+      ],
+      "properties": {
+        "schema": { "const": "fortune-teller/ziwei-meaning-binding/v2" },
+        "registry_id": { "const": "ziwei-bounded-meanings-v1" },
+        "system": { "const": "ziwei" },
+        "origin": { "const": "project_authored_bounded_paraphrase" },
+        "review_status": { "const": "automated_fixture_reviewed" },
+        "predictive_validity": { "const": "not_established" },
+        "professional_label_allowed": { "const": false },
+        "event_generation": { "const": "disallowed" },
+        "rule_id": { "enum": ["R-ZW-007", "R-ZW-008", "R-ZW-009"] },
+        "route": { "enum": ["natal_topic_axes", "natal_transformation_process", "bounded_phase_theme"] },
+        "assessment_mode": { "enum": ["current_reflection", "bounded_phase", "prospective_hypothesis"] },
+        "topic": { "enum": ["overview", "career_study", "wealth_resources", "relationships", "wellbeing_rhythm"] },
+        "topic_meaning_id": {
+          "enum": [
+            "ZW-TOPIC-OVERVIEW", "ZW-TOPIC-CAREER-STUDY", "ZW-TOPIC-WEALTH-RESOURCES",
+            "ZW-TOPIC-RELATIONSHIPS", "ZW-TOPIC-WELLBEING-RHYTHM"
+          ]
+        },
+        "topic_unit_id": { "type": "string", "minLength": 1 },
+        "primary_palace": {
+          "type": "object", "additionalProperties": false, "required": ["fact_id", "name"],
+          "properties": {
+            "fact_id": { "type": "string", "minLength": 1 },
+            "name": { "enum": ["命宫", "官禄", "财帛", "夫妻", "福德"] }
+          }
+        },
+        "palace_axis_groups": { "type": "array", "uniqueItems": true },
+        "transformation_lenses": {
+          "type": "array", "uniqueItems": true,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["meaning_id", "fact_id", "star", "transformation", "palace"],
+            "properties": {
+              "meaning_id": { "enum": ["ZW-TRANSFORMATION-LU", "ZW-TRANSFORMATION-QUAN", "ZW-TRANSFORMATION-KE", "ZW-TRANSFORMATION-JI"] },
+              "fact_id": { "type": "string", "minLength": 1 },
+              "star": { "type": "string", "minLength": 1 },
+              "transformation": { "enum": ["禄", "权", "科", "忌"] },
+              "palace": { "type": "string", "minLength": 1 },
+              "scope": { "enum": ["decadal", "yearly"] },
+              "natal_palace": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "source_fact_ids": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "phase": {
+          "type": "object", "additionalProperties": false,
+          "required": [
+            "target_fact_id", "requested_date", "phase_validity_fact_id", "yearly_calendar_year",
+            "boundary_conventions", "window", "natal_topic_unit_id",
+            "decadal_star_palace_id", "yearly_star_palace_id",
+            "decadal_component_star_palace_ids", "yearly_component_star_palace_ids",
+            "component_relation_offsets"
+          ],
+          "properties": {
+            "target_fact_id": { "type": "string", "minLength": 1 },
+            "requested_date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+            "phase_validity_fact_id": { "type": "string", "minLength": 1 },
+            "yearly_calendar_year": { "type": "integer", "minimum": 1900, "maximum": 2200 },
+            "boundary_conventions": {
+              "type": "object", "additionalProperties": false,
+              "required": ["horoscope_divide", "age_divide"],
+              "properties": {
+                "horoscope_divide": { "enum": ["normal", "exact"] },
+                "age_divide": { "enum": ["normal", "birthday"] }
+              }
+            },
+            "window": {
+              "type": "object", "additionalProperties": false, "required": ["kind", "start", "end"],
+              "properties": {
+                "kind": { "const": "bounded" },
+                "start": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+                "end": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" }
+              }
+            },
+            "natal_topic_unit_id": { "type": "string", "minLength": 1 },
+            "decadal_star_palace_id": { "type": "string", "minLength": 1 },
+            "yearly_star_palace_id": { "type": "string", "minLength": 1 },
+            "decadal_component_star_palace_ids": {
+              "type": "array", "minItems": 4, "maxItems": 4, "uniqueItems": true,
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "yearly_component_star_palace_ids": {
+              "type": "array", "minItems": 4, "maxItems": 4, "uniqueItems": true,
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "component_relation_offsets": {
+              "type": "array", "minItems": 4, "maxItems": 4, "prefixItems": [
+                { "const": 0 }, { "const": 4 }, { "const": 8 }, { "const": 6 }
+              ], "items": false
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "route": { "const": "natal_topic_axes" } }, "required": ["route"] },
+          "then": {
+            "properties": {
+              "rule_id": { "const": "R-ZW-007" }, "assessment_mode": { "const": "current_reflection" },
+              "palace_axis_groups": { "$ref": "#/$defs/ziweiFourPalaceAxisGroups" },
+              "transformation_lenses": { "type": "array", "maxItems": 0 }
+            },
+            "not": { "required": ["phase"] }
+          }
+        },
+        {
+          "if": { "properties": { "route": { "const": "natal_transformation_process" } }, "required": ["route"] },
+          "then": {
+            "properties": {
+              "rule_id": { "const": "R-ZW-008" }, "assessment_mode": { "const": "current_reflection" },
+              "palace_axis_groups": { "type": "array", "maxItems": 0 },
+              "transformation_lenses": { "type": "array", "minItems": 1 }
+            },
+            "not": { "required": ["phase"] }
+          }
+        },
+        {
+          "if": { "properties": { "route": { "const": "bounded_phase_theme" } }, "required": ["route"] },
+          "then": {
+            "required": ["phase"],
+            "properties": {
+              "rule_id": { "const": "R-ZW-009" },
+              "assessment_mode": { "enum": ["bounded_phase", "prospective_hypothesis"] },
+              "palace_axis_groups": { "$ref": "#/$defs/ziweiFourPalaceAxisGroups" },
+              "transformation_lenses": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "type": "object", "required": ["scope", "natal_palace"] }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "semanticBinding": {
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["kind", "fact_id", "role", "king_wen_number", "name"],
+          "properties": {
+            "kind": { "const": "hexagram_identity" }, "fact_id": { "type": "string" },
+            "role": { "enum": ["primary", "transformed"] },
+            "king_wen_number": { "type": "integer", "minimum": 1, "maximum": 64 },
+            "name": { "type": "string" }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["kind", "fact_id", "position_from_bottom", "line_value", "line_type"],
+          "properties": {
+            "kind": { "const": "iching_line" }, "fact_id": { "type": "string" },
+            "position_from_bottom": { "type": "integer", "minimum": 1, "maximum": 6 },
+            "line_value": { "enum": [6, 7, 8, 9] }, "line_type": { "type": "string" }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["kind", "fact_id", "role", "number", "name", "symbol"],
+          "properties": {
+            "kind": { "const": "meihua_trigram" }, "fact_id": { "type": "string" },
+            "role": { "enum": ["upper", "lower"] },
+            "number": { "type": "integer", "minimum": 1, "maximum": 8 },
+            "name": { "type": "string" }, "symbol": { "type": "string" }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["kind", "fact_id", "position_from_bottom"],
+          "properties": {
+            "kind": { "const": "meihua_moving_line" }, "fact_id": { "type": "string" },
+            "position_from_bottom": { "type": "integer", "minimum": 1, "maximum": 6 }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["kind", "fact_id", "position", "card_id", "title", "title_zh", "orientation"],
+          "properties": {
+            "kind": { "const": "tarot_card" }, "fact_id": { "type": "string" },
+            "position": { "type": "string" }, "card_id": { "type": "string" },
+            "title": { "type": "string" }, "title_zh": { "type": "string" },
+            "orientation": { "enum": ["upright", "reversed"] }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["kind", "fact_id", "pillar", "stem_branch", "heavenly_stem", "earthly_branch"],
+          "properties": {
+            "kind": { "const": "bazi_pillar" }, "fact_id": { "type": "string" },
+            "pillar": { "enum": ["year", "month", "day", "time"] },
+            "stem_branch": { "type": "string" }, "heavenly_stem": { "type": "string" },
+            "earthly_branch": { "type": "string" }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["kind", "fact_id", "relationship", "values", "pillar_ids", "pillars"],
+          "properties": {
+            "kind": { "const": "bazi_relationship" }, "fact_id": { "type": "string" },
+            "relationship": { "type": "string" },
+            "values": { "type": "array", "items": { "type": "string" } },
+            "pillar_ids": { "type": "array", "items": { "type": "string" } },
+            "pillars": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["kind", "fact_id", "body", "sign", "sign_zh", "motion_state", "retrograde"],
+          "properties": {
+            "kind": { "const": "western_planet" }, "fact_id": { "type": "string" },
+            "body": { "type": "string" }, "sign": { "type": "string" }, "sign_zh": { "type": "string" },
+            "motion_state": { "type": "string" }, "retrograde": { "type": ["boolean", "null"] }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["kind", "fact_id", "body_1", "body_2", "aspect", "separation_degrees", "orb_degrees"],
+          "properties": {
+            "kind": { "const": "western_aspect" }, "fact_id": { "type": "string" },
+            "body_1": { "type": "string" }, "body_2": { "type": "string" },
+            "aspect": { "type": "string" }, "separation_degrees": { "type": "number" },
+            "orb_degrees": { "type": "number" }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["kind", "fact_id", "star", "palace", "star_group"],
+          "properties": {
+            "kind": { "const": "star_in_palace" }, "fact_id": { "type": "string" },
+            "star": { "type": "string" }, "palace": { "type": "string" },
+            "star_group": { "enum": ["major", "minor", "adjective"] },
+            "brightness": { "enum": ["庙", "旺", "得", "利", "平", "不", "陷"] }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["kind", "fact_id", "star", "transformation", "palace"],
+          "properties": {
+            "kind": { "const": "mutagen_in_palace" }, "fact_id": { "type": "string" },
+            "star": { "type": "string" }, "transformation": { "enum": ["禄", "权", "科", "忌"] },
+            "palace": { "type": "string" }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["kind", "fact_id", "scope", "star", "transformation", "natal_palace"],
+          "properties": {
+            "kind": { "const": "period_transformation" }, "fact_id": { "type": "string" },
+            "scope": { "enum": ["decadal", "yearly"] }, "star": { "type": "string" },
+            "transformation": { "enum": ["禄", "权", "科", "忌"] }, "natal_palace": { "type": "string" }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": [
+            "kind", "fact_id", "topic_unit_id", "scope", "relation_role",
+            "star", "period_palace", "natal_palace"
+          ],
+          "properties": {
+            "kind": { "const": "period_star_in_slot" },
+            "fact_id": { "type": "string", "minLength": 1 },
+            "topic_unit_id": { "type": "string", "minLength": 1 },
+            "scope": { "enum": ["decadal", "yearly"] },
+            "relation_role": { "enum": ["focus", "trine_plus_4", "trine_plus_8", "opposite_plus_6"] },
+            "star": { "type": "string", "minLength": 1 },
+            "period_palace": { "type": "string", "minLength": 1 },
+            "natal_palace": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
+    },
     "structuredNextStep": {
       "type": "object",
       "additionalProperties": false,
       "required": ["id", "label", "action", "available", "requires_input", "reuses_frozen_calculation"],
       "properties": {
         "id": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$" },
-        "label": { "type": "string", "minLength": 1 },
+        "label": {
+          "enum": [
+            "继续深入当前主题", "查看同一排盘的另一个主题", "查看排盘与传统依据", "查看输入变化的影响",
+            "比较另一种传统排法", "更正输入资料", "开始一次新解读", "用新问题重新抽牌", "用新问题重新起卦",
+            "查看核对报告", "导出本次结果", "记录现实反馈", "结束本次解读",
+            "继续深入当前主题（暂不可用）", "查看同一排盘的另一个主题（暂不可用）",
+            "查看排盘与传统依据（暂不可用）", "查看输入变化的影响（暂不可用）",
+            "比较另一种传统排法（暂不可用）", "更正输入资料（暂不可用）", "开始一次新解读（暂不可用）",
+            "查看核对报告（暂不可用）", "导出本次结果（暂不可用）", "记录现实反馈（暂不可用）",
+            "结束本次解读（暂不可用）"
+          ]
+        },
         "action": {
           "enum": [
             "deepen", "change_focus", "inspect_evidence", "inspect_sensitivity", "compare_profile", "correct_input",
@@ -34,12 +492,13 @@
         },
         "reuses_frozen_calculation": { "type": "boolean" },
         "target_system": { "enum": ["bazi", "ziwei", "western", "tarot", "iching", "meihua"] },
-        "reason": { "type": "string", "minLength": 1 }
+        "reason": { "const": "当前资料或功能条件不足，暂不能执行这一步。" }
       },
       "allOf": [
         {
           "if": { "properties": { "available": { "const": false } }, "required": ["available"] },
-          "then": { "required": ["reason"] }
+          "then": { "required": ["reason"] },
+          "else": { "not": { "required": ["reason"] } }
         },
         {
           "if": { "properties": { "action": { "const": "change_focus" } }, "required": ["action"] },
@@ -54,6 +513,7 @@
             "properties": {
               "target_system": { "enum": ["tarot", "iching"] },
               "requires_input": {
+                "type": "array",
                 "contains": {
                   "enum": [
                     "system", "profile", "question", "new_question", "cards", "lines", "spread", "seed", "draw", "cast",
@@ -84,13 +544,17 @@
       "additionalProperties": false,
       "required": [
         "claim_id", "statement", "topic", "epistemic_status", "system", "profile", "fact_ids", "rule_ids",
-        "calculation_certainty", "input_sensitivity", "school_stability", "source_status", "source_ids"
+        "calculation_facts_hash", "evidence_bindings", "calculation_certainty", "input_sensitivity",
+        "school_stability", "source_status", "source_ids"
       ],
       "properties": {
         "claim_id": { "type": "string", "pattern": "^C-[A-Za-z0-9_-]+$" },
         "statement": { "type": "string", "minLength": 1 },
         "topic": { "$ref": "#/$defs/claimTopic" },
         "epistemic_status": { "enum": ["calculation_fact", "traditional_rule", "interpretation", "unresolved"] },
+        "unresolved_reason_kind": {
+          "enum": ["input_missing", "rule_unavailable", "reality_evidence_missing", "conflicting_evidence", "unspecified"]
+        },
         "system": { "enum": ["bazi", "ziwei", "western", "tarot", "iching", "meihua"] },
         "profile": {
           "oneOf": [
@@ -101,15 +565,23 @@
         "scope": { "type": "string", "minLength": 1 },
         "fact_ids": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
         "rule_ids": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "calculation_facts_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "evidence_bindings": { "type": "array", "items": { "$ref": "#/$defs/evidenceBinding" } },
+        "assessment": { "$ref": "#/$defs/assessment" },
+        "interpretation_profile_id": { "type": "string", "minLength": 1 },
+        "rule_pack_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "topic_unit_id": { "type": "string", "minLength": 1 },
+        "meaning_binding": { "$ref": "#/$defs/ziweiMeaningBinding" },
+        "semantic_bindings": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/semanticBinding" } },
+        "technical_summary": { "type": "string", "minLength": 1 },
         "reasoning_summary": { "type": "string", "minLength": 1 },
-        "dependencies": { "type": "array", "items": { "type": "string" } },
         "calculation_certainty": { "enum": ["high", "qualified", "unavailable"] },
         "input_sensitivity": {
           "type": "object",
           "additionalProperties": false,
           "required": ["label", "coverage"],
           "properties": {
-            "label": { "enum": ["stable", "partly_stable", "boundary_sensitive", "unavailable"] },
+            "label": { "enum": ["stable", "partly_stable", "boundary_sensitive", "unavailable", "not_assessed"] },
             "coverage": { "type": ["string", "null"], "pattern": "^\\d+/\\d+$" }
           }
         },
@@ -126,10 +598,30 @@
             "required": ["epistemic_status"]
           },
           "then": {
+            "required": ["assessment", "interpretation_profile_id", "rule_pack_hash"],
             "properties": {
               "rule_ids": { "type": "array", "minItems": 1 }
             }
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "system": { "const": "ziwei" },
+              "epistemic_status": { "const": "interpretation" },
+              "scope": { "enum": ["topic_synthesis", "topic_transformation", "phase_topic_synthesis"] }
+            },
+            "required": ["system", "epistemic_status", "scope"]
+          },
+          "then": { "required": ["meaning_binding"] }
+        },
+        {
+          "if": { "required": ["semantic_bindings"] },
+          "then": { "required": ["technical_summary"] }
+        },
+        {
+          "if": { "required": ["technical_summary"] },
+          "then": { "required": ["semantic_bindings"] }
         },
         {
           "if": {
@@ -139,6 +631,7 @@
           "then": {
             "properties": {
               "statement": {
+                "type": "string",
                 "pattern": "(不确定|无法判断|不能判断|尚不能判断|暂时不能判断|无法确定|不能确定|无法确认|不能确认|信息不足|证据不足|资料不足|不可判断|[Uu]ncertain|[Uu]nknown|[Uu]nresolved|[Cc]annot determine|[Cc]an't determine|[Cc]annot conclude|[Cc]an't conclude|[Ii]nsufficient information|[Ii]nsufficient evidence|[Nn]ot enough information|[Nn]ot enough evidence)"
               }
             }
@@ -147,23 +640,29 @@
       ]
     }
   },
-  "required": ["system", "level", "disclaimer", "summary", "claims", "next_steps"],
+  "required": ["system", "level", "title", "user_focus", "disclaimer", "summary", "claims", "calculation_bindings", "quality_status", "uncertainty_summary", "next_steps"],
   "properties": {
     "system": {
       "oneOf": [
         { "enum": ["bazi", "ziwei", "western", "tarot", "iching", "meihua"] },
         {
           "type": "array",
-          "minItems": 1,
+          "minItems": 2,
           "uniqueItems": true,
           "items": { "enum": ["bazi", "ziwei", "western", "tarot", "iching", "meihua"] }
         }
       ]
     },
     "level": { "enum": ["quick", "standard", "deep", "audit"] },
-    "title": { "type": "string", "minLength": 1 },
-    "user_focus": { "type": "string", "minLength": 1 },
-    "disclaimer": { "type": "string", "minLength": 1 },
+    "title": {
+      "type": "string",
+      "pattern": "^(八字|紫微斗数|西方占星|塔罗|易经|梅花易数|多体系对照)｜(简要结果|解读结果|深度解读|核对报告)$"
+    },
+    "user_focus": {
+      "type": "string",
+      "pattern": "^(整体主题|当前情况|当前选择|事业与学习|财富与资源|长期关系|家庭与社交|身心节律|人生阶段|所问主题)(、(整体主题|当前情况|当前选择|事业与学习|财富与资源|长期关系|家庭与社交|身心节律|人生阶段|所问主题))*$"
+    },
+    "disclaimer": { "const": "以下内容属于传统文化反思，不是经科学验证的现实预测；重要决定请结合事实并独立判断。" },
     "summary": {
       "type": "string",
       "minLength": 1,
@@ -173,38 +672,53 @@
       "type": "array",
       "minItems": 1,
       "items": {
-        "oneOf": [
-          { "$ref": "evidence-card.schema.json" },
+        "anyOf": [
+          { "$ref": "urn:fortune-teller:schema:evidence-card:3" },
           { "$ref": "#/$defs/topicEvidenceCard" }
         ]
       }
     },
-    "uncertainty_summary": { "type": "string" },
+    "calculation_bindings": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/calculationBinding" }
+    },
+    "quality_status": { "$ref": "#/$defs/qualityStatus" },
+    "uncertainty_summary": {
+      "enum": [
+        "排盘可以复算，传统含义仍不能确认具体事件或保证现实结果。",
+        "排盘可以复算，传统含义仍不能确认具体事件或保证现实结果。 其中海外出生日期沿用出生地民用日；不同流派的换日口径可能不同。"
+      ]
+    },
     "warning_acknowledgements": {
       "type": "array",
       "uniqueItems": true,
-      "items": { "type": "string", "minLength": 1 }
+      "items": { "enum": ["CALENDAR_DAY_PROFILE_QUALIFIED"] }
     },
     "cross_system": {
       "type": "object",
-      "not": {
-        "anyOf": [
-          { "required": ["winner"] },
-          { "required": ["vote"] }
-        ]
+      "additionalProperties": false,
+      "required": ["relationship"],
+      "properties": {
+        "relationship": {
+          "const": "not_compared"
+        }
       }
     },
     "next_steps": {
       "type": "array",
-      "items": {
-        "oneOf": [
-          { "type": "string" },
-          { "$ref": "#/$defs/structuredNextStep" }
-        ]
-      }
+      "items": { "$ref": "#/$defs/structuredNextStep" }
     }
   },
   "allOf": [
+    {
+      "if": {
+        "properties": { "system": { "type": "array", "minItems": 2 } },
+        "required": ["system"]
+      },
+      "then": { "required": ["cross_system"] },
+      "else": { "not": { "required": ["cross_system"] } }
+    },
     {
       "if": {
         "properties": { "level": { "enum": ["standard", "deep", "audit"] } },
@@ -227,11 +741,13 @@
       "then": {
         "properties": {
           "next_steps": {
+            "type": "array",
             "items": {
               "if": {
                 "type": "object",
                 "properties": {
                   "requires_input": {
+                    "type": "array",
                     "contains": {
                       "enum": [
                         "system", "profile", "question", "new_question", "cards", "lines", "spread", "seed", "draw", "cast",
@@ -243,6 +759,7 @@
                 "required": ["requires_input"]
               },
               "then": {
+                "type": "object",
                 "properties": {
                   "action": { "const": "new_reading" },
                   "reuses_frozen_calculation": { "const": false }
@@ -261,15 +778,18 @@
       "then": {
         "properties": {
           "next_steps": {
+            "type": "array",
             "items": {
               "if": {
                 "type": "object",
                 "anyOf": [
                   {
+                    "type": "object",
                     "properties": { "requires_input": { "type": "array", "minItems": 1 } },
                     "required": ["requires_input"]
                   },
                   {
+                    "type": "object",
                     "properties": {
                       "action": { "enum": ["change_focus", "new_reading", "correct_input", "compare_profile"] }
                     },
@@ -277,7 +797,7 @@
                   }
                 ]
               },
-              "then": { "required": ["target_system"] }
+              "then": { "type": "object", "required": ["target_system"] }
             }
           }
         }
@@ -300,6 +820,7 @@
           "claims": {
             "type": "array",
             "items": {
+              "type": "object",
               "required": ["reasoning_summary", "alternative_readings"],
               "properties": {
                 "reasoning_summary": { "type": "string", "minLength": 1 },

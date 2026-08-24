@@ -6,13 +6,21 @@
   "additionalProperties": false,
   "required": ["reading"],
   "properties": {
-    "calculation": { "$ref": "calculation-result.schema.json" },
+    "calculation": { "$ref": "urn:fortune-teller:schema:calculation-result:1" },
     "calculations": {
       "type": "array",
       "minItems": 1,
-      "items": { "$ref": "calculation-result.schema.json" }
+      "items": { "$ref": "urn:fortune-teller:schema:calculation-result:1" }
     },
-    "reading": { "$ref": "reading.schema.json" }
+    "reading": { "$ref": "urn:fortune-teller:schema:reading:3" }
+    ,
+    "binding_options": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "meaning_unavailable": { "enum": ["strict", "degrade_claim"] }
+      }
+    }
   },
   "oneOf": [
     { "required": ["calculation"] },

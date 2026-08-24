@@ -5,7 +5,7 @@ const targetDate = {
   type: "string",
   pattern: "^\\d{4}-\\d{2}-\\d{2}$",
   examples: ["2026-08-23"],
-  description: "optional Gregorian date for calculation-only Zi Wei decadal and yearly facts; requires a known birth time",
+  description: "optional Gregorian date for calculation-only decadal and yearly facts; requires a known birth time and the traditional chart-sex parameter",
 };
 const time = { type: "string", pattern: "^\\d{2}:\\d{2}(?::\\d{2})?$", examples: ["04:00"] };
 const timezone = { type: "string", description: "IANA timezone", examples: ["Asia/Shanghai"] };
@@ -47,7 +47,7 @@ function quality(
   interpretationStatus,
   calculationNote,
   sourceCoverage = "partial",
-  externalReview = "fixture_reviewed",
+  externalReview = "automated_fixture_reviewed",
 ) {
   return {
     calculation_status: calculationStatus,
@@ -78,12 +78,21 @@ export const METHODS = deepFreeze([
     limitations: [
       "calendar-boundary calculations currently require every admitted civil instant to use UTC+08:00; other offsets fail closed rather than mixing local wall time with the dependency's calendar reference",
       "mean-solar and apparent-solar BaZi profiles are disabled until year/month solar-term boundaries can be separated from local day/hour calculation",
+      "luck-cycle direction uses the explicitly supplied male/female parameter required by the traditional algorithm; it is never inferred from identity",
+      "the exact luck-cycle onset uses the pinned minute conversion convention; other schools can use a different onset convention and must be compared separately",
     ],
     inputSchema: {
       type: "object",
       additionalProperties: false,
       required: ["date", "timezone"],
-      properties: birthProperties(),
+      dependentRequired: {
+        chart_sex: ["time"],
+        target_date: ["time", "chart_sex"],
+      },
+      properties: birthProperties({
+        chart_sex: { enum: ["male", "female"], description: "optional binary parameter used only for the traditional luck-cycle direction; not an inferred identity" },
+        target_date: targetDate,
+      }),
     },
     profiles: listProfiles("bazi"),
   },

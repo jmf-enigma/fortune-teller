@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:fortune-teller:schema:blind-check-score:3",
+  "title": "Reading-bound blind-check score",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "record_type", "scored_at", "source_commitment", "source_reading", "counts", "items", "assessment"],
+  "properties": {
+    "schema_version": { "const": "3.0.0" },
+    "record_type": { "const": "blind_check_score" },
+    "scored_at": { "type": "string", "format": "date-time" },
+    "source_commitment": {
+      "type": "object", "additionalProperties": false,
+      "required": ["algorithm", "scope", "hash"],
+      "properties": {
+        "algorithm": { "const": "sha256" },
+        "scope": { "const": "fortune-teller/blind-check/v3" },
+        "hash": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "source_reading": { "$ref": "#/$defs/sourceReading" },
+    "counts": {
+      "type": "object", "additionalProperties": false,
+      "required": ["supported", "contradicted", "unclear", "total"],
+      "properties": {
+        "supported": { "type": "integer", "minimum": 0 },
+        "contradicted": { "type": "integer", "minimum": 0 },
+        "unclear": { "type": "integer", "minimum": 0 },
+        "total": { "type": "integer", "minimum": 1, "maximum": 5 }
+      }
+    },
+    "items": {
+      "type": "array", "minItems": 1, "maxItems": 5,
+      "items": { "$ref": "#/$defs/scoredItem" }
+    },
+    "assessment": {
+      "type": "object", "additionalProperties": false,
+      "required": ["predictive_validity", "adjudication_status", "note", "note_zh"],
+      "properties": {
+        "predictive_validity": { "const": "not_established" },
+        "adjudication_status": { "const": "mechanically_derived_from_complete_user_entered_criteria" },
+        "note": { "type": "string", "minLength": 1 },
+        "note_zh": { "type": "string", "minLength": 1 }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "profile": { "oneOf": [{ "type": "string", "minLength": 1 }, { "type": "object" }] },
+    "window": {
+      "type": "object", "additionalProperties": false,
+      "required": ["start", "end"],
+      "properties": {
+        "start": { "type": "string", "format": "date" },
+        "end": { "type": "string", "format": "date" }
+      }
+    },
+    "criterion": {
+      "type": "object", "additionalProperties": false,
+      "required": ["criterion_id", "polarity", "observable", "evidence_source"],
+      "properties": {
+        "criterion_id": { "type": "string", "pattern": "^K-[A-Za-z0-9_-]+$" },
+        "polarity": { "enum": ["supports", "contradicts", "unclear"] },
+        "observable": { "type": "string", "minLength": 12, "maxLength": 300 },
+        "evidence_source": {
+          "enum": ["self_report", "contemporaneous_record", "administrative_record", "third_party_record"]
+        }
+      }
+    },
+    "criterionResult": {
+      "type": "object", "additionalProperties": false,
+      "required": ["criterion_id", "result", "observed_on", "source_type", "observation"],
+      "properties": {
+        "criterion_id": { "type": "string", "pattern": "^K-[A-Za-z0-9_-]+$" },
+        "result": { "enum": ["met", "not_met", "unclear"] },
+        "observed_on": { "type": "string", "format": "date" },
+        "source_type": {
+          "enum": ["self_report", "contemporaneous_record", "administrative_record", "third_party_record"]
+        },
+        "observation": { "type": "string", "minLength": 12, "maxLength": 500 }
+      }
+    },
+    "calculationBinding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["system", "profile", "facts_hash", "reproducibility_hash"],
+      "properties": {
+        "system": { "enum": ["bazi", "ziwei", "western", "tarot", "iching", "meihua"] },
+        "profile": { "$ref": "#/$defs/profile" },
+        "facts_hash": { "$ref": "#/$defs/sha256" },
+        "reproducibility_hash": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "claimBinding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["hypothesis_id", "claim_id", "calculation_facts_hash", "interpretation_profile_id", "rule_pack_hash"],
+      "properties": {
+        "hypothesis_id": { "type": "string", "pattern": "^H-0[1-5]$" },
+        "claim_id": { "type": "string", "pattern": "^C-[A-Za-z0-9_-]+$" },
+        "calculation_facts_hash": { "$ref": "#/$defs/sha256" },
+        "interpretation_profile_id": { "type": "string", "minLength": 1 },
+        "rule_pack_hash": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "sourceReading": {
+      "type": "object", "additionalProperties": false,
+      "required": ["scope", "reading_payload_hash", "reading_hash", "systems", "level", "calculation_bindings", "claim_bindings"],
+      "properties": {
+        "scope": { "const": "fortune-teller/validated-reading/v1" },
+        "reading_payload_hash": { "$ref": "#/$defs/sha256" },
+        "reading_hash": { "$ref": "#/$defs/sha256" },
+        "systems": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": { "enum": ["bazi", "ziwei", "western", "tarot", "iching", "meihua"] }
+        },
+        "level": { "enum": ["quick", "standard", "deep", "audit"] },
+        "calculation_bindings": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/calculationBinding" } },
+        "claim_bindings": { "type": "array", "minItems": 1, "maxItems": 5, "items": { "$ref": "#/$defs/claimBinding" } }
+      }
+    },
+    "scoredItem": {
+      "type": "object", "additionalProperties": false,
+      "required": ["hypothesis_id", "statement", "domain", "window", "criteria", "adjudication", "criterion_results"],
+      "properties": {
+        "hypothesis_id": { "type": "string", "pattern": "^H-0[1-5]$" },
+        "statement": { "type": "string", "minLength": 12, "maxLength": 500 },
+        "domain": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "window": { "$ref": "#/$defs/window" },
+        "criteria": { "type": "array", "minItems": 2, "maxItems": 15, "items": { "$ref": "#/$defs/criterion" } },
+        "adjudication": { "enum": ["supported", "contradicted", "unclear"] },
+        "criterion_results": { "type": "array", "minItems": 2, "maxItems": 15, "items": { "$ref": "#/$defs/criterionResult" } }
+      }
+    }
+  }
+}

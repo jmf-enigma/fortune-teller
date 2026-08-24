@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:fortune-teller:schema:blind-check-input:3",
+  "title": "Reading-bound prospective blind-check input",
+  "description": "A reading payload validated once at freeze time and one to five prospective interpretation claim IDs. The complete payload, criteria, validator contract, and release versions are frozen; hypotheses cannot be supplied separately.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["reading_payload", "claim_ids"],
+  "properties": {
+    "reading_payload": {
+      "type": "object",
+      "description": "A payload accepted by validate-reading, containing calculation or calculations plus reading."
+    },
+    "claim_ids": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^C-[A-Za-z0-9_-]+$" }
+    }
+  }
+}

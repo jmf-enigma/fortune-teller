@@ -1,6 +1,6 @@
 import { contentHash } from "./hash.mjs";
 
-export const ENGINE_VERSION = "0.2.0";
+export const ENGINE_VERSION = "0.4.0";
 export const CALCULATION_SYSTEMS = Object.freeze(["bazi", "ziwei", "western", "tarot", "iching", "meihua"]);
 const CALCULATION_SYSTEM_SET = new Set(CALCULATION_SYSTEMS);
 const RESULT_KEYS = new Set([
@@ -57,6 +57,18 @@ function runtimeProvenance() {
   };
 }
 
+function duplicateFactIds(value, counts = new Map()) {
+  if (Array.isArray(value)) {
+    for (const item of value) duplicateFactIds(item, counts);
+  } else if (value && typeof value === "object") {
+    if (typeof value.fact_id === "string") {
+      counts.set(value.fact_id, (counts.get(value.fact_id) || 0) + 1);
+    }
+    for (const child of Object.values(value)) duplicateFactIds(child, counts);
+  }
+  return [...counts.entries()].filter(([, count]) => count > 1).map(([id]) => id);
+}
+
 export function calculateFactsHash(payload) {
   return contentHash({
     engine_version: payload.engine_version,
@@ -90,11 +102,15 @@ export function verifyCalculationEnvelope(payload) {
   const unknownKeys = Object.keys(payload).filter((key) => !RESULT_KEYS.has(key));
   if (unknownKeys.length) errors.push(`contains ${unknownKeys.length} unknown field(s)`);
   if (payload.schema_version !== "1.0.0") errors.push("schema_version must be 1.0.0");
-  if (typeof payload.engine_version !== "string" || !payload.engine_version) errors.push("engine_version must be a string");
+  if (payload.engine_version !== ENGINE_VERSION) errors.push(`engine_version must be ${ENGINE_VERSION}`);
   if (!isCanonicalGeneratedAt(payload.generated_at)) errors.push("generated_at must be the canonical UTC ISO date-time emitted by this engine");
   if (!CALCULATION_SYSTEM_SET.has(payload.system)) errors.push(`system must be one of: ${CALCULATION_SYSTEMS.join(", ")}`);
   for (const field of ["profile", "input", "facts", "meta"]) {
     if (!payload[field] || typeof payload[field] !== "object" || Array.isArray(payload[field])) errors.push(`${field} must be an object`);
+  }
+  if (payload.facts && typeof payload.facts === "object" && !Array.isArray(payload.facts)) {
+    const duplicates = duplicateFactIds(payload.facts);
+    if (duplicates.length) errors.push(`facts contain ${duplicates.length} duplicate fact_id value(s)`);
   }
   if (!Array.isArray(payload.warnings) || payload.warnings.some((item) => typeof item !== "string")) errors.push("warnings must be an array of strings");
   if (payload.sensitivity !== null && (typeof payload.sensitivity !== "object" || Array.isArray(payload.sensitivity))) {

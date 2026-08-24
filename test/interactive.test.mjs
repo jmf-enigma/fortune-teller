@@ -1,7 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { calculate } from "../src/index.mjs";
+import {
+  bindReadingToCalculations,
+  calculate,
+  INTERPRETATION_PROFILES,
+  validateReading,
+} from "../src/index.mjs";
 
 const projectRoot = new URL("..", import.meta.url);
 const KILL = Symbol("kill");
@@ -68,6 +73,65 @@ function renderReading(payload) {
   });
 }
 
+function makeBoundIChingReading() {
+  const calculation = calculate("iching", { question: "fixture", lines: [7, 7, 7, 7, 7, 7] });
+  const interpretationProfile = INTERPRETATION_PROFILES.find(
+    (profile) => profile.id === "iching-structural-reflective-v1",
+  );
+  assert.ok(interpretationProfile);
+  return bindReadingToCalculations({
+    calculation,
+    reading: {
+      system: "iching",
+      level: "standard",
+      title: "普通解读",
+      user_focus: "核对当前局面的可观察条件",
+      disclaimer: "传统反思，不是经过验证的预测。",
+      summary: "先核对现实条件是否清楚，再决定是否继续推进。",
+      claims: [{
+        claim_id: "C-01",
+        topic: "current_situation",
+        statement: "先核对现实条件是否清楚，再决定是否继续推进。",
+        epistemic_status: "interpretation",
+        system: "iching",
+        profile: calculation.profile.id,
+        scope: "structural_comparison",
+        fact_ids: ["F-YJ-H01", "F-YJ-H02"],
+        rule_ids: ["R-YJ-003"],
+        calculation_certainty: "high",
+        input_sensitivity: { label: "stable", coverage: null },
+        school_stability: "not_assessed",
+        source_status: "verified",
+        source_ids: ["SRC-YJ-ZHOUYI-WIKISOURCE"],
+        interpretation_profile_id: interpretationProfile.id,
+        rule_pack_hash: interpretationProfile.rule_pack_hash,
+        assessment: {
+          mode: "current_reflection",
+          domain: "current_situation",
+          window: { kind: "current" },
+          criteria: [
+            {
+              criterion_id: "K-fixture-support",
+              polarity: "supports",
+              observable: "待核对的职责、期限和退出条件均形成明确书面记录",
+              evidence_source: "contemporaneous_record",
+            },
+            {
+              criterion_id: "K-fixture-contradict",
+              polarity: "contradicts",
+              observable: "连续两次具体询问后核心职责和期限仍无法得到确认",
+              evidence_source: "contemporaneous_record",
+            },
+          ],
+        },
+        practical_reflection: "把职责、期限和退出条件逐项写下并核对。",
+      }],
+      uncertainty_summary: "这份解读不能替代对现实条件的核实，也不保证后续结果。",
+      next_steps: [],
+    },
+  });
+}
+
 test("Chinese BaZi guide validates fields, edits one field, and hides audit details", async () => {
   const result = await runInteractive([
     { prompt: "请选择想看的内容：", response: "4\n" },
@@ -104,6 +168,31 @@ test("Chinese BaZi guide validates fields, edits one field, and hides audit deta
   assert.ok(technicalStart > 0);
   assert.doesNotMatch(result.transcript.slice(0, technicalStart), /计算口径 ID|事实核对码|完整记录核对码/);
   assert.match(result.transcript.slice(technicalStart), /事实核对码：/);
+});
+
+test("BaZi life-overview path collects luck inputs and presents adjudication before technical facts", async () => {
+  const result = await runInteractive([
+    { prompt: "请选择想看的内容：", response: "1\n" },
+    { prompt: "请选择出生盘方式", response: "2\n" },
+    { prompt: "出生日期（公历 YYYY-MM-DD", response: "2000-08-16\n" },
+    { prompt: "出生时间（24 小时制", response: "04:00\n" },
+    { prompt: "出生地时区", response: "Asia/Shanghai\n" },
+    { prompt: "请选择排盘参数", response: "1\n" },
+    { prompt: "想看哪个日期所处的阶段？", response: "2026-08-24\n" },
+    { prompt: "按以上信息在本地计算？", response: "1\n" },
+    { prompt: "接下来：1 看盘面 / 牌面重点", response: "5\n" },
+  ]);
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stderr, "");
+  assert.match(result.transcript, /大运顺逆参数：男/u);
+  assert.match(result.transcript, /先说结论：/u);
+  assert.match(result.transcript, /当前阶段：/u);
+  assert.match(result.transcript, /当前大运：丙戌/u);
+  assert.match(result.transcript, /流年：丙午/u);
+  assert.match(result.transcript, /原局、大运、流年三层出现具名的同链结构联系/u);
+  assert.ok(result.transcript.indexOf("先说结论：") < result.transcript.indexOf("四柱："));
+  assert.doesNotMatch(result.transcript, /事实核对码|完整记录核对码|reproducibility_hash/u);
 });
 
 test("Tarot default path uses Chinese spread, position, and orientation labels", async () => {
@@ -321,7 +410,7 @@ test("life-overview route can add an explicit Zi Wei target date and show its st
   assert.doesNotMatch(result.transcript, /target_time_index|facts_hash|计算口径 ID/);
 });
 
-test("single-domain Zi Wei skips the stage-date question but can add it later through edit", async () => {
+test("single-domain Zi Wei can add the stage date during the initial guided intake", async () => {
   const result = await runInteractive([
     { prompt: "请选择想看的内容：", response: "2\n" },
     { prompt: "请选择重点领域：", response: "1\n" },
@@ -330,18 +419,15 @@ test("single-domain Zi Wei skips the stage-date question but can add it later th
     { prompt: "出生时间（24 小时制", response: "04:00\n" },
     { prompt: "出生地时区", response: "Asia/Shanghai\n" },
     { prompt: "请选择排盘参数", response: "1\n" },
-    { prompt: "按以上信息在本地计算？", response: "1\n" },
-    { prompt: "接下来：1 看盘面 / 牌面重点", response: "3\n" },
-    { prompt: "要修改哪一项？", response: "5\n" },
     { prompt: "想看哪个日期所处的阶段？", response: "2026-08-23\n" },
     { prompt: "按以上信息在本地计算？", response: "1\n" },
     { prompt: "接下来：1 看盘面 / 牌面重点", response: "5\n" },
   ]);
 
   assert.equal(result.code, 0, result.stderr);
-  const firstConfirmation = result.transcript.indexOf("按以上信息在本地计算？");
   const targetPrompt = result.transcript.indexOf("想看哪个日期所处的阶段？");
-  assert.ok(firstConfirmation > 0 && targetPrompt > firstConfirmation);
+  const firstConfirmation = result.transcript.indexOf("按以上信息在本地计算？");
+  assert.ok(targetPrompt > 0 && targetPrompt < firstConfirmation);
   assert.equal((result.transcript.match(/想看哪个日期所处的阶段？/g) || []).length, 1);
   assert.match(result.transcript, /指定日期：2026-08-23/);
   assert.doesNotMatch(result.transcript, /宫宫/);
@@ -462,32 +548,12 @@ test("confirming a new I Ching casting replaces the frozen result and invalidate
 });
 
 test("ordinary renderer rejects backstage fields before emitting any partial reading", () => {
-  const calculation = calculate("iching", { question: "fixture", lines: [7, 7, 7, 7, 7, 7] });
-  const payload = {
-    calculation,
-    reading: {
-      system: "iching",
-      level: "standard",
-      title: "普通解读",
-      disclaimer: "传统反思，不是经过验证的预测。",
-      summary: "a".repeat(64),
-      claims: [{
-        claim_id: "C-01",
-        statement: "a".repeat(64),
-        epistemic_status: "calculation_fact",
-        system: "iching",
-        profile: calculation.profile.id,
-        fact_ids: ["F-YJ-H01"],
-        rule_ids: [],
-        calculation_certainty: "high",
-        input_sensitivity: { label: "stable", coverage: null },
-        school_stability: "stable",
-        source_status: "engine_documented",
-        source_ids: [],
-      }],
-      next_steps: [],
-    },
-  };
+  const payload = makeBoundIChingReading();
+  const valid = validateReading(payload);
+  assert.equal(valid.valid, true, valid.errors.join("\n"));
+  const calculation = payload.calculation;
+  payload.reading.summary = "a".repeat(64);
+  payload.reading.claims[0].statement = payload.reading.summary;
 
   const result = renderReading(payload);
   assert.equal(result.status, 1);

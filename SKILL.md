@@ -5,7 +5,7 @@ description: Give result-first, local readings with the divination systems actua
 
 # Fortune Teller
 
-Provide a calm, interactive reading without presenting traditional divination as scientifically validated prediction. The local engine calculates chart or draw facts; the model routes, asks for missing information, explains, and audits. Never replace an unavailable or failed engine with mental calculation.
+Provide a calm, interactive reading without presenting traditional divination as scientifically validated prediction. Accuracy-first means reducing correctable chart, rule, evidence-selection, and free-rewriting errors; it does not mean predictive validity is established. The local engine calculates chart or draw facts; the model routes, asks for missing information, explains, and audits. Never replace an unavailable or failed engine with mental calculation.
 
 ## Non-negotiable contract
 
@@ -24,8 +24,9 @@ Provide a calm, interactive reading without presenting traditional divination as
 2. Before explaining calculated output, creating evidence cards, or comparing systems, read [references/evidence-contract.md](references/evidence-contract.md).
 3. For medical, legal, financial, pregnancy, death, crime, fidelity, paranoia, coercion, minors, or crisis-related content, read [references/safety.md](references/safety.md) before answering. The hard boundaries below always apply even before that file is loaded.
 4. Read [references/model-tiers.md](references/model-tiers.md) when the user asks whether Pro is needed, requests an audit, requests more than one system, or the candidate set is too large for a compact explanation.
-5. Read [references/professional-reading.md](references/professional-reading.md) for `deep` mode, a professional reading, or any request to justify conclusions in detail.
-6. If a selected system has a dedicated reference, read only that system's reference. Do not load every tradition at once.
+5. Read [references/professional-reading.md](references/professional-reading.md) for `deep` mode, a professional-depth reading, or any request to justify conclusions in detail. “Professional depth” describes the rigor of the workflow, not certification or established predictive accuracy.
+6. Read [references/accuracy-evaluation.md](references/accuracy-evaluation.md) when the user asks whether a reading is accurate, wants to test it against events, or requests a prospective check.
+7. If a selected system has a dedicated reference, read only that system's reference. Do not load every tradition at once.
 
 ## Discover capabilities before promising a reading
 
@@ -84,7 +85,7 @@ Identify what the user wants to know before asking them to choose a tradition. F
 Route from the goal:
 
 - Birth-based overview or one life domain: offer a supported birth-chart method. Explain that natal structure can describe traditional life themes but cannot by itself name future events or years.
-- Life stages or a named target date: prefer Zi Wei only when the live schema exposes `target_date` and an exact birth time is available. It may describe emitted decadal/yearly structure and conditional themes; it still cannot guarantee an event. BaZi luck cycles and Western transits remain unavailable in this release.
+- Life stages or a named target date: offer Zi Wei or BaZi only when the live schema exposes `target_date` and an exact birth time is available. Zi Wei `R-ZW-009` reads natal baseline → decadal environment → yearly trigger through its complete bounded topic route. BaZi calculates exact luck onset, the active full decade, the LiChun-based year pillar, and named natal/decadal/year interactions, then runs the separate mechanical adjudicator. For BaZi, ask for the explicit traditional binary direction parameter; never infer it from name, appearance, or identity. Neither route may name a promotion, admission, resignation, marriage, breakup, illness, windfall, move, or other concrete event.
 - A current situation or decision: prefer Tarot; offer I Ching only within its currently sourced structural scope. Freeze one clear question before drawing or casting.
 - Compatibility: this release has no dedicated compatibility engine. Do not market two separate natal readings as a compatibility calculation.
 - Auspicious-date selection or exact event timing: unsupported. Do not repurpose natal, Tarot, or a target-date phase view as electional calculation.
@@ -109,7 +110,7 @@ Before calculation, show the normalized input and every material convention that
 - day-boundary, zodiac, house-system, or other school profile;
 - a method-specific categorical value required by a traditional algorithm, without inferring identity from name or appearance;
 - random, replay-seeded, or user-supplied cards/lines for casting methods.
-- an explicit Zi Wei `target_date` when the user asks about a current or named phase; never let the CLI or model silently use today's date.
+- an explicit Zi Wei or BaZi `target_date` when the user asks about a current or named phase; never let the CLI or model silently use today's date.
 
 Ask for confirmation only when a correction could materially change the result. Do not turn harmless defaults into a long questionnaire.
 
@@ -123,13 +124,51 @@ node scripts/fortune-teller.mjs calculate --input /absolute/path/to/request.loca
 
 Use a temporary or user-approved local request file; do not commit real birth data. Retain the structured result envelope. Treat it as chart facts, not proof of an interpretation.
 
-- Preserve the returned schema and engine versions, method, profile, normalized input, warnings, sensitivity output, randomness record, audit fields, `facts_hash`, and `reproducibility_hash` internally. These are quality controls, not the user's headline result. Compare `facts_hash` internally when replaying a fresh random result; wider provenance can make the full-envelope hash differ.
-- Carry material warning codes into `reading.warning_acknowledgements`. For `CALENDAR_DAY_PROFILE_QUALIFIED`, also explain the overseas civil-day convention in `uncertainty_summary` and keep bound claims `qualified` and `profile_specific`.
+- Preserve the returned schema and engine versions, method, profile, normalized input, warnings, sensitivity output, randomness record, audit fields, `facts_hash`, and `reproducibility_hash` internally. First prefer an engine replay or structural recomputation when checking a result. Hashes are only backstage checks for accidental changes and equality of serialized records; they do not make a reading more accurate, authenticate which engine produced it, or prove provenance. Compare `facts_hash` only as a secondary internal signal when replaying a fresh random result; wider metadata can make the full-envelope hash differ.
+- Let `bind-reading` derive `reading.warning_acknowledgements`; when material warnings exist it must equal their code set exactly, with no omission, extra code, duplicate, or prose substitute, and the field is omitted when that set is empty. For `CALENDAR_DAY_PROFILE_QUALIFIED`, keep bound claims `qualified` and `profile_specific`; the binder generates the canonical overseas civil-day sentence in `uncertainty_summary`.
 - Do not modify calculated values to make the narrative coherent.
+- Keep technical identity and placement claims out of free prose. Across the six shipped systems, exact hexagram/line, card/orientation, pillar/relationship, planet/sign/motion/aspect, Zi Wei star/palace/transformation, and Meihua trigram/line assertions must come from typed bindings. Zi Wei natal major-star `star_in_palace` bindings carry the emitted `brightness`; decadal/yearly dynamic-star conditions use `period_star_in_slot` and lock scope, relation role, star, period palace, and natal palace. For `calculation_fact`, let `bind-reading` replace the entire visible statement with its canonical rendering. For an interpretation, supply the corresponding typed `semantic_bindings`; `bind-reading` generates the exact `technical_summary`. Never hand-edit that summary.
 - Use the live schema returned by `methods --json`, then select the engine mode by whether the optional `time` field is present. Cross-field time, offset, coordinate, and DST constraints are enforced at runtime and fail closed; never convert `unknown` to noon.
 - For tarot or casting, use the local secure random source, an explicit replay seed, or user-supplied physical results. Never let the language model choose the outcome and describe it as random.
 - Freeze the user's question before a Tarot draw or I Ching cast. Reuse the same frozen result for follow-ups about that question. A materially new question requires explicit confirmation and a new draw/cast; dislike or disbelief is never a reason to redraw.
 - If execution fails, report the error category in plain language and offer correction or a reduced mode. Do not expose private raw input in diagnostic text unless the user asks for it.
+- For a known-time BaZi result, run `adjudicate-bazi` before writing any strength, pattern, useful-god, disease/remedy, or phase-activation conclusion. Preserve its exact state and route closure. A period Ten God is only a candidate input to a compound route; never promote it to formation, breakage, or rescue without rerunning the whole route.
+- For Zi Wei `overview`, `career_study`, `wealth_resources`, `relationships`, or `wellbeing_rhythm`, use the emitted `topic_units` instead of assembling a topic from memory. A topic synthesis retains its primary palace and complete three-directions/four-alignments set. With `target_date`, use the matching `phase_topic_unit`; it supplies the topic focus while the closed route separately derives complete `[0,+4,+8,+6]` dynamic four-palace sets for both decadal and yearly layers. Do not call another topic's palace or period fact supporting evidence.
+
+### Closed BaZi adjudicator
+
+For a replay-verified known-time BaZi calculation, run:
+
+```bash
+node scripts/fortune-teller.mjs adjudicate-bazi --input /absolute/path/to/calculation.local.json --pretty
+```
+
+This result is a separate mechanical adjudication envelope. Use it in this order: `conclusion` → `plain_language` → current phase when available → only then technical basis, change conditions, and reality checks.
+
+- `lenses.strength` always tests strong and weak hypotheses separately. Do not replace an unresolved competition with an element score, hidden-stem weight, or “missing element” shortcut.
+- `lenses.pattern` begins with a month-command candidate. Transparency alone never means formation. Report `成立`, `受损`, `破格`, or `救应` only exactly as returned. A `screening_only` damage or rescue route stays provisional and cannot upgrade the disease/remedy lens.
+- Keep 格局取用、扶抑、调候、通关、病药 independent. If they disagree, explain the prerequisites causing the difference; do not vote, average, or select a universal element.
+- Treat natal as the frozen baseline, the complete decade as environment, and the year as trigger. The compatibility field `joint_activation` currently reports only registered three-layer structural linkage; it does not rerun the natal formation/damage/rescue route and therefore must never be described as a completed pattern activation. Generic stem control or repetition alone is not enough, and no linkage names an event.
+- Exact luck-cycle or LiChun boundary dates stay unavailable. Do not select the more convenient side.
+- The general reading registry exposes `R-BZ-005/006` as protective, unresolved-only rules until a dedicated typed adjudication binding exists. Do not create a free-form `traditional_rule` or `interpretation` claim with these IDs. Present the mechanical adjudication directly, or keep an unsupported general reading claim `unresolved`.
+
+Read [references/systems/bazi-professional.md](references/systems/bazi-professional.md) before a deep BaZi reading. It lists the machine-closed routes and the important unfinished routes. Do not fill those gaps from memory.
+
+### Closed Zi Wei meaning layer
+
+The exported generic `adjudicateZiweiPattern`/`adjudicateZiweiPhase` helpers are a developer-facing structural gate, not an additional named-pattern corpus or ordinary reading path. They accept only three immutable replay-bound structural candidate IDs. Never rename one as a traditional formation, supply a caller-authored candidate, reuse one fact across natal/decadal/yearly layers, or present their result as broader than `R-ZW-007/008/009`. Read [references/systems/ziwei-adjudication.md](references/systems/ziwei-adjudication.md) before using these helpers.
+
+The general reading-schema currently has only three machine-closed professional-depth meaning routes. No other reading rule may imitate this status:
+
+- `R-ZW-007` / `topic_synthesis` / `current_reflection`: select one of the five registered topics. In `fortune-teller/ziwei-meaning-binding/v2`, require `palace_axis_groups` in the fixed order `focus(0)`, `trine_plus_4(4)`, `trine_plus_8(8)`, and `opposite_plus_6(6)`. Across those four palaces, read registered fourteen-major-star same-palace combinations before single-star axes, retain every emitted major-star brightness, and include all present 六吉、六煞、禄存、天马 context conditions. The bounded result rule pack registers 24 major-star pairs and 14 natal context modifiers. Modifiers are conditions, not scores. Non-focus groups may have no registered major star; the focus group must not. Never cherry-pick, borrow a star, omit a registered combination/brightness/context condition, or repair unknown, malformed, or duplicated records.
+- `R-ZW-008` / `topic_transformation` / `current_reflection`: the selected topic's natal-transformation set must be non-empty, and every listed fact must be included through an exact `mutagen_in_palace` semantic binding. An empty set, partial set, or favorable-only selection makes this route unavailable. Translate 禄、权、科、忌 only through the four registered process lenses; never turn them into a net auspiciousness or guaranteed-result score.
+- `R-ZW-009` / `phase_topic_synthesis` / `bounded_phase` or `prospective_hypothesis`: judge in the fixed order natal baseline → decadal environment → yearly trigger. Reuse the full `R-ZW-007` natal four-palace reading. Then require decadal and yearly each to have exactly four unique dynamic slots in `[0,+4,+8,+6]` role order and include every registered period star there; the bounded rule pack has 11 period-star modifiers. Require both selected-topic-slot decadal and yearly transformation sets to exist and be included in full, with at least one item across them; either individual set may be empty. This boundary is asymmetric: period stars cover both complete dynamic four-palace sets, while phase transformations cover only the selected topic dynamic slot. Never claim four-palace phase-transformation convergence or a complete Zi Wei judgment. Derive the window only by replaying the target and finding the maximal continuous interval in which both records remain unchanged; both endpoints must be bracketed. Formal criteria jointly require every natal focus-group axis, every registered decadal four-slot condition, every registered yearly four-slot condition, and every selected-topic-slot phase process in the same real-world matter. The three layers cannot substitute for one another, generic domain activity is not support, and no named event may be generated.
+
+The closed meaning registry consists of five topic markers, fourteen major-star constructive/overextension axes, and four transformation process lenses. The separate bounded Sanhe result rule pack registers 24 same-palace major-star pairs, 14 natal context modifiers, and 11 period-star modifiers. These are project-authored bounded paraphrases with `automated_fixture_reviewed`, `professional_label_allowed: false`, and `predictive_validity: not_established`; they have no independent practitioner review.
+
+For any of these three routes, do not author the result narrative yourself. Give the claim its exact facts, scope, rule, topic, topic unit, semantic bindings where required, and requested assessment mode. Then let `bind-reading` mechanically derive `meaning_binding` and replace `statement`, `reasoning_summary`, `alternative_readings`, `practical_reflection`, and `assessment`. `validate-reading` must independently rederive the binding and all five fields and require an exact match. Do not edit those fields after binding.
+
+If derivation reports an empty focus palace; incomplete, role-mismatched, unknown, malformed, or duplicated natal stars; omitted brightness or registered natal context; incomplete/duplicated/out-of-order dynamic four-slot sets; omitted or malformed registered period stars; an incomplete selected-topic-slot transformation set; or an unbracketed interval, stop the closed route. Never borrow a star, fill a dynamic slot by hand, or clip a period window. Downgrade to verified chart facts, a narrower supported current reflection, or `unresolved`. A request for a concrete life event or result is likewise unresolved, although a bounded non-event theme may still be offered when the exact closed route succeeds.
 
 ## Unknown or uncertain birth time
 
@@ -150,14 +189,16 @@ For systems with a 23:00 day-boundary convention, preserve separate early- and l
 
 The ordinary reading must never begin with input, profile, warnings, sensitivity, a chart table, card keywords, or an audit receipt. Begin with the user's question and a direct but conditional answer.
 
-For a birth-based overview, use this order:
+For a birth-based or target-date result, preserve the renderer's fixed ordinary-language hierarchy:
 
-1. **先说结论** — the chart's strongest two or three traditional themes, including the main support and main constraint;
-2. **用户选择的主题 first** — career/study, wealth/resources, relationships, family/social life, or wellbeing rhythm;
-3. **其他重要方面** — only the domains genuinely supported by the current facts and rules;
-4. **当前阶段 / 目标日期** — only if a dedicated dynamic engine emitted those facts; otherwise plainly say that specific years are not available;
-5. **哪里不能硬断** — one short plain-language paragraph about missing time or a result-changing convention;
-6. **继续看什么** — topic choices first; “为什么这样看” and technical records later.
+1. **先说结论** — answer the user's actual focus in one or two sentences; the renderer splits summary sentences into bullets.
+2. **阶段时间轴** — place it immediately after the conclusion when an exact `R-ZW-009` interval exists; otherwise omit it. Use category-level plain language such as collaboration/expression support, resource support, friction or sudden pressure, movement/change, relationship interaction, and buffering/problem-solving. Keep detailed stars in the evidence layer.
+3. **分主题卡片** — within each card use **结论** (when not already the headline) → **白话解读** → **盘面依据（术语）** → **什么情况要改判** → **现实提醒**. Split summary/plain meaning by sentence, evidence at semicolons, and revision conditions one per bullet.
+4. **现实核对** — show support, contradiction, and unclear criteria.
+5. **需要留意** — state only material uncertainty in plain language.
+6. **接下来可以看** — show the canonical available next steps; the disclaimer follows last.
+
+Keep terminology, full chart lists, sources, profiles, warnings, hashes, and raw technical records after this result layer. “为什么这样看” may expand the reasoning, and “反例与另一种解释” must remain one direct action away.
 
 For a focused current question, use this order:
 
@@ -165,10 +206,10 @@ For a focused current question, use this order:
 2. **当前局面**;
 3. **真正的阻力或张力**;
 4. **有利条件与风险**;
-5. **若当前条件不变的发展倾向** — never an inevitable outcome;
+5. **当前模式对选择的含义** — describe present conditions and tradeoffs, never a future event or outcome;
 6. **一个现实、具体、可逆的下一步**.
 
-Do not keyword-dump. A Tarot multi-card reading must connect at least two position-card facts as a support, tension, sequence, or turn. A Zi Wei phase reading must combine natal topic-palace facts with emitted decadal/yearly facts; a period label or one star cannot support an event claim.
+Do not keyword-dump. A Tarot multi-card reading must connect at least two position-card facts as a support, tension, sequence, or turn. A Zi Wei phase reading must combine the complete four-palace fourteen-major-star axes with emitted exact-topic-slot decadal/yearly facts, the complete eligible phase-transformation set, and the fully bracketed profile-derived interval before passing the closed `R-ZW-009` meaning route; a period label or one star cannot support even a bounded salience claim, and the completed route still cannot support four-palace phase convergence, a complete Zi Wei judgment, or an event claim.
 
 Keep the normal continuation menu human-facing, for example “深挖事业 / 深挖财富 / 深挖感情 / 看阶段 / 为什么这样看 / 修改资料 / 结束”. Put profile comparison, warning codes, hashes, source IDs, and raw JSON inside “依据与核对（高级）”, not beside the life topics.
 
@@ -176,7 +217,7 @@ For every material claim, follow [references/evidence-contract.md](references/ev
 
 ```text
 结论 -> 性质 -> 盘面事实 -> 采用规则 -> 推理摘要
-     -> 依赖条件 -> 其他解释 -> 来源状态
+     -> 资料边界 -> 其他解释 -> 来源状态
 ```
 
 Do not use one overall confidence score. Keep these axes separate:
@@ -189,42 +230,44 @@ Do not use one overall confidence score. Keep these axes separate:
 
 For a request framed as “准不准”, answer in plain Chinese: the local engine and fixtures support whether the declared chart/draw was calculated consistently; registered sources support only the stated traditional rule; this release has not established real-world predictive accuracy. Do not make the user read internal accuracy enums unless they request the audit. Follow [references/professional-reading.md](references/professional-reading.md) for the backstage four-axis status and synthesis ladder.
 
-If the user wants to test the reading against past events, freeze a small set of specific hypotheses before collecting details, then retain hits, misses, and unclear cases. Never tune birth time, profile, rules, cards, or wording after feedback to manufacture a match. If the user says “不符合”, offer input correction, the counter-reading and its basis, or a clean stop; do not fish for biographical details until the answer sounds right.
+If the user compares a reading with past events, treat that only as informal reflection and retain hits, misses, and unclear cases. It cannot enter the formal blind score because the outcome was already knowable. Formal verification currently accepts only canonical Zi Wei `R-ZW-009` three-layer salience hypotheses whose criteria jointly require natal focus axes, all registered decadal four-slot conditions, all registered yearly four-slot conditions, and selected-topic-slot phase processes over the fully bracketed joint-stability interval. It does not accept four-palace phase-transformation convergence, complete-Zi-Wei claims, concrete events, or claims from other systems/rules. No non-closed claim may make any future-event assertion. Never tune birth time, profile, rules, cards, wording, criteria, or period boundary after feedback to manufacture a match.
 
 ## Compare without manufacturing consensus
 
-When comparing systems, preserve each system's original scope and profile. Build a topic-by-system conflict matrix and classify each row as:
-
-- compatible wording;
-- different construct;
-- input/profile-sensitive;
-- direct conflict;
-- insufficient evidence.
-
-Do not vote, average, or boost confidence because two systems sound similar. The synthesis may show possible reflective themes, but it must preserve direct conflicts and explain why they cannot be resolved from the available evidence.
+When several systems appear in one reading, preserve each system's original scope, profile, facts, and limitations in separate evidence cards. The current binder does not machine-classify them as equivalent, complementary, or conflicting, and it never votes, averages, or rewrites one system until they agree. A single-system reading omits `cross_system`; a multi-system reading is fixed to `cross_system: {relationship: "not_compared"}`. Any useful comparison must therefore be a transparent side-by-side explanation of already validated claims, not a machine-certified consensus. Agreement is not empirical confirmation.
 
 ## Quick, standard, deep, and audit modes
 
-Default to `standard`; use `quick` when the user only wants a calculation receipt, `deep` for a single-system professional synthesis, and `audit` for provenance or complex comparison.
+Default to `standard`; use `quick` when the user only wants a calculation receipt, `deep` for a single-system evidence-bound synthesis with professional depth, and `audit` for provenance or complex comparison.
 
 - `quick`: a direct answer, one or two supporting themes, one actual limitation, and next actions; do not lead with the calculation receipt.
 - `standard`: one system and one user topic at a time, three to five result-first claims, a plain limitation, and a short topic menu. Keep evidence cards backstage.
 - `deep`: one system by default, compound fact patterns, supporting and constraining factors, counter-readings, source coverage, input sensitivity, and a small reversible reflection step. Present the synthesis first and the audit only on request.
-- `audit`: multiple systems or profiles, full candidate accounting, conflict matrix, rule applicability and source audit, claim-to-fact trace, and machine-readable appendix.
+- `audit`: multiple systems or profiles, full candidate accounting, original claims placed side by side without machine relationship classification, rule applicability and source audit, claim-to-fact trace, and machine-readable appendix.
 
 All modes use identical frozen engine facts and safety boundaries. A deeper mode adds synthesis and traceability, not stronger destiny claims. Pro is useful for large synthesis and an adversarial second review, not required for core calculation and never a substitute for rules or sources. See [references/model-tiers.md](references/model-tiers.md) and [references/professional-reading.md](references/professional-reading.md).
 
-In every machine-readable reading, copy the first claim statement exactly into `summary` after ordinary whitespace normalization; that first claim is the evidence-backed headline. In `standard`, `deep`, and `audit`, use structured next-step actions only. Every `interpretation` must cite at least one applicable registered rule; when no rule covers the requested statement, keep the output factual or explicitly unresolved instead of filling the gap with model intuition. In a multi-system reading, set `target_system` on any continuation that requests input or changes a target. A Tarot or I Ching continuation that changes the question or draw/cast inputs is always a new reading and never reuses the frozen calculation.
+In every machine-readable reading, copy the first claim statement exactly into `summary` after ordinary whitespace normalization; that first claim is the evidence-backed headline. Do not add a claim-level `dependencies` field. Express input conditions through `calculation_certainty` and `input_sensitivity`, or use an explicit `unresolved` statement when a conclusion is unavailable. In `standard`, `deep`, and `audit`, supply structured next-step actions only; `bind-reading` fixes each visible label and any unavailable reason, as well as the reading title, `user_focus` as the unique canonical Chinese topic labels from all claims joined in claim order, disclaimer, uncertainty summary, and exact material-warning acknowledgements. Every `interpretation` must cite at least one applicable registered rule, select a registered interpretation profile, and contain a bounded assessment with specific supporting and contradicting observations. Exact system facts in an interpretation belong only in typed `semantic_bindings` and the mechanically generated `technical_summary`; do not restate or contradict them in free prose. For Zi Wei `R-ZW-007/008/009`, even the non-technical result fields are canonical outputs of the closed meaning layer and must not be hand-edited. When no rule or closed meaning route covers the requested statement, keep the output factual or explicitly unresolved instead of filling the gap with model intuition. If a Zi Wei topic lacks a registered meaning route, use `binding_options.meaning_unavailable: "degrade_claim"` to downgrade only that claim with `unresolved_reason_kind: "rule_unavailable"`; do not call it missing birth data and do not discard other supported topics. Omit `cross_system` for one system; for multiple systems, let `bind-reading` set it exactly to `{relationship: "not_compared"}`. Do not author another relationship, prose, a winner, or a vote. Set `target_system` on any continuation that requests input or changes a target. A Tarot or I Ching continuation that changes the question or draw/cast inputs is always a new reading and never reuses the frozen calculation.
 
-Before delivering any `deep` or `audit` result, save the calculation envelope plus reading object in one local payload and run:
+Before delivering any interpretive result, save the calculation envelope plus draft reading object in one local payload. Bind every claim to the exact calculation and cited fact values, then validate the bound output:
 
 ```bash
-node scripts/fortune-teller.mjs validate-reading --input /absolute/path/to/reading.local.json --pretty
+node scripts/fortune-teller.mjs bind-reading --input /absolute/path/to/reading-draft.local.json --output /absolute/path/to/reading-bound.local.json --pretty
+node scripts/fortune-teller.mjs validate-reading --input /absolute/path/to/reading-bound.local.json --pretty
 ```
 
-If validation fails, narrow or correct the reading. Never omit the failed gate from the workflow merely to keep a preferred conclusion.
+`bind-reading` is mechanical integrity preparation, not general approval of prose. Calculation replay, typed technical facts, and rule applicability can be checked. It fixes the root presentation fields (`title`, all-claim canonical `user_focus`, `disclaimer`, `uncertainty_summary`, exact material `warning_acknowledgements`, canonical single/multi-system `cross_system` behavior, and each next-step label/unavailable reason). On the three closed Zi Wei routes it also generates the complete bounded meaning fields; elsewhere unrestricted narrative remains `not_machine_verified`. If validation fails, narrow or correct the reading. Never rebind a changed chart to preserve an old conclusion, hand-edit canonical presentation or Zi Wei fields, or omit a failed gate merely to keep a preferred conclusion.
 
-When the local CLI exposes `render-reading`, use it after a successful validation to check that the ordinary text is result-first and does not leak the backstage audit fields. The conversational answer may be formatted more naturally, but it must preserve the same summary, claims, limitations, and actions.
+Use `render-reading` on the bound payload after successful validation. The ordinary answer follows conclusion → phase timeline when available → topic cards (conclusion/plain language/chart basis/revision conditions/real-world reminder) → reality checks → uncertainty → next steps, followed by the disclaimer. It exposes “为什么这样看” and counter-readings while hiding profiles, hashes, IDs, and other backstage fields. Preserve sentence-level bullets for summary/plain meaning, semicolon-level evidence bullets, and one-bullet-per revision condition.
+
+For a formal forward-looking reality check, first create and bind one to five Zi Wei `R-ZW-009` `phase_topic_synthesis` claims using `prospective_hypothesis`. Each must contain the complete natal four-palace fourteen-major-star axes; complete decadal and yearly `[0,+4,+8,+6]` dynamic slots with every registered period-star condition; complete selected-topic-slot decadal and yearly transformation sets with at least one item across them (either individual set may be empty); and the fully bracketed interval in which both records remain unchanged. Formal criteria jointly require the natal focus axes, decadal four-slot conditions, yearly four-slot conditions, and selected-topic-slot phase processes, with no layer substituting for another. Phase transformations remain selected-topic-slot only. Validate before the window opens; `freeze-check` derives wording and criteria from the validated reading and rejects retrospective items, concrete-event hypotheses, other rules/systems, and separately rewritten hypotheses:
+
+```bash
+node scripts/fortune-teller.mjs freeze-check --input /absolute/path/to/check-input.local.json --output /absolute/path/to/check-record.local.json --pretty
+node scripts/fortune-teller.mjs verify-check --input /absolute/path/to/check-verify.local.json --pretty
+```
+
+The freeze input contains exactly `{reading_payload, claim_ids}`. The reading-bound verify input contains exactly `{record, reading_payload}`; passing only the record checks record integrity but cannot show that a supplied reading is the frozen one. After every window has closed, `score-check` takes `{record, reading_payload, adjudications}` and preserves the prewritten criterion IDs, dated observations, evidence sources, misses, and unclear items. The tool derives the item outcome from those criterion results; user-entered evidence is not independently verified. Internal commitments can reveal a changed local record only when the earlier record was actually preserved. They are not trusted timestamps, digital signatures, engine-origin authentication, or evidence of predictive validity. See [references/accuracy-evaluation.md](references/accuracy-evaluation.md) for the complete file shapes and command sequence.
 
 ## Hard safety boundary
 
@@ -241,11 +284,19 @@ Before presenting a reading, verify:
 - all chart/draw facts came from the local result envelope;
 - no time-dependent claim escaped the missing-time gate;
 - every material interpretation has traceable facts and an honest source status;
+- every exact technical assertion across all six shipped systems is mechanically rendered from a matching typed binding, and the unrestricted narrative is explicitly treated as not machine-proved;
+- every interpretation is bound to the exact calculation and cited fact values, uses a registered interpretation rule pack, and states observable support and counterevidence;
 - every cited rule is applicable to the calculation mode, profile, fact type, and claim scope;
-- every material engine warning remains acknowledged internally, while its actual user impact is stated in plain language where it affects a conclusion;
+- every Zi Wei topic or phase claim uses one emitted topic unit, keeps all required same-topic components, and matches every named star, palace, or transformation relation to a semantic binding;
+- every Zi Wei `R-ZW-007/008/009` claim has a mechanically derived `meaning_binding` and byte-for-byte canonical result fields; for `R-ZW-007/009`, every registered same-palace combination, major-star axis with emitted brightness, 六吉六煞, 禄存, and 天马 condition is complete across the four natal palaces;
+- every `R-ZW-008` claim contains the selected topic unit's complete natal-transformation set, not a hand-picked subset;
+- every `R-ZW-009` claim has complete `[0,+4,+8,+6]` dynamic four-palace sets for decadal and yearly scopes, every registered period star is bound with `period_star_in_slot`, and judgment follows natal baseline → decadal environment → yearly trigger;
+- every `R-ZW-009` claim includes both complete selected-topic-slot phase-transformation sets, with at least one item across them while either individual set may be empty, and does not claim four-palace phase-transformation convergence; otherwise it was downgraded;
+- every forward-check item uses canonical criteria requiring every natal focus axis, every registered decadal four-slot condition, every registered yearly four-slot condition, and every selected-topic-slot phase process; no layer substitutes for another and no concrete event or result is asserted;
+- the title, all-claim canonical `user_focus`, disclaimer, uncertainty summary, next-step labels/unavailable reasons, and every material warning code came from `bind-reading`; `warning_acknowledgements` contains each actual material code exactly once and no extras;
 - same-question follow-ups reuse the frozen calculation/draw, new questions require explicit reset, and negative feedback never triggers an automatic redraw or time rectification;
 - every `deep`/`audit` traditional or interpretive claim cites at least two distinct, materially related fact roots, exposes a counter-reading, and does not merely list symbols; multiple leaf fields under one fact object still count as one root;
-- cross-system conflicts were preserved rather than voted away;
-- no scientific-validity, inevitability, or high-stakes claim was introduced;
+- `cross_system` is absent for one system and exactly `{relationship: "not_compared"}` for multiple systems; no machine classification, winner, vote, or free-text reconciliation was added;
+- no non-closed claim contains any future-event assertion, and no scientific-validity, inevitability, or high-stakes claim was introduced;
 - the response starts compactly and gives the user control over what to expand.
 - the ordinary response contains no profile ID, warning code, sensitivity count, hash, engine/schema version, raw JSON, or fact/rule/source ID unless the user explicitly asked for evidence or an audit.

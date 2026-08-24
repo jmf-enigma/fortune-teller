@@ -18,9 +18,48 @@ const CALCULATORS = {
 };
 
 export { METHODS };
-export { validateReading } from "./core/reading-validator.mjs";
+export { bindReadingToCalculations, validateReading } from "./core/reading-validator.mjs";
+export {
+  BLIND_CHECK_OUTCOMES,
+  freezeBlindCheck,
+  scoreBlindCheck,
+  verifyBlindCheckReading,
+  verifyBlindCheckRecord,
+} from "./core/blind-check.mjs";
+export {
+  canonicalCalculationFactStatement,
+  canonicalTechnicalSummary,
+  validateClaimSemantics,
+} from "./core/claim-semantics.mjs";
+export { verifyCalculationFacts } from "./core/calculation-verifier.mjs";
+export { adjudicateBazi } from "./core/bazi-adjudicator.mjs";
+export {
+  adjudicateZiweiEmptyPalace,
+  adjudicateZiweiPattern,
+  adjudicateZiweiPhase,
+  adjudicateZiweiProfiles,
+} from "./core/ziwei-adjudicator.mjs";
 export { RULES } from "./data/rule-registry.mjs";
 export { SOURCES, SOURCE_VERIFICATION_NOTE } from "./data/source-registry.mjs";
+export { INTERPRETATION_PROFILES } from "./data/interpretation-profile-registry.mjs";
+export {
+  ZIWEI_MAJOR_STAR_MEANINGS,
+  ZIWEI_MEANING_REGISTRY_META,
+  ZIWEI_TOPIC_MARKERS,
+  ZIWEI_TRANSFORMATION_LENSES,
+} from "./data/meaning-registry.mjs";
+export {
+  BAZI_ADJUDICATION_RULEPACK_META,
+  BAZI_ADJUDICATION_RULES,
+  BAZI_ADJUDICATION_STATES,
+  BAZI_MONTH_COMMAND_PATTERN_RULES,
+  BAZI_VIEW_DEFINITIONS,
+} from "./data/bazi-adjudication-rulepack.mjs";
+export {
+  ZIWEI_ADJUDICATION_PROFILES,
+  ZIWEI_ADJUDICATION_STATES,
+  ZIWEI_ADJUDICATION_TRANSITIONS,
+} from "./data/ziwei-adjudication-rulepack.mjs";
 
 export function calculate(system, input, profile = {}) {
   const method = getMethod(system);
