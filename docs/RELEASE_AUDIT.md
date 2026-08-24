@@ -4,7 +4,7 @@ Audit date: 2026-08-24
 
 ## Outcome
 
-Version `0.6.0` deepens BaZi topic adjudication and Zi Wei named-pattern evidence without adding unsupported methods. Source-tree and clean-extracted-archive sign-off are **PASS**: 413/413 tests, release policy, registry contracts, Skill validation, and independent forward red-teams pass.
+Version `0.6.0` deepens BaZi topic adjudication, makes the ordinary guided result genuinely result-first, and expands bounded Zi Wei named-pattern evidence without adding unsupported methods. Source-tree and clean-extracted-archive sign-off are **PASS**: 417/417 tests, release policy, registry contracts, Skill validation, and independent forward red-teams pass.
 
 This supports calculation consistency, installed-rule fidelity, fail-closed behavior, and result readability inside the declared scope. It does not establish predictive validity, practitioner certification, or “best overall” status.
 
@@ -12,15 +12,15 @@ This supports calculation consistency, installed-rule fidelity, fail-closed beha
 
 | Gate | Final result |
 |---|---|
-| Full `npm test` in source tree | PASS — 413/413 |
+| Full `npm test` in source tree | PASS — 417/417 |
 | New BaZi topic/golden and Zi Wei pattern/empty-palace fixtures | PASS |
-| BaZi independent forward red-team | PASS — 816-chart scan; no remaining P0/P1 |
+| BaZi independent forward red-team | PASS — 816-chart structural scan plus a real guided first-screen retest; the discovered front-end routing/jargon blocker was repaired |
 | Zi Wei independent forward red-team | PASS — 90 ordinary outputs and 21 empty-palace contexts; no name/event or brightness/transformation leakage |
 | Nine previously rare Mingyu rules | PASS — one minimal positive and one-predicate negative fixture each |
 | Registry contract | PASS — 16 sources, 38 rules, 6 interpretation profiles; professional labels remain disallowed |
 | Release manifest | PASS — 125 sorted, controlled files; no `node_modules` |
 | `npm run doctor` / `npm run verify` / Skill quick validation | PASS |
-| Clean extracted archive install and full check | PASS — locked install, 413/413 tests, doctor, release verification, and Skill validation |
+| Clean extracted archive install and full check | PASS — locked install, 417/417 tests, doctor, release verification, and Skill validation |
 
 ## Material changes
 
@@ -30,6 +30,7 @@ This supports calculation consistency, installed-rule fidelity, fail-closed beha
 - Strength exposes season, root, and visible-stem axes while preserving the strict establishment gate. Presence-only damage/rescue cannot become breakage or effective rescue.
 - Career/study, wealth/resources, and long-term relationships have result-first topic routes. Axis co-presence is only a clue, never a causal or closed chain.
 - Period context can emphasize only a matching natal axis. Mixed layers separate natal-axis emphasis from phase-only Ten Gods. Relationship phases prioritize replayed relations to the day branch; spouse-star convention is optional, disclosed, and secondary.
+- Ordinary BaZi prose now opens with the practical career, money, relationship, or phase meaning. A life-overview guide renders separate overview, career, and wealth cards, adds relationships only on “all,” accepts common Chinese place aliases, and keeps pillars, Ten Gods, relations, and pattern states in the advanced evidence view.
 - Fifteen UTC+08 differential fixtures cover ordinary charts, hour sweep, LiChun/Jingzhe, late Zi, midnight, and Zi-start conventions. Four differences from pinned `chinese-fortune` are explicit rather than silently normalized.
 
 ### Zi Wei

@@ -8,6 +8,42 @@ import { FortuneTellerError } from "./errors.mjs";
 
 const VISIBLE_PILLARS = new Set(["year", "month", "time"]);
 const BRANCH_RELATIONS = new Set(Object.keys(BAZI_RELATIONSHIP_FACT_MEANINGS));
+const AXIS_RESULT_LANGUAGE = Object.freeze({
+  career_responsibility: "承担职责、适应规则和处理压力任务",
+  career_learning_support: "通过学习、训练和方法积累能力",
+  career_output: "把想法做成作品、方案或可交付成果",
+  wealth_resource: "取得和管理稳定资源",
+  wealth_output: "把成果变成收入来源或其他实际回报",
+  wealth_shared_boundary: "把合作中的归属、分成和责任说清楚",
+  relationship_spouse_star_context: "伴侣相关的传统补充线索",
+});
+const TOPIC_RESULT_LANGUAGE = Object.freeze({
+  career_study: {
+    lead: "事业上",
+    limit: "这说明事业上该把力气放在哪里，不等于一定会录取、升职或转行，也不能直接指定职业。",
+    phase_limit: "这只是阶段重心，不等于一定会升职、录取或换工作。",
+  },
+  wealth_resources: {
+    lead: "财富上",
+    limit: "这说明赚钱和管钱时最要留意的环节，不等于收入一定增加、投资一定获利，也不能据此断中奖或破财。",
+    phase_limit: "这只是阶段重心，不等于收入一定增加、投资一定获利或一定破财。",
+  },
+  relationships: {
+    lead: "长期关系上",
+    limit: "这说明相处中更要留意什么，不等于一定会结婚、分开或出现其他具体结果。",
+    phase_limit: "这只是阶段重心，不等于一定会结婚、分开或出现其他具体事件。",
+  },
+});
+const RELATIONSHIP_RESULT_LANGUAGE = Object.freeze({
+  branch_repetition: "同一种相处模式反复出现",
+  branch_self_punishment: "相处中容易自我牵制、反复打转",
+  branch_six_harmony: "连接、协商和靠近",
+  branch_clash: "节奏、位置或安排上的直接拉扯",
+  branch_harm: "不容易明说的不顺手和互相牵制",
+  branch_break: "原有安排松动或配合不稳",
+  branch_punishment: "规则、边界或反复摩擦",
+  branch_full_three_punishment: "规则、边界或反复摩擦",
+});
 
 function deepFreeze(value) {
   if (value && typeof value === "object" && !Object.isFrozen(value)) {
@@ -19,6 +55,26 @@ function deepFreeze(value) {
 
 function unique(values) {
   return [...new Set(values.filter(Boolean))];
+}
+
+function joinZh(values) {
+  const items = unique(values);
+  if (items.length < 2) return items[0] || "";
+  if (items.length === 2) return `${items[0]}，同时${items[1]}`;
+  return `${items.slice(0, -1).join("、")}，以及${items.at(-1)}`;
+}
+
+function axisResultText(axis) {
+  return AXIS_RESULT_LANGUAGE[axis.axis_id] || axis.label_zh;
+}
+
+function relationshipResultText(relation) {
+  return RELATIONSHIP_RESULT_LANGUAGE[relation.relationship] || "需要在现实中核对的互动变化";
+}
+
+function phaseLayerLabel(layer, fact) {
+  if (layer === "yearly" && /^\d{4}-/.test(fact?.date || "")) return `${fact.date.slice(0, 4)}年`;
+  return layer === "decadal" ? "当前较长阶段" : "目标年份";
 }
 
 function ensureReplayVerifiedKnownTimeBazi(calculation) {
@@ -91,9 +147,9 @@ function routeStatus(route, axesById) {
   return "background_co_presence_candidate";
 }
 
-function activePhase(calculation, natalAxes) {
+function activePhase(calculation, natalAxes, topic = null) {
   const target = calculation.facts?.luck_cycles?.target;
-  if (!target) return { status: "unavailable", plain_zh: "未指定目标日期，本轮只读原局主题。", layers: [] };
+  if (!target) return { status: "unavailable", plain_zh: "未指定目标日期，本次只说明本命主题。", layers: [] };
   const axisByGod = new Map();
   for (const axis of natalAxes) {
     for (const god of axis.ten_gods) {
@@ -132,6 +188,7 @@ function activePhase(calculation, natalAxes) {
       layer,
       label_zh,
       fact_id: fact.fact_id,
+      date: fact.date || null,
       stem_branch: fact.stem_branch,
       visible_ten_god: fact.ten_god_stem,
       matched_visible: visibleMatch,
@@ -146,10 +203,17 @@ function activePhase(calculation, natalAxes) {
   });
   const emphasized = layers.filter((item) => item.emphasized_gods.length);
   const phaseOnly = layers.filter((item) => item.phase_only_gods.length);
+  const axesById = new Map(natalAxes.map((axis) => [axis.axis_id, axis]));
   const layerClauses = layers.flatMap((item) => [
-    item.emphasized_gods.length ? `${item.label_zh}${item.stem_branch}再次带入原局已有的${item.emphasized_gods.join("、")}` : null,
-    item.phase_only_gods.length ? `${item.label_zh}${item.stem_branch}另见${item.phase_only_gods.join("、")}，但原局未见对应轴` : null,
+    item.emphasized_axis_ids.length
+      ? `${phaseLayerLabel(item.layer, item)}的重点是${joinZh(item.emphasized_axis_ids.map((axisId) => axisResultText(axesById.get(axisId) || { axis_id: axisId, label_zh: axisId })))}`
+      : null,
+    item.phase_only_axis_ids.length
+      ? `${phaseLayerLabel(item.layer, item)}还带来${joinZh(item.phase_only_axis_ids.map((axisId) => axisResultText(axesById.get(axisId) || { axis_id: axisId, label_zh: axisId })))}，但出生盘里的同类线索不够，暂不把它算作稳定主线`
+      : null,
   ]).filter(Boolean);
+  const phaseLimit = TOPIC_RESULT_LANGUAGE[topic]?.phase_limit || "这不代表任何具体事件已经发生。";
+  const inspectedLabels = unique(layers.map((item) => phaseLayerLabel(item.layer, item)));
   return {
     status: emphasized.length
       ? "natal_topic_axis_emphasized"
@@ -157,10 +221,10 @@ function activePhase(calculation, natalAxes) {
       ? "phase_topic_present_but_natal_axis_absent"
       : "no_direct_topic_emphasis",
     plain_zh: emphasized.length
-      ? `${layerClauses.join("；")}。这里只表示原局已有主题在本阶段更显眼；岁运单独新增者不倒写回原局，也不据此命名事件。`
+      ? `${layerClauses.join("；")}。${phaseLimit}`
       : phaseOnly.length
-      ? `${phaseOnly.map((item) => `${item.label_zh}${item.stem_branch}单独带入${item.phase_only_gods.join("、")}`).join("；")}，但原局已登记位置未见对应主题轴，因此不称原局主题被激活，也不据此命名事件。`
-      : "当前岁运干支未直接带入本主题登记十神；这不等于现实中该领域没有事情发生。",
+      ? `${layerClauses.join("；")}。${phaseLimit}`
+      : `${inspectedLabels.join("和") || "当前阶段"}没有让这条主线变得更突出。${phaseLimit}`,
     layers,
     inspected_fact_ids: unique([
       target.fact_id,
@@ -219,6 +283,7 @@ function relationshipPhase(calculation, day, spouseGods, spouseFacts) {
       layer,
       label_zh,
       fact_id: fact.fact_id,
+      date: fact.date || null,
       stem_branch: fact.stem_branch,
       status: matched.length ? "day_branch_relation_observed" : "no_direct_day_branch_relation",
       relationships: matched,
@@ -230,21 +295,25 @@ function relationshipPhase(calculation, day, spouseGods, spouseFacts) {
     layer_label_zh: item.label_zh,
     layer_fact_id: item.fact_id,
     stem_branch: item.stem_branch,
+    date: item.date,
   })));
   const spouseStarPhase = activePhase(calculation, spouseGods.length ? [{
     axis_id: "relationship_spouse_star_context",
+    label_zh: "传统配偶星补充",
     ten_gods: spouseGods,
     natal_status: spouseFacts.length ? "observed" : "not_observed",
-  }] : []);
+  }] : [], "relationships");
   const branchText = branchContext.length
-    ? branchContext.map((item) => `${item.layer_label_zh}${item.stem_branch}与日支出现${item.label_zh}`).join("；")
-    : "当前大运和流年未见与日支直接相连的已登记合、冲、刑、害、破或重复关系";
+    ? branchContext.map((item) => `${phaseLayerLabel(item.layer, item)}要留意的是${relationshipResultText(item)}`).join("；")
+    : `${unique(layers.map((item) => phaseLayerLabel(item.layer, item))).join("和") || "当前阶段"}没有进一步加强这条关系主线`;
   const spouseText = spouseGods.length && spouseStarPhase.status !== "no_direct_topic_emphasis"
-    ? ` 配偶星分支另作补充：${spouseStarPhase.plain_zh}`
+    ? ` 伴侣相关的传统补充线索是：${spouseStarPhase.plain_zh}`
     : "";
   return {
     status: branchContext.length ? "relationship_branch_context_emphasized" : "no_direct_day_branch_relation",
-    plain_zh: `${branchText}。这只提示当前互动方式需要观察，不直接预测关系结果。${spouseText}`,
+    plain_zh: branchContext.length
+      ? `${branchText}。这只说明当前更该留意哪类互动，不代表关系结果一定好或坏。${spouseText}`
+      : `${branchText}。盘面没有给出额外的关系重点，不代表现实里不会有关系变化。${spouseText}`,
     layers,
     branch_context: branchContext,
     spouse_star_phase: spouseStarPhase,
@@ -273,26 +342,34 @@ function generalTopic(calculation, topic, rule) {
   const background = axes.filter((axis) => axis.status === "background_candidate");
   const foregroundPairs = routes.filter((route) => route.status === "foreground_co_presence");
   const candidatePairs = routes.filter((route) => route.status === "background_co_presence_candidate");
+  const language = TOPIC_RESULT_LANGUAGE[topic];
   const headline = foreground.length
-    ? `${rule.label_zh}先看${foreground.map((axis) => axis.label_zh).join("、")}；其余只保留为待核对线索。`
+    ? `${language.lead}最明确的主线是：${joinZh(foreground.map(axisResultText))}。`
     : background.length
-    ? `${rule.label_zh}目前只有背景层候选，未形成可直接落地的主判断。`
-    : `${rule.label_zh}在已登记位置没有可直接落地的主题轴，本轮不硬凑结论。`;
+    ? `${language.lead}没有一条足够明确的主线；现有线索更适合作为补充。`
+    : `这张盘目前不足以给出${rule.label_zh}的明确判断。`;
   const coPresence = [...foregroundPairs, ...candidatePairs];
+  const weakerText = background.length
+    ? `盘里也有${background.length === 1 ? "一条" : "几条"}辅助线索：${joinZh(background.map(axisResultText))}。${background.length === 1 ? "它" : "它们"}没有主线那么直接，先不当成主要判断。`
+    : "";
+  const coPresenceText = coPresence.length
+    ? "这些内容虽然同时出现，但现实中能不能互相带动，还要看它们是否真的接得起来。"
+    : "";
   return {
     topic,
     topic_label_zh: rule.label_zh,
     status: "completed_with_boundaries",
     conclusion: headline,
-    plain_language: `${headline}${foreground.length ? ` 前台证据是${foreground.map((axis) => axis.plain_zh).join("")}` : ""}${background.length ? ` 背景层另见${background.map((axis) => axis.label_zh).join("、")}，但不按透干处理。` : ""}${coPresence.length ? ` ${coPresence.map((route) => route.label_zh).join("、")}只是两轴同见，尚未核验生克、位置、旺衰和效力，不能称为闭合链。` : ""}`,
+    plain_language: `${weakerText}${coPresenceText}${language.limit}`,
     axes,
     routes,
     inspected_fact_ids: inspectedFactIds,
     phase_activation: activePhase(calculation, rule.axes.map((axis) => ({
       axis_id: axis.axis_id,
+      label_zh: axis.label_zh,
       ten_gods: axis.ten_gods,
       natal_status: axesById.get(axis.axis_id)?.status || "not_observed",
-    }))),
+    })), topic),
     boundary: rule.boundary_zh,
     reality_checks: topic === "career_study"
       ? ["对照最近两个真实任务周期：职责、学习支持和成果输出，究竟哪一环先卡住、哪一环能稳定改善。"]
@@ -349,21 +426,21 @@ function relationshipTopic(calculation, rule) {
     hidden_position: ["main", "middle", "residual"][index] || `position-${index + 1}`,
   }));
   const relationText = interactions.length
-    ? interactions.map((item) => `${item.label_zh}（连接${item.other_pillars.map((pillar) => ({ year: "年支", month: "月支", time: "时支" }[pillar] || pillar)).join("、")}）：${item.plain_zh}`).join("；")
-    : "日支与其余三支未见本规则表登记的合、冲、刑、害、破或重复；这只表示没有这些特定结构，不代表关系简单或必然稳定。";
+    ? `这些线索来自出生盘中与长期关系有关的位置：${joinZh(interactions.map(relationshipResultText))}。它们只描述可能反复出现的互动课题，不决定关系结果。`
+    : "本轮没有出现足以单独判断关系顺逆的固定互动结构；这不代表关系一定简单或稳定。";
   const spouseText = chartSex
     ? spouseFacts.length
-      ? `按明确提供的传统${chartSex === "male" ? "男命财星" : "女命官杀"}口径，${spouseFacts.map((item) => `${item.location_zh}${item.ten_god}`).join("、")}可作补充背景；不能用来描述现实伴侣或预测婚姻。`
-      : `按明确提供的传统${chartSex === "male" ? "男命财星" : "女命官杀"}口径，已登记位置未见对应十神；不能据此断“无缘”或婚姻结果。`
-    : "未提供传统顺逆所用的二元参数，因此不启用配偶星分支，也不从姓名或经历猜测。";
+      ? `按你明确提供的传统${chartSex === "male" ? "男命" : "女命"}口径，盘里还有伴侣相关的补充线索，但它不足以描述现实伴侣，也不能预测婚姻结果。`
+      : `按你明确提供的传统${chartSex === "male" ? "男命" : "女命"}口径，本轮没有看到对应的补充线索；这不能解读成“无缘”或其他婚姻结果。`
+    : "没有启用按男命或女命区分的传统补充规则，因为你没有明确提供这项参数；本轮不会猜。";
   return {
     topic: "relationships",
     topic_label_zh: rule.label_zh,
     status: "completed_with_boundaries",
     conclusion: interactions.length
-      ? `长期关系先看日支${day?.earthly_branch || "未明"}，本盘与它直接相连的结构是${interactions.map((item) => item.label_zh).join("、")}。`
-      : `长期关系先看日支${day?.earthly_branch || "未明"}；本轮没有把“未见特定支关系”硬写成吉凶。`,
-    plain_language: `${relationText} ${spouseText}`,
+      ? `长期关系中较值得留意的是：${joinZh(interactions.map(relationshipResultText))}。`
+      : "长期关系这部分，盘里没有强到足以判断明显顺利或明显困难的信号。",
+    plain_language: `${relationText}${spouseText}`,
     day_branch: {
       fact_id: day?.fact_id || null,
       earthly_branch: day?.earthly_branch || null,

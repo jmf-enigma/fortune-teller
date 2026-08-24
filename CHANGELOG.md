@@ -16,6 +16,8 @@ Professional-depth release focused on readable BaZi life topics and bounded Zi W
 
 ### Changed
 
+- BaZi's ordinary output now states the practical meaning first: what most clearly matters in career, money, relationships, and the selected phase. Internal labels such as foreground/background, candidate pattern state, Ten Gods, and stem/branch relations stay in the advanced evidence layer.
+- The Chinese guide now renders life overview, career, and wealth as separate first-screen BaZi cards; “all” adds relationships. Focused career/wealth/relationship routes can select BaZi directly, common Chinese place names resolve locally to the corresponding timezone, and the traditional male/female chart convention is asked in ordinary language.
 - Month-command adjudication retains every library-order hidden-stem candidate and no longer presents main qi as the exact day-specific human commander.
 - Strength evidence exposes season, root, and visible-stem axes without weakening the strict establishment gate. Presence-only damage/rescue cannot become breakage or effective rescue.
 - The guided result page shows the selected BaZi topic's phase context before generic period details and discloses the traditional binary parameter's optional relationship-lens use.

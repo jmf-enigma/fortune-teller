@@ -73,6 +73,15 @@ function renderReading(payload) {
   });
 }
 
+const BAZI_FRONT_JARGON = /比肩|劫财|食神|伤官|正财|偏财|正官|七杀|正印|偏印|克泄耗|克、泄|相破|天干相克|天干五合|天干相冲|格局候选/u;
+
+function firstResultHome(transcript, menuPrompt = "接下来：") {
+  const start = transcript.indexOf("＝＝＝＝ 排盘 / 抽取完成 ＝＝＝＝");
+  const end = transcript.indexOf(menuPrompt, start);
+  assert.ok(start >= 0 && end > start, "expected one complete result home screen");
+  return transcript.slice(start, end);
+}
+
 function makeBoundIChingReading() {
   const calculation = calculate("iching", { question: "fixture", lines: [7, 7, 7, 7, 7, 7] });
   const interpretationProfile = INTERPRETATION_PROFILES.find(
@@ -139,29 +148,30 @@ test("Chinese BaZi guide validates fields, edits one field, and hides audit deta
     { prompt: "出生日期（公历 YYYY-MM-DD", response: "2000-02-31\n" },
     { prompt: "出生日期（公历 YYYY-MM-DD", response: "2000-08-16\n" },
     { prompt: "出生时间（24 小时制", response: "04:00\n" },
-    { prompt: "出生地时区", response: "Mars/Olympus\n" },
-    { prompt: "出生地时区", response: "Asia/Shanghai\n" },
+    { prompt: "出生地或时区", response: "Mars/Olympus\n" },
+    { prompt: "出生地或时区", response: "北京\n" },
     { prompt: "按以上信息在本地计算？", response: "2\n" },
-    { prompt: "要修改哪一项？\n  1. 出生日期\n  2. 出生时间\n  3. 出生地时区\n请选择：", response: "2\n" },
+    { prompt: "要修改哪一项？\n  1. 出生日期\n  2. 出生时间\n  3. 出生地或时区\n请选择：", response: "2\n" },
     { prompt: "出生时间（24 小时制", response: "05:00\n" },
     { prompt: "按以上信息在本地计算？", response: "1\n" },
-    { prompt: "接下来：1 看盘面 / 牌面重点", response: "2\n" },
+    { prompt: "接下来：1 看专业依据（高级）", response: "2\n" },
     { prompt: "为什么这样算：", response: "2\n" },
     { prompt: "技术记录会显示排盘口径", response: "1\n" },
     { prompt: "1 查看完整 JSON", response: "2\n" },
     { prompt: "为什么这样算：", response: "3\n" },
-    { prompt: "接下来：1 看盘面 / 牌面重点", response: "1\n" },
-    { prompt: "接下来：1 看盘面 / 牌面重点", response: "5\n" },
+    { prompt: "接下来：1 看专业依据（高级）", response: "1\n" },
+    { prompt: "接下来：1 看专业依据（高级）", response: "5\n" },
   ]);
 
   assert.equal(result.completedSteps, 18);
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stderr, "");
   assert.match(result.transcript, /这个公历日期不存在/);
-  assert.match(result.transcript, /时区名称无法识别/);
+  assert.match(result.transcript, /无法识别这个出生地或时区/);
+  assert.match(result.transcript, /时区：Asia\/Shanghai/u);
   assert.match(result.transcript, /时间：05:00/);
   assert.match(result.transcript, /四柱：年柱 \S+ ｜ 月柱 \S+ ｜ 日柱 \S+ ｜ 时柱 \S+/);
-  assert.match(result.transcript, /—— 盘面 \/ 牌面重点 ——/);
+  assert.match(result.transcript, /—— 八字专业依据（高级） ——/);
   assert.doesNotMatch(result.transcript, /请输入纬度,经度/);
   assert.doesNotMatch(result.transcript, /可用 profile/);
   const technicalStart = result.transcript.indexOf("—— 技术记录 ——");
@@ -174,25 +184,89 @@ test("BaZi life-overview path collects luck inputs and presents adjudication bef
   const result = await runInteractive([
     { prompt: "请选择想看的内容：", response: "1\n" },
     { prompt: "请选择出生盘方式", response: "2\n" },
+    { prompt: "请选择展开范围", response: "1\n" },
     { prompt: "出生日期（公历 YYYY-MM-DD", response: "2000-08-16\n" },
     { prompt: "出生时间（24 小时制", response: "04:00\n" },
-    { prompt: "出生地时区", response: "Asia/Shanghai\n" },
-    { prompt: "请选择排盘参数", response: "1\n" },
+    { prompt: "出生地或时区", response: "上海\n" },
+    { prompt: "这次按传统男命还是女命排？", response: "1\n" },
     { prompt: "想看哪个日期所处的阶段？", response: "2026-08-24\n" },
     { prompt: "按以上信息在本地计算？", response: "1\n" },
-    { prompt: "接下来：1 看盘面 / 牌面重点", response: "5\n" },
+    { prompt: "接下来：1 看专业依据（高级）", response: "5\n" },
   ]);
 
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stderr, "");
-  assert.match(result.transcript, /传统二元参数：男（大运顺逆；关系专题仅作流派性补充）/u);
+  assert.match(result.transcript, /展开范围：总览、事业、财富/u);
+  assert.match(result.transcript, /传统排法：男命（用于行运顺逆；关系专题只作传统补充）/u);
   assert.match(result.transcript, /先说结论：/u);
-  assert.match(result.transcript, /当前阶段：/u);
-  assert.match(result.transcript, /当前大运：丙戌/u);
-  assert.match(result.transcript, /流年：丙午/u);
-  assert.match(result.transcript, /路线条件已完整重跑|流年没有被单独拿来命名事件/u);
-  assert.ok(result.transcript.indexOf("先说结论：") < result.transcript.indexOf("四柱："));
+  assert.match(result.transcript, /【人生总览】/u);
+  assert.match(result.transcript, /【事业与学业】/u);
+  assert.match(result.transcript, /【财富与资源】/u);
+  assert.doesNotMatch(result.transcript, /【感情与长期关系】/u);
+  assert.match(result.transcript, /目前阶段：当前较长阶段/u);
+  assert.ok(result.transcript.indexOf("【人生总览】") < result.transcript.indexOf("【事业与学业】"));
+  assert.ok(result.transcript.indexOf("【事业与学业】") < result.transcript.indexOf("【财富与资源】"));
+  const home = firstResultHome(result.transcript);
+  assert.doesNotMatch(home, BAZI_FRONT_JARGON);
+  assert.doesNotMatch(home, /四柱：|当前大运：|流年：|在 Agent 中使用|\$fortune-teller/u);
   assert.doesNotMatch(result.transcript, /事实核对码|完整记录核对码|reproducibility_hash/u);
+});
+
+test("BaZi overview adds relationships only when the user explicitly selects all", async () => {
+  const result = await runInteractive([
+    { prompt: "请选择想看的内容：", response: "1\n" },
+    { prompt: "请选择出生盘方式", response: "2\n" },
+    { prompt: "请选择展开范围", response: "2\n" },
+    { prompt: "出生日期（公历 YYYY-MM-DD", response: "2001-01-15\n" },
+    { prompt: "出生时间（24 小时制", response: "13:35\n" },
+    { prompt: "出生地或时区", response: "香港\n" },
+    { prompt: "这次按传统男命还是女命排？", response: "1\n" },
+    { prompt: "想看哪个日期所处的阶段？", response: "2026-08-24\n" },
+    { prompt: "按以上信息在本地计算？", response: "1\n" },
+    { prompt: "接下来：1 看专业依据（高级）", response: "5\n" },
+  ]);
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stderr, "");
+  assert.match(result.transcript, /展开范围：总览、事业、财富、感情与长期关系/u);
+  const home = firstResultHome(result.transcript);
+  const positions = ["【人生总览】", "【事业与学业】", "【财富与资源】", "【感情与长期关系】"]
+    .map((label) => home.indexOf(label));
+  assert.ok(positions.every((position) => position >= 0));
+  assert.ok(positions.every((position, index) => index === 0 || position > positions[index - 1]));
+  assert.match(result.transcript, /时区：Asia\/Hong_Kong/u);
+  assert.doesNotMatch(home, BAZI_FRONT_JARGON);
+  assert.match(home, /不能预测婚姻结果|不代表关系结果一定好或坏/u);
+});
+
+test("single-domain career and wealth routes offer BaZi and call the selected topic", async () => {
+  for (const fixture of [
+    { menu: "1\n", label: "事业与学业", result: /事业上最明确的主线/u, other: "【财富与资源】" },
+    { menu: "2\n", label: "财富与资源", result: /财富上最明确的主线/u, other: "【事业与学业】" },
+  ]) {
+    const result = await runInteractive([
+      { prompt: "请选择想看的内容：", response: "2\n" },
+      { prompt: "请选择重点领域：", response: fixture.menu },
+      { prompt: "请选择出生盘方式", response: "3\n" },
+      { prompt: "出生日期（公历 YYYY-MM-DD", response: "2001-01-15\n" },
+      { prompt: "出生时间（24 小时制", response: "13:35\n" },
+      { prompt: "出生地或时区", response: "中国大陆\n" },
+      { prompt: "这次按传统男命还是女命排？", response: "1\n" },
+      { prompt: "想看哪个日期所处的阶段？", response: "2026-08-24\n" },
+      { prompt: "按以上信息在本地计算？", response: "1\n" },
+      { prompt: "接下来：1 看专业依据（高级）", response: "5\n" },
+    ]);
+
+    assert.equal(result.code, 0, result.stderr);
+    assert.match(result.transcript, /3\. 四柱八字（直接看这个领域的主线与当前阶段，不承诺具体事件）/u);
+    const home = firstResultHome(result.transcript);
+    assert.match(home, new RegExp(`你想看：${fixture.label}`, "u"));
+    assert.match(home, new RegExp(`【${fixture.label}】`, "u"));
+    assert.match(home, fixture.result);
+    assert.doesNotMatch(home, new RegExp(fixture.other.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "u"));
+    assert.doesNotMatch(home, BAZI_FRONT_JARGON);
+    assert.match(home, /不等于|不能直接/u);
+  }
 });
 
 test("Tarot default path uses Chinese spread, position, and orientation labels", async () => {
@@ -227,7 +301,7 @@ test("Western guide offers coordinates up front and exposes audited motion state
     { prompt: "请选择具体方法：", response: "3\n" },
     { prompt: "出生日期（公历 YYYY-MM-DD", response: "2000-08-16\n" },
     { prompt: "出生时间（24 小时制", response: "04:00\n" },
-    { prompt: "出生地时区", response: "Asia/Shanghai\n" },
+    { prompt: "出生地或时区", response: "Asia/Shanghai\n" },
     { prompt: "经纬度（用于上升点、中天和宫位", response: "31.23\n" },
     { prompt: "经纬度（用于上升点、中天和宫位", response: "31.23,121.47\n" },
     { prompt: "按以上信息在本地计算？", response: "1\n" },
@@ -250,7 +324,7 @@ test("overseas Zi Wei civil-day convention is disclosed before confirmation", as
     { prompt: "请选择出生盘方式", response: "1\n" },
     { prompt: "出生日期（公历 YYYY-MM-DD", response: "2000-08-16\n" },
     { prompt: "出生时间（24 小时制", response: "04:00\n" },
-    { prompt: "出生地时区", response: "America/New_York\n" },
+    { prompt: "出生地或时区", response: "America/New_York\n" },
     { prompt: "请选择排盘参数", response: "1\n" },
     { prompt: "想看哪个日期所处的阶段？", response: "\n" },
     { prompt: "按以上信息在本地计算？", response: "3\n" },
@@ -273,7 +347,7 @@ test("DST overlap guide supports both earlier and later instants", async () => {
       { prompt: "请选择具体方法：", response: "3\n" },
       { prompt: "出生日期（公历 YYYY-MM-DD", response: "2024-11-03\n" },
       { prompt: "出生时间（24 小时制", response: "01:30\n" },
-      { prompt: "出生地时区", response: "America/New_York\n" },
+      { prompt: "出生地或时区", response: "America/New_York\n" },
       { prompt: "经纬度（用于上升点、中天和宫位", response: "\n" },
       { prompt: "按以上信息在本地计算？", response: "1\n" },
       { prompt: "1 较早一次  2 较晚一次", response: choice.menu },
@@ -300,7 +374,7 @@ test("DST gap guide requires a corrected clock time", async () => {
     { prompt: "请选择具体方法：", response: "3\n" },
     { prompt: "出生日期（公历 YYYY-MM-DD", response: "2024-03-10\n" },
     { prompt: "出生时间（24 小时制", response: "02:30\n" },
-    { prompt: "出生地时区", response: "America/New_York\n" },
+    { prompt: "出生地或时区", response: "America/New_York\n" },
     { prompt: "经纬度（用于上升点、中天和宫位", response: "\n" },
     { prompt: "按以上信息在本地计算？", response: "1\n" },
     { prompt: "1 修改出生时间  2 修改其他资料  3 取消", response: "1\n" },
@@ -354,7 +428,7 @@ test("unknown birth time announces the full-day scan before blocking calculation
     { prompt: "请选择具体方法：", response: "1\n" },
     { prompt: "出生日期（公历 YYYY-MM-DD", response: "2000-08-16\n" },
     { prompt: "出生时间（24 小时制", response: "\n" },
-    { prompt: "出生地时区", response: "Asia/Shanghai\n" },
+    { prompt: "出生地或时区", response: "Asia/Shanghai\n" },
     { prompt: "按以上信息在本地计算？", response: "1\n" },
     { prompt: "正在扫描出生当天所有真实存在的民用时刻", response: KILL },
   ]);
@@ -430,7 +504,7 @@ test("life-overview route can add an explicit Zi Wei target date and show its st
     { prompt: "请选择出生盘方式", response: "\n" },
     { prompt: "出生日期（公历 YYYY-MM-DD", response: "2000-08-16\n" },
     { prompt: "出生时间（24 小时制", response: "04:00\n" },
-    { prompt: "出生地时区", response: "Asia/Shanghai\n" },
+    { prompt: "出生地或时区", response: "Asia/Shanghai\n" },
     { prompt: "请选择排盘参数", response: "1\n" },
     { prompt: "想看哪个日期所处的阶段？", response: "2026-08-23\n" },
     { prompt: "按以上信息在本地计算？", response: "1\n" },
@@ -453,7 +527,7 @@ test("single-domain Zi Wei can add the stage date during the initial guided inta
     { prompt: "请选择出生盘方式", response: "1\n" },
     { prompt: "出生日期（公历 YYYY-MM-DD", response: "2000-08-16\n" },
     { prompt: "出生时间（24 小时制", response: "04:00\n" },
-    { prompt: "出生地时区", response: "Asia/Shanghai\n" },
+    { prompt: "出生地或时区", response: "Asia/Shanghai\n" },
     { prompt: "请选择排盘参数", response: "1\n" },
     { prompt: "想看哪个日期所处的阶段？", response: "2026-08-23\n" },
     { prompt: "按以上信息在本地计算？", response: "1\n" },
@@ -475,7 +549,7 @@ test("explicit Zi Wei natal route does not ask for a target date up front", asyn
     { prompt: "请选择具体方法：", response: "2\n" },
     { prompt: "出生日期（公历 YYYY-MM-DD", response: "2000-08-16\n" },
     { prompt: "出生时间（24 小时制", response: "04:00\n" },
-    { prompt: "出生地时区", response: "Asia/Shanghai\n" },
+    { prompt: "出生地或时区", response: "Asia/Shanghai\n" },
     { prompt: "请选择排盘参数", response: "1\n" },
     { prompt: "按以上信息在本地计算？", response: "3\n" },
   ]);
@@ -490,7 +564,7 @@ test("unknown Zi Wei birth time removes target-date timing instead of guessing",
     { prompt: "请选择出生盘方式", response: "1\n" },
     { prompt: "出生日期（公历 YYYY-MM-DD", response: "2000-08-16\n" },
     { prompt: "出生时间（24 小时制", response: "\n" },
-    { prompt: "出生地时区", response: "Asia/Shanghai\n" },
+    { prompt: "出生地或时区", response: "Asia/Shanghai\n" },
     { prompt: "请选择排盘参数", response: "1\n" },
     { prompt: "按以上信息在本地计算？", response: "1\n" },
     { prompt: "接下来：1 看盘面 / 牌面重点", response: "5\n" },

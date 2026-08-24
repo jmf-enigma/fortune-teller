@@ -228,6 +228,14 @@ The first result should normally contain:
 
 Do not put method/profile/status, warnings, a chart table, keywords, source trace, hashes, or an evidence card before the answer. Those are available after the user asks “为什么这样看”.
 
+The first screen is an answer, not another intake interview. Its headline and every requested career or wealth card must open with a direct declarative sentence that says what the bounded result means. Follow with one sentence explaining why. Do not use a chain of questions or labels such as “先看……”, “待核对线索”, or “前台／背景层” in place of the conclusion. Conditional wording is welcome when it names the condition and the supported implication; empty phrases such as “可能有机会，仍需观察” are not an answer. Put all fit-testing questions under `现实核对` only.
+
+Short examples:
+
+- Good, career: “事业主线是靠学习和专业积累建立优势，暂时不能把职责扩张当作主要判断。盘里对学习支持的指向更直接，职责压力只作补充。”
+- Good, wealth: “财富主线是先把资源取得和配置管好，暂时不能断收入会增减。盘里能直接看到资源议题，但还不能证明产出会稳定变成收入。”
+- Bad: “事业先看学习支持，财富先看资源配置；还有哪些待核对线索？前台和背景层如何？”
+
 Example result menu for the bundled CLI:
 
 ```text
@@ -279,9 +287,9 @@ Every interpretive result should include a compact `现实核对`: one observati
 
 Use one fixed, glanceable hierarchy for a natal or target-date result:
 
-1. **先说结论** — one or two plain sentences answering the user's focus; render each sentence as a bullet.
+1. **先说结论** — one or two direct declarative sentences answering the user's focus; render each sentence as a bullet. Do not lead with questions, workflow labels, or evidence-status shorthand.
 2. **阶段时间轴** — when available, show it immediately after the conclusion with exact interval dates. State the phase only in category-level plain language—collaboration/expression support, resource support, friction or sudden pressure, movement/change, relationship interaction, or buffering/problem-solving—and keep detailed stars in the evidence layer.
-3. **分主题卡片** — requested topic first. Within every card preserve: **结论** (when not identical to the headline) → **白话解读** → **盘面依据（术语）** → **什么情况要改判** → **现实提醒**.
+3. **分主题卡片** — requested topic first. Within every card preserve: **结论** (when not identical to the headline) → **白话解读** → **盘面依据（术语）** → **什么情况要改判** → **现实提醒**. For career and wealth, the first sentence says what the result means and the next sentence gives the bounded reason; all diagnostic questions stay in the separate reality-check section.
 4. **怎么判断这条解读是否贴合** — show support, contradiction, and unclear reality checks.
 5. **需要留意** — show material uncertainty in plain language.
 6. **接下来可以看** — show canonical available next steps; the disclaimer follows last.

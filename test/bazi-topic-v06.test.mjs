@@ -17,8 +17,9 @@ test("BaZi career topic keeps located foreground and background facts separate",
   assert.equal(result.axes.find((axis) => axis.axis_id === "career_learning_support").status, "foreground");
   assert.equal(result.axes.find((axis) => axis.axis_id === "career_responsibility").status, "background_candidate");
   assert.equal(result.routes.find((route) => route.route_id === "career_responsibility_with_support").status, "background_co_presence_candidate");
-  assert.match(result.plain_language, /只是两轴同见/u);
-  assert.match(result.plain_language, /前台证据|背景层/u);
+  assert.match(result.conclusion, /通过学习、训练和方法积累能力/u);
+  assert.match(result.plain_language, /虽然同时出现.*现实中能不能互相带动/u);
+  assert.doesNotMatch(result.plain_language, /前台|背景层|先看|待核对线索/u);
   assert.equal(result.safeguards.score_used, false);
 });
 
@@ -26,6 +27,8 @@ test("BaZi wealth topic reports co-presence without turning it into a causal cha
   const result = adjudicateBaziTopic(calculate("bazi", BASE), "wealth_resources");
   assert.equal(result.routes.find((route) => route.route_id === "wealth_output_to_resource").status, "background_co_presence_candidate");
   assert.equal(result.axes.find((axis) => axis.axis_id === "wealth_resource").status, "foreground");
+  assert.match(result.conclusion, /取得和管理稳定资源/u);
+  assert.match(result.plain_language, /虽然同时出现.*现实中能不能互相带动/u);
   assert.match(result.boundary, /不据此预测收入金额/u);
   assert.doesNotMatch(result.conclusion, /大富|贫穷|发财|破财/u);
 });
@@ -35,7 +38,7 @@ test("BaZi relationship topic anchors the day branch and never guesses spouse co
   assert.equal(withoutParameter.day_branch.earthly_branch, "午");
   assert.equal(withoutParameter.spouse_star_context.status, "disabled_without_explicit_parameter");
   assert.deepEqual(withoutParameter.spouse_star_context.evidence, []);
-  assert.match(withoutParameter.plain_language, /不启用配偶星分支/u);
+  assert.match(withoutParameter.plain_language, /没有启用按男命或女命区分的传统补充规则/u);
 
   const withParameter = adjudicateBaziTopic(calculate("bazi", { ...BASE, chart_sex: "male" }), "relationships");
   assert.equal(withParameter.spouse_star_context.status, "enabled_from_explicit_parameter");
@@ -51,7 +54,7 @@ test("BaZi topic phase can emphasize an axis already present in the natal chart 
   });
   const result = adjudicateBaziTopic(calculation, "wealth_resources");
   assert.equal(result.phase_activation.status, "natal_topic_axis_emphasized");
-  assert.match(result.phase_activation.plain_zh, /不据此命名事件/u);
+  assert.match(result.phase_activation.plain_zh, /不等于收入一定增加、投资一定获利或一定破财/u);
   assert.equal(result.safeguards.phase_created_event, false);
 });
 
@@ -66,7 +69,7 @@ test("a phase-only Ten God cannot activate a natal topic axis that is absent", (
   const result = adjudicateBaziTopic(calculation, "wealth_resources");
   assert.equal(result.axes.find((axis) => axis.axis_id === "wealth_resource").status, "not_observed");
   assert.equal(result.phase_activation.status, "phase_topic_present_but_natal_axis_absent");
-  assert.match(result.phase_activation.plain_zh, /不称原局主题被激活/u);
+  assert.match(result.phase_activation.plain_zh, /出生盘里的同类线索不够，暂不把它算作稳定主线/u);
 });
 
 test("a mixed phase separates natal-axis emphasis from phase-only Ten Gods", () => {
@@ -81,9 +84,39 @@ test("a mixed phase separates natal-axis emphasis from phase-only Ten Gods", () 
   assert.ok(mixed);
   assert.ok(mixed.emphasized_gods.includes("偏印"));
   assert.ok(mixed.phase_only_gods.includes("七杀"));
-  assert.match(result.phase_activation.plain_zh, /原局已有的偏印/u);
-  assert.match(result.phase_activation.plain_zh, /另见七杀，但原局未见对应轴/u);
-  assert.doesNotMatch(result.phase_activation.plain_zh, /原局已有的[^。；]*七杀/u);
+  assert.match(result.phase_activation.plain_zh, /通过学习、训练和方法积累能力/u);
+  assert.match(result.phase_activation.plain_zh, /承担职责、适应规则和处理压力任务/u);
+  assert.match(result.phase_activation.plain_zh, /出生盘里的同类线索不够，暂不把它算作稳定主线/u);
+  assert.doesNotMatch(result.phase_activation.plain_zh, /偏印|七杀/u);
+});
+
+test("career and wealth put readable results first and keep prompts inside reality checks", () => {
+  const calculation = calculate("bazi", {
+    date: "2001-01-15",
+    time: "13:35",
+    timezone: "Asia/Shanghai",
+    chart_sex: "male",
+    target_date: "2026-08-24",
+  });
+  const career = adjudicateBaziTopic(calculation, "career_study");
+  const wealth = adjudicateBaziTopic(calculation, "wealth_resources");
+
+  assert.match(career.conclusion, /最明确的主线是：把想法做成作品、方案或可交付成果/u);
+  assert.match(wealth.conclusion, /最明确的主线是：把成果变成收入来源或其他实际回报，同时把合作中的归属、分成和责任说清楚/u);
+  assert.match(career.phase_activation.plain_zh, /当前较长阶段的重点是把想法做成作品、方案或可交付成果/u);
+  assert.match(career.phase_activation.plain_zh, /2026年的重点是通过学习、训练和方法积累能力/u);
+  assert.match(wealth.phase_activation.plain_zh, /当前较长阶段的重点是把成果变成收入来源或其他实际回报/u);
+  assert.match(wealth.phase_activation.plain_zh, /2026年的重点是把合作中的归属、分成和责任说清楚/u);
+
+  for (const result of [career, wealth]) {
+    for (const text of [result.conclusion, result.plain_language, result.phase_activation.plain_zh]) {
+      assert.doesNotMatch(text, /前台|背景层|先看|待核对线索/u);
+      assert.doesNotMatch(text, /[？?]/u);
+    }
+    assert.ok(result.reality_checks.length > 0);
+  }
+  assert.doesNotMatch(career.phase_activation.plain_zh, /伤官|正官|偏印|正印/u);
+  assert.doesNotMatch(wealth.phase_activation.plain_zh, /伤官|劫财|正财|偏财/u);
 });
 
 test("relationship phase prioritizes replayed decadal/yearly relations to the day branch", () => {
@@ -100,7 +133,7 @@ test("relationship phase prioritizes replayed decadal/yearly relations to the da
     result.phase_activation.branch_context.map((item) => [item.layer, item.relationship]),
     [["decadal", "branch_repetition"], ["yearly", "branch_clash"]],
   );
-  assert.match(result.phase_activation.plain_zh, /大运环境.*(?:重复|同支).*流年触发.*相冲/u);
+  assert.match(result.phase_activation.plain_zh, /当前较长阶段要留意的是同一种相处模式.*2026年要留意的是节奏、位置或安排上的直接拉扯/u);
 });
 
 test("relationship natal relations are grouped and incomplete punishment stays a component candidate", () => {
@@ -117,7 +150,8 @@ test("relationship natal relations are grouped and incomplete punishment stays a
   assert.equal(punishments[0].label_zh, "三刑组成支候选");
   assert.equal(punishments[0].fact_ids.length, 2);
   assert.doesNotMatch(result.conclusion, /相刑/u);
-  assert.match(result.plain_language, /年支、月支/u);
+  assert.match(result.conclusion, /连接、协商和靠近/u);
+  assert.deepEqual(clashes[0].other_pillars, ["year", "month"]);
 });
 
 test("topic helper rejects mutated facts and fails closed for unknown time", () => {
@@ -170,7 +204,7 @@ test("public BaZi adjudicator leads with the selected topic and keeps overview b
   const result = adjudicate(calculation, { topic: "relationships" });
   assert.equal(result.status, "completed");
   assert.equal(result.topic, "relationships");
-  assert.match(result.conclusion, /长期关系先看日支/u);
+  assert.match(result.conclusion, /长期关系这部分，盘里没有强到足以判断明显顺利或明显困难的信号/u);
   assert.equal(result.lenses.topic.topic, "relationships");
   assert.ok(result.natal_overview.conclusion);
   assert.equal(result.phase.topic_activation, result.lenses.topic.phase_activation);

@@ -351,12 +351,29 @@ test("ordinary-language result includes evidence, change conditions, and prospec
   assert.match(userText, /不强行|不能|核对/u);
 });
 
+test("overview leads with a readable overall judgment and moves traditional labels behind the result", () => {
+  const result = adjudicateBazi(bazi({
+    date: "2001-01-15",
+    time: "13:35",
+    timezone: "Asia/Shanghai",
+    chart_sex: "male",
+    target_date: "2026-08-24",
+  }));
+  assert.match(result.conclusion, /^整体上，你不是一眼能归成“强”或“弱”的类型/u);
+  assert.match(result.conclusion, /没有一条固定结构足以概括整个人生/u);
+  assert.doesNotMatch(result.conclusion, /月劫|候选|未决|日主|格局/u);
+  assert.match(result.plain_language, /^为什么这样看：出生时的季节条件偏向提供支持/u);
+  assert.doesNotMatch(result.plain_language, /月劫|候选|未决|日主|格局/u);
+  assert.equal(result.lenses.pattern.hypothesis.label, "月劫候选");
+  assert.equal(result.lenses.pattern.hypothesis.state, "未决");
+});
+
 test("ordinary synthesis preserves damaged state instead of calling it a mere candidate", () => {
   const result = adjudicateBazi(bazi({
     date: "1980-02-09", time: "12:00", timezone: "Asia/Shanghai",
   }));
   assert.equal(result.lenses.pattern.hypothesis.state, BAZI_ADJUDICATION_STATES.damaged);
-  assert.match(result.plain_language, /只判受损/u);
+  assert.match(result.plain_language, /发挥会受影响，不能直接推结果/u);
   assert.doesNotMatch(result.plain_language, /只能作为候选/u);
 });
 

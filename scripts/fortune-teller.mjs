@@ -281,6 +281,20 @@ const DOMAIN_LABELS = Object.freeze({
   family_social: "家庭与人际",
   wellbeing_rhythm: "身心节奏",
 });
+const BAZI_GUIDED_DOMAINS = new Set(["career_study", "wealth_resources", "relationships"]);
+const BAZI_HOME_TOPIC_LABELS = Object.freeze({
+  overview: "人生总览",
+  career_study: "事业与学业",
+  wealth_resources: "财富与资源",
+  relationships: "感情与长期关系",
+});
+const COMMON_TIMEZONE_ALIASES = Object.freeze({
+  北京: "Asia/Shanghai",
+  上海: "Asia/Shanghai",
+  中国大陆: "Asia/Shanghai",
+  香港: "Asia/Hong_Kong",
+  中国香港: "Asia/Hong_Kong",
+});
 
 const PILLAR_LABELS_ZH = Object.freeze({ year: "年柱", month: "月柱", day: "日柱", time: "时柱" });
 const ORIENTATION_LABELS_ZH = Object.freeze({ upright: "正位", reversed: "逆位" });
@@ -660,12 +674,16 @@ function validateTime(value) {
   return null;
 }
 
+function normalizeTimezone(value) {
+  return COMMON_TIMEZONE_ALIASES[value] || value;
+}
+
 function validateTimezone(value) {
   try {
-    new Intl.DateTimeFormat("en-US", { timeZone: value }).format(new Date(0));
+    new Intl.DateTimeFormat("en-US", { timeZone: normalizeTimezone(value) }).format(new Date(0));
     return null;
   } catch {
-    return "时区名称无法识别。中国大陆常用 Asia/Shanghai，香港常用 Asia/Hong_Kong；请输入 IANA 时区。";
+    return "无法识别这个出生地或时区。可直接填北京、上海、中国大陆或香港；其他地点请填写 IANA 时区，例如 Asia/Tokyo。";
   }
 }
 
@@ -713,8 +731,9 @@ async function askTime(rl, current) {
 async function askTimezone(rl, current) {
   return askValidated(
     rl,
-    `出生地时区（中国大陆 Asia/Shanghai，香港 Asia/Hong_Kong${current ? `，当前 ${current}` : ""}）：`,
+    `出生地或时区（可填北京、上海、香港，或 Asia/Shanghai${current ? `；当前 ${current}` : ""}）：`,
     validateTimezone,
+    { transform: normalizeTimezone },
   );
 }
 
@@ -739,9 +758,9 @@ async function askOptionalCoordinates(rl) {
 
 async function askChartSex(rl, system = "ziwei") {
   stdout.write(system === "bazi"
-    ? "该传统二元参数用于八字大运顺逆；若你主动查看长期关系，也只会作为“男命财星／女命官杀”的流派性补充，不用于推断身份或预测婚姻结果。\n"
+    ? "八字的行运排法需要选择传统男命或女命。这只是排法选择，不用于推断身份；只有你主动查看长期关系时，才会作为传统补充，也不预测婚姻结果。\n"
     : "该参数只用于紫微斗数的传统排盘算法，不用于推断身份。\n");
-  return askMenu(rl, "请选择排盘参数：1 男  2 女：", [
+  return askMenu(rl, system === "bazi" ? "这次按传统男命还是女命排？1 男命  2 女命：" : "请选择排盘参数：1 男  2 女：", [
     { keys: ["1", "男", "male"], value: "male" },
     { keys: ["2", "女", "female"], value: "female" },
   ]);
@@ -893,24 +912,39 @@ async function chooseBirthSystem(rl, domain = null) {
     ], "western");
   }
   if (domain) {
+    const baziSupported = BAZI_GUIDED_DOMAINS.has(domain);
     stdout.write("适合这个重点领域的方式：\n");
     stdout.write("  1. 紫微斗数（主题宫、三方四正；时辰明确时可加看阶段）\n");
     stdout.write("  2. 西洋本命盘（主题宫、宫主星与相位；需时刻和经纬度）\n");
-    stdout.write("八字当前只闭合整体格局与阶段路线，不会把泛化十神套成这个领域的答案。\n");
-    return askMenu(rl, "请选择出生盘方式（默认 1）：", [
+    if (baziSupported) {
+      stdout.write("  3. 四柱八字（直接看这个领域的主线与当前阶段，不承诺具体事件）\n");
+    } else {
+      stdout.write("四柱八字当前还不能可靠回答这个领域，不会借相邻内容拼答案。\n");
+    }
+    const choices = [
       { keys: ["1", "紫微", "ziwei"], value: "ziwei" },
       { keys: ["2", "西占", "western"], value: "western" },
-    ], "ziwei");
+    ];
+    if (baziSupported) choices.push({ keys: ["3", "八字", "bazi"], value: "bazi" });
+    return askMenu(rl, "请选择出生盘方式（默认 1）：", choices, "ziwei");
   }
   stdout.write("适合出生资料的方式：\n");
   stdout.write("  1. 紫微斗数（宫位主题；时刻明确时可加看指定日期的大限与流年）\n");
-  stdout.write("  2. 四柱八字（看旺衰竞争假设、格局成败救应及大运流年引动）\n");
+  stdout.write("  2. 四柱八字（先给人生总览，再分事业、财富；资料足够时说明当前阶段）\n");
   stdout.write("  3. 西洋本命盘（看本命结构；当前不算行运）\n");
   return askMenu(rl, "请选择出生盘方式（默认 1）：", [
     { keys: ["1", "紫微", "ziwei"], value: "ziwei" },
     { keys: ["2", "八字", "bazi"], value: "bazi" },
     { keys: ["3", "西占", "western"], value: "western" },
   ], "ziwei");
+}
+
+async function chooseBaziOverviewScope(rl) {
+  stdout.write("八字人生整体默认先看总览、事业和财富；感情与长期关系只在你明确选择“都看”时加入。\n");
+  return askMenu(rl, "请选择展开范围：1 总览＋事业＋财富（推荐）  2 都看（再加感情与长期关系）：", [
+    { keys: ["1"], value: "core" },
+    { keys: ["2", "都看"], value: "all" },
+  ], "core");
 }
 
 async function chooseExplicitSystem(rl) {
@@ -941,7 +975,13 @@ async function chooseGoalAndSystem(rl) {
   ]);
 
   if (goal === "life_overview") {
-    return { goal, focus: GOAL_LABELS[goal], system: await chooseBirthSystem(rl) };
+    const system = await chooseBirthSystem(rl);
+    return {
+      goal,
+      focus: GOAL_LABELS[goal],
+      system,
+      ...(system === "bazi" ? { baziOverviewScope: await chooseBaziOverviewScope(rl) } : {}),
+    };
   }
   if (goal === "life_domain") {
     stdout.write("想重点看：1 事业与学业  2 财富与资源  3 感情与长期关系  4 家庭与人际  5 身心节奏\n");
@@ -1001,7 +1041,7 @@ function birthRows(system, input) {
     }
   }
   if (system === "bazi" && input.chart_sex) {
-    rows.push(["传统二元参数", `${input.chart_sex === "male" ? "男" : "女"}（大运顺逆；关系专题仅作流派性补充）`]);
+    rows.push(["传统排法", `${input.chart_sex === "male" ? "男命" : "女命"}（用于行运顺逆；关系专题只作传统补充）`]);
     if (input.target_date) rows.push(["想看的日期", input.target_date]);
   }
   if (input.disambiguation === "earlier") rows.push(["重复时刻", "采用夏令时回拨中较早出现的一次"]);
@@ -1069,6 +1109,9 @@ function showConfirmation(state) {
   stdout.write("\n请核对这次要看的内容：\n");
   stdout.write(`- 你想看：${state.focus}\n`);
   stdout.write(`- 使用：${SYSTEM_LABELS[state.system]}\n`);
+  if (state.system === "bazi" && state.goal === "life_overview") {
+    stdout.write(`- 展开范围：${state.baziOverviewScope === "all" ? "总览、事业、财富、感情与长期关系" : "总览、事业、财富"}\n`);
+  }
   for (const [label, value] of confirmationRows(state)) stdout.write(`- ${label}：${value}\n`);
   stdout.write("程序不会主动联网或写入文件；终端或宿主软件可能保留屏幕记录。\n");
 }
@@ -1077,14 +1120,14 @@ async function editBirth(rl, state) {
   const options = [
     { key: "1", label: "出生日期", field: "date" },
     { key: "2", label: "出生时间", field: "time" },
-    { key: "3", label: "出生地时区", field: "timezone" },
+    { key: "3", label: "出生地或时区", field: "timezone" },
   ];
   if (state.system === "ziwei" || (
     state.system === "bazi"
     && state.input.time
     && (state.input.chart_sex || ["life_overview", "life_domain"].includes(state.goal))
   )) {
-    options.push({ key: String(options.length + 1), label: state.system === "bazi" ? "大运顺逆参数" : "排盘参数", field: "chart_sex" });
+    options.push({ key: String(options.length + 1), label: state.system === "bazi" ? "传统排法" : "排盘参数", field: "chart_sex" });
   }
   if (["bazi", "ziwei"].includes(state.system) && state.input.time && state.input.chart_sex) {
     options.push({ key: String(options.length + 1), label: "想看的日期（大限与流年）", field: "target_date" });
@@ -1366,14 +1409,44 @@ function resultSummaryLines(result) {
   ];
 }
 
-function safeProfessionalAdjudication(result, state = {}) {
+function safeProfessionalAdjudication(result, state = {}, topicOverride = null) {
   if (typeof adjudicate !== "function") return null;
   try {
-    const topic = state.domain || "overview";
+    const topic = topicOverride || state.domain || "overview";
     return adjudicate(result, { topic });
   } catch {
     return null;
   }
+}
+
+function baziHomeTopics(state) {
+  if (state.goal !== "life_overview") return [state.domain || "overview"];
+  return [
+    "overview",
+    "career_study",
+    "wealth_resources",
+    ...(state.baziOverviewScope === "all" ? ["relationships"] : []),
+  ];
+}
+
+function showBaziResultCards(result, state) {
+  const readings = baziHomeTopics(state)
+    .map((topic) => ({ topic, reading: safeProfessionalAdjudication(result, state, topic) }))
+    .filter(({ reading }) => reading);
+  if (!readings.length) return false;
+
+  stdout.write("\n先说结论：\n");
+  const uniqueChartAvailable = readings[0].reading.status === "completed";
+  const visibleReadings = uniqueChartAvailable ? readings : readings.slice(0, 1);
+  for (const { topic, reading } of visibleReadings) {
+    stdout.write(`\n【${BAZI_HOME_TOPIC_LABELS[topic] || DOMAIN_LABELS[topic] || "本次重点"}】\n`);
+    stdout.write(`${reading.conclusion}\n`);
+    stdout.write(`${reading.plain_language}\n`);
+    if (reading.phase?.topic_activation?.status !== "unavailable" && reading.phase?.topic_activation?.plain_zh) {
+      stdout.write(`目前阶段：${reading.phase.topic_activation.plain_zh}\n`);
+    }
+  }
+  return true;
 }
 
 function homeWarnings(result) {
@@ -1389,7 +1462,8 @@ function showResultHome(result, state) {
   stdout.write("\n＝＝＝＝ 排盘 / 抽取完成 ＝＝＝＝\n");
   stdout.write(`你想看：${state.focus}\n`);
   stdout.write(`使用：${SYSTEM_LABELS[result.system]}\n`);
-  if (professional) {
+  const baziCardsShown = result.system === "bazi" && showBaziResultCards(result, state);
+  if (professional && !baziCardsShown) {
     stdout.write("\n先说结论：\n");
     stdout.write(`${professional.conclusion}\n`);
     stdout.write(`${professional.plain_language}\n`);
@@ -1403,16 +1477,22 @@ function showResultHome(result, state) {
       if (professional.phase.yearly?.conclusion) stdout.write(`- ${professional.phase.yearly.conclusion}\n`);
       if (professional.phase.joint_activation?.conclusion) stdout.write(`- ${professional.phase.joint_activation.conclusion}\n`);
     }
-    stdout.write("\n盘面起点：\n");
   }
-  for (const line of resultSummaryLines(result)) stdout.write(`${line}\n`);
+  if (result.system !== "bazi") {
+    if (professional || baziCardsShown) stdout.write("\n盘面起点：\n");
+    for (const line of resultSummaryLines(result)) stdout.write(`${line}\n`);
+  }
   const visibleWarnings = homeWarnings(result);
   if (visibleWarnings.length) {
     stdout.write("\n需要留意：\n");
     for (const warning of visibleWarnings) stdout.write(`- ${translateWarning(warning)}\n`);
   }
-  stdout.write("\n这是固定本地计算的结果起点，不把牌面或宫位直接冒充命运结论。\n");
-  stdout.write("在 Agent 中使用 $fortune-teller 时，会沿用这一结果，先回答你关心的事，再按需展开为什么这样看；追问不会偷偷重排或重抽。\n");
+  stdout.write(result.system === "bazi"
+    ? "\n以上是按固定规则排出的传统解读，不是对具体事件的保证。\n"
+    : "\n这是固定本地计算的结果起点，不把牌面或宫位直接冒充命运结论。\n");
+  if (result.system !== "bazi") {
+    stdout.write("在 Agent 中使用 $fortune-teller 时，会沿用这一结果，先回答你关心的事，再按需展开为什么这样看；追问不会偷偷重排或重抽。\n");
+  }
 }
 
 function formatCounts(counts) {
@@ -1421,8 +1501,11 @@ function formatCounts(counts) {
 
 function showDetails(result, state = {}) {
   const facts = result.facts;
-  stdout.write("\n—— 盘面 / 牌面重点 ——\n");
+  stdout.write(result.system === "bazi" ? "\n—— 八字专业依据（高级） ——\n" : "\n—— 盘面 / 牌面重点 ——\n");
   if (result.system === "bazi" && facts.pillars) {
+    stdout.write("基础排盘：\n");
+    for (const line of resultSummaryLines(result)) stdout.write(`${line}\n`);
+    stdout.write("\n逐柱与结构记录：\n");
     for (const pillar of facts.pillars) {
       stdout.write(`${PILLAR_LABELS_ZH[pillar.pillar]} ${pillar.stem_branch}｜五行 ${pillar.five_element_pair}｜藏干 ${pillar.hidden_stems.join("、") || "无"}｜天干十神 ${pillar.ten_god_stem}｜纳音 ${pillar.nayin}\n`);
     }
@@ -1579,7 +1662,9 @@ async function showWhy(rl, result) {
 
 async function resultMenu(rl, result, state) {
   while (true) {
-    stdout.write("\n接下来：1 看盘面 / 牌面重点  2 为什么这样看  3 修改资料或问题  4 新建一轮  5 结束\n");
+    stdout.write(result.system === "bazi"
+      ? "\n接下来：1 看专业依据（高级）  2 为什么这样看  3 修改资料  4 新建一轮  5 结束\n"
+      : "\n接下来：1 看盘面 / 牌面重点  2 为什么这样看  3 修改资料或问题  4 新建一轮  5 结束\n");
     const action = await askMenu(rl, "请选择（默认 5）：", [
       { keys: ["1"], value: "details" },
       { keys: ["2"], value: "why" },

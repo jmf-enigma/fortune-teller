@@ -26,13 +26,13 @@ const TEN_GOD_THEME = Object.freeze({
   比肩: "自主推进、同辈协作与资源分配",
   劫财: "竞争、合作边界与共同资源",
   食神: "稳定输出、表达与成果养成",
-  伤官: "独立表达、改进旧法与规则摩擦",
+  伤官: "独立表达、改进旧方法和处理规则摩擦",
   正财: "稳定资源、交换责任与日常配置",
   偏财: "外部机会、流动资源与多方协调",
   正官: "明确职责、规范与持续承担",
   七杀: "高压任务、快速决断与约束管理",
   正印: "学习支持、方法积累与恢复条件",
-  偏印: "非标准学习、专门方法与独立准备",
+  偏印: "专门领域的学习、方法打磨和独立准备",
 });
 const INTERACTION_LABELS = Object.freeze({
   stem_repetition: "天干重复",
@@ -1058,14 +1058,18 @@ function normalizePeriodStage(value, role, patternRule = null, interactions = []
       basis: [],
     };
   }
-  const tendency = SUPPORT_GODS.has(value.ten_god_stem) ? "生扶一侧" : "克、泄或耗的一侧";
   const relevantInteractions = interactions.filter((item) => item.layer_fact_ids?.includes(value.fact_id));
   const interactionLabels = interactionSummary(relevantInteractions);
   const patternEffect = periodPatternEffect(value, patternRule);
   const theme = TEN_GOD_THEME[value.ten_god_stem] || "阶段条件";
   const interactionText = interactionLabels.length
-    ? `并通过${interactionLabels.join("、")}与原局或另一时间层发生结构联系`
-    : "但在当前闭合关系表中未见与原局或另一时间层的明确结构联系";
+    ? "它同时和出生盘里的其他结构相连，需要结合原有主题一起看"
+    : "它没有和出生盘里的其他结构形成直接联系，所以只作阶段提示";
+  const stageLabel = role === "environment"
+    ? "当前较长阶段"
+    : /^\d{4}-/.test(value.date || "")
+      ? `${value.date.slice(0, 4)}年`
+      : "目标年份";
   return {
     role,
     status: "available",
@@ -1085,8 +1089,8 @@ function normalizePeriodStage(value, role, patternRule = null, interactions = []
     })),
     pattern_effect: patternEffect,
     conclusion: role === "environment"
-      ? `这步大运以${value.ten_god_stem}为显性环境，较强调${theme}，偏向${tendency}，${interactionText}；环境会改变条件是否容易发挥，但不改写原局基线。`
-      : `这个流年只把${value.ten_god_stem}所代表的${theme}作为触发，${interactionText}；它不能单独推出具体事件。`,
+      ? `${stageLabel}的重点是${theme}；${interactionText}。这会影响原有主题怎样表现，但不能单凭这一层断定具体事件。`
+      : `${stageLabel}的重点是${theme}；${interactionText}。这是当年的着力点，不能单凭它断定具体事件。`,
     basis: unique([value.fact_id, ...relevantInteractions.map((item) => item.fact_id)]),
   };
 }
@@ -1354,27 +1358,58 @@ function phaseLayers(natal, strength, pattern, calculation) {
   };
 }
 
+function readableStrengthSummary(strength) {
+  const axes = strength.evidence_dimensions?.three_axis_tendency || {};
+  const resolution = axes.strict_resolution;
+  const headline = resolution === "strong_established"
+    ? "盘里的支持条件较完整，面对任务时更有自行承载和持续推进的空间"
+    : resolution === "weak_established"
+      ? "盘里的消耗和压力更集中，做重要事情时更依赖合适节奏、外部支持和恢复"
+      : "你不是一眼能归成“强”或“弱”的类型：盘里既有支撑，也有消耗";
+  const season = ({
+    support: "出生时的季节条件偏向提供支持",
+    pressure: "出生时的季节条件更偏向输出、承压和消耗",
+    other: "出生时的季节条件没有给出明确方向",
+  })[axes.season?.direction] || "出生时的季节条件暂不明确";
+  const roots = ({
+    absent: "盘里没有看到明确的持续支撑",
+    usable: "盘里有能落到实处的支撑",
+    usable_with_cautions: "盘里有能落到实处的支撑，但也受其他条件牵制",
+    present_but_usability_unresolved: "盘里有支撑，但能否稳定发挥还说不准",
+  })[axes.roots?.direction] || "自身支撑条件暂不明确";
+  const surface = ({
+    support: "直接表现出来的部分更多是支持",
+    pressure: "直接表现出来的部分更多是压力和消耗",
+    mixed: "直接表现出来的部分既有支持也有压力",
+    neutral: "直接表现出来的部分没有明显偏向",
+  })[axes.visible_surface?.direction] || "直接表现出来的部分暂不明确";
+  return { headline, detail: `${season}；${roots}；${surface}` };
+}
+
+function readablePatternSummary(pattern) {
+  const state = pattern.hypothesis.state;
+  if (state === BAZI_ADJUDICATION_STATES.established) {
+    return { headline: "出生盘里有一条相对完整的核心主线", detail: "这张盘有一条相对清楚的核心主线" };
+  }
+  if (state === BAZI_ADJUDICATION_STATES.damaged) {
+    return { headline: "核心主线已经形成，但也受到明确牵制；目前只能说发挥会受影响，不能直接推结果", detail: "核心主线已经形成，但发挥时会受到牵制" };
+  }
+  if (state === BAZI_ADJUDICATION_STATES.broken) {
+    return { headline: "核心主线受到明确阻碍，本轮还没有看到能把它接回来的条件", detail: "核心主线受到明确阻碍，暂未见有效补接" };
+  }
+  if (state === BAZI_ADJUDICATION_STATES.rescued) {
+    return { headline: "核心主线先受牵制，随后出现了能把它接回来的条件", detail: "核心主线先受牵制，随后得到补接" };
+  }
+  return { headline: "盘里能看出几条方向，但没有一条完整到足以概括整个人生", detail: "没有一条固定结构足以概括整个人生" };
+}
+
 function ordinarySynthesis(strength, pattern, views, conflicts, phase) {
   const unresolvedViews = views.filter((view) => view.state === BAZI_ADJUDICATION_STATES.unresolved).map((view) => view.lens);
-  const patternPlain = pattern.hypothesis.state === BAZI_ADJUDICATION_STATES.established
-    ? `${pattern.hypothesis.label}目前结构清楚。`
-    : pattern.hypothesis.state === BAZI_ADJUDICATION_STATES.rescued
-      ? `${pattern.hypothesis.label}不是一路顺成，而是先遇到牵制，再由另一项条件补救。`
-      : pattern.hypothesis.state === BAZI_ADJUDICATION_STATES.broken
-        ? `${pattern.hypothesis.label}虽有起点，但关键牵制尚未得到化解。`
-        : pattern.hypothesis.state === BAZI_ADJUDICATION_STATES.damaged
-          ? `${pattern.hypothesis.label}已命中成格路线，也见到牵制；因轻重、位置或制化尚未闭合，目前只判受损。`
-          : `${pattern.hypothesis.label}目前只能作为候选，不能直接当成定局。`;
-  const strengthPlain = strength.conclusion;
-  const resultFirstPattern = pattern.hypothesis.state === BAZI_ADJUDICATION_STATES.established
-    ? `${pattern.hypothesis.label}的已登记成格条件目前闭合。`
-    : pattern.hypothesis.state === BAZI_ADJUDICATION_STATES.damaged
-      ? `${pattern.hypothesis.label}已有成格条件，也见牵制；因作用轻重尚未闭合，目前只判受损。`
-      : pattern.hypothesis.state === BAZI_ADJUDICATION_STATES.broken
-        ? `${pattern.hypothesis.label}的登记破格条件已闭合，且本轮未见同一路线的有效救应。`
-        : pattern.hypothesis.state === BAZI_ADJUDICATION_STATES.rescued
-          ? `${pattern.hypothesis.label}先见明确牵制，再由同一路线的登记条件形成救应。`
-          : `${pattern.hypothesis.label}目前只能保留为候选，不能稳妥定格。`;
+  const strengthSummary = readableStrengthSummary(strength);
+  const patternSummary = readablePatternSummary(pattern);
+  const viewBoundary = conflicts.length
+    ? "不同判断角度确实有分歧，所以分别保留，不硬拼成一个答案。"
+    : "其他判断只有在各自条件满足时才成立，不把它们硬凑成一个结论。";
   const basis = unique([
     pattern.command?.fact_id,
     ...strength.hypotheses.flatMap((item) => [
@@ -1386,10 +1421,8 @@ function ordinarySynthesis(strength, pattern, views, conflicts, phase) {
     ...pattern.rescue.map((item) => item.fact_id),
   ]);
   return {
-    conclusion: conflicts.length
-      ? `${resultFirstPattern} 不同取用视角存在明确分歧，当前并列保留。`
-      : `${resultFirstPattern} 其他视角只在各自前提内补充。`,
-    plain_language: `${patternPlain}${strengthPlain} 这不是把不同门派揉成一个答案，而是先说明哪条判断成立、哪里受损、有没有补救，以及哪些仍未决。`,
+    conclusion: `整体上，${strengthSummary.headline}。${patternSummary.detail}，所以事业、财富和关系要分开看，不能用一个标签概括。`,
+    plain_language: `为什么这样看：${strengthSummary.detail}。${patternSummary.headline}。${viewBoundary}`,
     basis,
     change_conditions: unique([
       ...pattern.hypothesis.change_conditions,
@@ -1509,8 +1542,8 @@ export function adjudicateBazi(calculation, options = {}) {
     basis: topicBasis,
     change_conditions: unique([
       "出生资料、时区或日界口径改变时，必须重算整条主题路线。",
-      "藏干只保留为背景候选；没有透出或已登记作用链时，不升级成前台结论。",
-      "大运或流年只强调原局已有主题轴；若原局未见对应轴，只记录岁运单独出现，不据此命名具体事件。",
+      "藏在地支里的线索只作补充；如果没有直接显出，也没有形成完整作用链，就不把它升级成主要结论。",
+      "当前阶段只能加强出生盘里已有的主线；如果原盘没有同类线索，就只记为阶段新出现的课题，不据此命名具体事件。",
     ]),
     reality_checks: topicReading.reality_checks,
     natal_overview: {
