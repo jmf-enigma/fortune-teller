@@ -54,12 +54,33 @@ export function normalizeTime(time) {
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:${String(second).padStart(2, "0")}`;
 }
 
+function inputTimePrecision(time) {
+  if (time == null || time === "") return "unknown";
+  return TIME_RE.exec(time)?.[3] == null ? "minute" : "second";
+}
+
 export function normalizeBirthInput(input, { requireTime = false, requireCoordinates = false, requireCoordinatePair = false } = {}) {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     throw new FortuneTellerError("INVALID_INPUT", "input must be a JSON object");
   }
   const date = normalizeDate(input.date);
   const time = normalizeTime(input.time);
+  const lexicalTimePrecision = inputTimePrecision(input.time);
+  const suppliedTimePrecision = input.time_precision;
+  const normalizedMinuteRoundTrip = suppliedTimePrecision === "minute"
+    && lexicalTimePrecision === "second"
+    && time?.endsWith(":00");
+  if (
+    suppliedTimePrecision != null
+    && suppliedTimePrecision !== lexicalTimePrecision
+    && !normalizedMinuteRoundTrip
+  ) {
+    throw new FortuneTellerError(
+      "INVALID_TIME_PRECISION",
+      `time_precision must match the supplied clock value (${lexicalTimePrecision})`,
+    );
+  }
+  const timePrecision = suppliedTimePrecision ?? lexicalTimePrecision;
   if (requireTime && !time) {
     throw new FortuneTellerError("MISSING_TIME", "this calculation requires a birth time; use sensitivity mode when it is unknown");
   }
@@ -98,6 +119,7 @@ export function normalizeBirthInput(input, { requireTime = false, requireCoordin
   return {
     date,
     time,
+    time_precision: timePrecision,
     timezone,
     disambiguation,
     ...(coordinates || {}),

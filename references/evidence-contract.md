@@ -83,29 +83,36 @@ Rules:
 - `validate-reading` first recomputes both hashes and rejects incomplete or modified calculation envelopes.
 - `fact_ids` must resolve to the actual result envelope or recorded draw/cast. Prefer engine-issued IDs; when the engine does not issue IDs, use an RFC 6901 pointer prefixed with `jsonptr:`, such as `jsonptr:/facts/mode`. Never create a plausible-looking but unresolved path.
 - A `calculation_fact` also needs at least one resolved fact ID.
-- An `interpretation` needs at least one fact ID. If it uses a traditional rule, it also needs a real rule ID or `source_status: unavailable` with clear wording.
+- An `interpretation` needs at least one fact ID and at least one applicable registered rule. Without rule coverage, keep the statement as a calculation fact or mark the requested conclusion unresolved; `source_status: unavailable` is not a bypass for model-authored interpretation. In `deep` or `audit`, every `traditional_rule` or `interpretation` claim needs at least two distinct cited fact roots. Multiple JSON pointers into fields of the same fact object still count as one fact. A broad container such as `/facts/cards` that contains individually identified fact objects is not a valid substitute for citing those individual facts. Its `scope` must be one of every cited rule's registered scopes and the cited facts must fall under the registered fact paths.
+- A rule citation must preserve its registered epistemic ceiling and complete source bundle. Every cited fact on a rule-backed claim must fall under at least one cited rule's registered fact paths; an unrelated audit fact cannot be added merely to satisfy a deep fact count. A source-backed rule uses `source_status: verified` or `disputed`; an engine-only rule uses no external `source_ids`.
 - `coverage` is a count over admitted candidates, not a probability. Its denominator must equal the actual candidate or sample count reported by the matching engine envelope; `13` in examples is not a universal constant. Whenever such a total exists, `stable`, `partly_stable`, and `boundary_sensitive` require `n/N`; `stable` requires `N/N`. `unavailable` may use `null`, and exact-time results without a candidate/sample total use `null`.
 - `calculation_certainty` describes the computation and input resolution, not whether the future claim is true.
 - `school_stability` must not be inferred from one school reference.
 - `practical_reflection` is an invitation to reflect, not a command justified by fate.
 
+For `standard`, `deep`, and `audit` readings, every `next_steps` entry is a structured action. For `deep` and `audit`, every claim also needs a non-empty `reasoning_summary` and at least one `alternative_readings` entry, and the reading needs a non-empty `uncertainty_summary` plus at least one next step. A deep traditional or interpretive claim must use at least one source-backed rule that actually applies to its scope and cited facts.
+
+Material engine qualifications must survive interpretation. Put each such code in `warning_acknowledgements`. In particular, `CALENDAR_DAY_PROFILE_QUALIFIED` requires a non-empty `uncertainty_summary`, `calculation_certainty: qualified`, and `school_stability: profile_specific` for every claim bound to that calculation.
+
 ## 4. Source integrity
 
 Internal IDs are trace links, not citations by themselves.
 
-- Cite a title, author, quotation, page, chapter, URL, DOI, or edition only if it has been verified in the current local source registry or an authorized live lookup.
+- The local registry in `src/data/source-registry.mjs` records 10 narrowly scoped implementation, historical-source, or official-method-guide entries. `verified` means the edition, implementation, or guide and its stated scope were checked; it does not mean scholarly consensus, empirical validation, or predictive accuracy.
+- The rule registry in `src/data/rule-registry.mjs` declares each rule's system, allowed scopes, required fact prefixes, countable fact-ID roots and any explicitly material scalar paths, minimum fact count, mandatory fact groups or exact fact-value conditions, source bundle, permitted epistemic statuses, and interpretation ceiling. A compound rule must cite at least one material fact from every mandatory group; a value-constrained rule must cite the required path and match its declared value. Method notes and metadata under an otherwise allowed prefix do not become chart evidence. Use the registry as the authority instead of copying a rule's apparent name into a broader claim.
+- Cite a title, author, quotation, page, chapter, URL, DOI, or edition only when that exact detail is present in the current local source record and within its scope, or was checked through an authorized live lookup. The existence of a registry entry does not verify every detail on the linked page.
 - Do not convert a package README, model recollection, or common saying into a primary-source citation.
 - Do not invent classical Chinese wording or translate a paraphrase as a quotation.
 - If a traditional rule is implemented by the engine but no scholarly or primary source has been verified, use `engine_documented`; say “the installed profile implements this rule,” not “the classics establish this rule.”
-- If no source exists, use `unavailable`, narrow the interpretation, and offer to show calculation facts instead.
-- Version 0.1.0 does not bundle a verified scholarly source registry, so the validator rejects `source_status: verified` and non-empty `source_ids`. Use `engine_documented`, `unavailable`, or `disputed` honestly.
+- If no applicable registered rule exists, do not issue an interpretation. Use `unavailable` on an unresolved claim, narrow the response, and offer to show calculation facts instead.
+- `source_status: verified` requires a known `source_id`. `engine_documented` and `unavailable` cannot carry external source IDs. Do not attach a real source to a rule that the source registry does not declare it supports.
 - If schools disagree, identify the exact profile being used and mark `disputed` or `profile_specific`.
 
 Lack of a source does not invalidate a calculated date or position. It prevents unsupported traditional interpretation from being presented as sourced knowledge.
 
-## 5. Human-readable evidence card
+## 5. Human-readable evidence card for an opened audit
 
-Use this compact rendering by default:
+Use this compact rendering only after the user explicitly opens “依据与核对（高级）” or an audit. The ordinary answer and “为什么这样看” remain in natural language and must not expose profile IDs, warning codes, candidate counts, hashes, or fact/rule/source IDs.
 
 ```text
 [C-001] 结论：……
@@ -119,7 +126,7 @@ Use this compact rendering by default:
 其他解释：……
 ```
 
-For a quick preview, show one representative card and make the rest expandable. For audit mode, include all cards and the machine-readable form.
+When the audit is opened, show one representative card first and make the rest expandable. For full audit mode, include all cards and the machine-readable form.
 
 ## 6. Forbidden confidence compression
 
@@ -184,7 +191,7 @@ Compatibility does not authorize claims about another person's hidden intentions
 - Frame interpretations as possible interaction patterns and questions to discuss.
 - Never recommend coercion, surveillance, confrontation, separation, marriage, or financial commitment because “the chart says so.”
 
-Validator limitation in version 0.1.0: two people calculated under the same system and identical profile have colliding local fact-ID namespaces. Validate each envelope and its person-specific claims separately, then keep the relational synthesis visibly separate. A combined `validate-reading` payload deliberately rejects duplicate system/profile bindings until scoped cross-envelope fact references are implemented.
+Current validator limitation: two people calculated under the same system and identical profile have colliding local fact-ID namespaces. Validate each envelope and its person-specific claims separately, then keep the relational synthesis visibly separate. A combined `validate-reading` payload deliberately rejects duplicate system/profile bindings until scoped cross-envelope fact references are implemented.
 
 ## 9. Example card using only audit facts
 
@@ -217,7 +224,11 @@ practical_reflection: null
 
 ## 10. Validation invariants
 
-`validate-reading` enforces machine-checkable envelope integrity, schema shape, bindings, IDs, coverage denominators, and prohibited structured probability/voting fields. It does not understand the full meaning of free-form statements. Semantic wording, source attribution, conflict handling, and high-stakes safety still require the Skill workflow or human review.
+`validate-reading` enforces machine-checkable envelope integrity, schema shape, system/profile bindings, fact IDs, scope-to-rule applicability, rule fact-path/minimum-count/mandatory-group/value requirements, required source bundles, material-warning acknowledgement, epistemic ceilings, coverage denominators, deep/audit completeness, and prohibited structured probability/voting fields. The non-empty `summary` must equal the first claim statement after Unicode and whitespace normalization, so the headline cannot float free of a validated evidence card. Every interpretation needs at least one rule that is actually applicable, not merely a known rule ID.
+
+For `standard`, `deep`, and `audit`, follow-ups are structured actions with a controlled `requires_input` vocabulary. Multi-system actions that take input or change a target require `target_system`. A Tarot or I Ching step that changes the question, profile, draw, cast, cards, lines, spread, or seed must be `new_reading` with `reuses_frozen_calculation: false`. Ordinary visible fields are checked for internal IDs, technical keys, codes, hashes, raw candidate/probe counts, and unqualified future-outcome assertions. An `unresolved` claim must explicitly state what cannot be determined and cannot hide an affirmative future assertion behind that label. These are conservative lexical and structural gates, not complete semantic understanding.
+
+A pass is not a semantic proof. The validator cannot establish that every paraphrase is faithful, detect every unsafe implication or negation, decide whether a source is historically authoritative beyond its registered scope, or validate divinatory prediction. Semantic wording, quotation accuracy, conflict handling, and high-stakes safety still require the Skill workflow or human review.
 
 A report fails the overall evidence contract if:
 
@@ -228,6 +239,10 @@ A report fails the overall evidence contract if:
 - a quotation or bibliographic detail lacks a verified source record;
 - `n/N` sensitivity is described as predictive probability;
 - an interpretation is presented as a calculated fact;
+- the visible headline differs from its first evidence-backed claim;
+- an unresolved label is used to display an affirmative conclusion;
+- a new Tarot or I Ching question/draw/cast reuses the frozen outcome;
+- an ordinary result exposes backstage technical fields or raw candidate accounting;
 - a direct conflict is removed without a traceable scope or profile reason;
 - agreement across systems is described as empirical confirmation;
 - a practical suggestion is framed as required by fate.

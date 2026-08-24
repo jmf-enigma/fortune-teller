@@ -39,6 +39,8 @@ const SIGNS = [
   ["Leo", "狮子座"], ["Virgo", "处女座"], ["Libra", "天秤座"], ["Scorpio", "天蝎座"],
   ["Sagittarius", "射手座"], ["Capricorn", "摩羯座"], ["Aquarius", "水瓶座"], ["Pisces", "双鱼座"],
 ];
+const SIGN_ELEMENTS = ["fire", "earth", "air", "water", "fire", "earth", "air", "water", "fire", "earth", "air", "water"];
+const SIGN_MODALITIES = ["cardinal", "fixed", "mutable", "cardinal", "fixed", "mutable", "cardinal", "fixed", "mutable", "cardinal", "fixed", "mutable"];
 
 const ASPECT_ANGLES = {
   conjunction: 0,
@@ -47,6 +49,9 @@ const ASPECT_ANGLES = {
   trine: 120,
   opposition: 180,
 };
+
+const MOTION_WINDOWS_HOURS = [6, 12, 24];
+const MOTION_NUMERICAL_EPSILON = 1e-9;
 
 function normalizeDegrees(value) {
   return ((value % 360) + 360) % 360;
@@ -76,14 +81,46 @@ function longitudeAt(body, date) {
   return normalizeDegrees(Ecliptic(GeoVector(body, date, true)).elon);
 }
 
-function planetFacts(date) {
+function centeredMotionRate(body, date, halfWindowHours) {
+  const halfWindowMs = halfWindowHours * 60 * 60 * 1000;
+  const before = longitudeAt(body, new Date(date.getTime() - halfWindowMs));
+  const after = longitudeAt(body, new Date(date.getTime() + halfWindowMs));
+  const elapsedDays = (2 * halfWindowHours) / 24;
+  return signedDelta(before, after) / elapsedDays;
+}
+
+function motionFacts(body, date) {
+  const rates = Object.fromEntries(MOTION_WINDOWS_HOURS.map((hours) => [
+    `plus_minus_${hours}_hours`,
+    centeredMotionRate(body, date, hours),
+  ]));
+  const resolvedSigns = Object.values(rates)
+    .filter((rate) => Math.abs(rate) > MOTION_NUMERICAL_EPSILON)
+    .map((rate) => Math.sign(rate));
+  const distinctSigns = new Set(resolvedSigns);
+  const directionIsConsistent = distinctSigns.size === 1;
+  const direction = directionIsConsistent ? resolvedSigns[0] : null;
+  const motion = rates.plus_minus_12_hours;
+  return {
+    motion_degrees_per_day: round(motion),
+    motion_state: direction == null ? "stationary-or-uncertain" : direction < 0 ? "retrograde" : "direct",
+    retrograde: direction == null ? null : direction < 0,
+    motion_method: "centered ecliptic-longitude finite differences at ±6h, ±12h, and ±24h; direction is reported only when all resolved window signs agree",
+    motion_audit: {
+      numerical_zero_epsilon_degrees_per_day: MOTION_NUMERICAL_EPSILON,
+      window_rates_degrees_per_day: Object.fromEntries(
+        Object.entries(rates).map(([window, rate]) => [window, round(rate, 9)]),
+      ),
+      direction_signs: [...distinctSigns].sort(),
+      consistent_direction: directionIsConsistent,
+    },
+  };
+}
+
+function planetFacts(date, { includeMotion = true } = {}) {
   return BODIES.map(([id, labelZh, body], index) => {
     const coordinates = Ecliptic(GeoVector(body, date, true));
     const longitude = normalizeDegrees(coordinates.elon);
-    const before = longitudeAt(body, new Date(date.getTime() - 12 * 60 * 60 * 1000));
-    const after = longitudeAt(body, new Date(date.getTime() + 12 * 60 * 60 * 1000));
-    const motion = signedDelta(before, after);
-    const uncertain = Math.abs(motion) <= 2 / 60;
     return {
       fact_id: `F-WA-P${String(index + 1).padStart(2, "0")}`,
       kind: "calculation_fact",
@@ -92,9 +129,7 @@ function planetFacts(date) {
       ...zodiacPosition(longitude),
       ecliptic_latitude: round(coordinates.elat),
       distance_au: round(coordinates.vec.Length()),
-      motion_degrees_per_day: round(motion),
-      motion_state: uncertain ? "stationary-or-uncertain" : motion < 0 ? "retrograde" : "direct",
-      retrograde: uncertain ? null : motion < 0,
+      ...(includeMotion ? motionFacts(body, date) : {}),
     };
   });
 }
@@ -164,6 +199,54 @@ function aspectFacts(planets, orbs) {
   return facts;
 }
 
+function countValues(values) {
+  const counts = Object.create(null);
+  for (const value of values) counts[value] = (counts[value] || 0) + 1;
+  return counts;
+}
+
+function chartStructure(planets, aspects, houses, angles) {
+  const tightAspects = aspects
+    .filter((aspect) => aspect.orb_degrees <= 2)
+    .toSorted((left, right) => left.orb_degrees - right.orb_degrees || left.fact_id.localeCompare(right.fact_id))
+    .map((aspect, index) => ({
+      fact_id: `F-WA-T${String(index + 1).padStart(3, "0")}`,
+      kind: "derived_calculation_fact",
+      source_aspect_id: aspect.fact_id,
+      body_1: aspect.body_1,
+      body_2: aspect.body_2,
+      aspect: aspect.aspect,
+      orb_degrees: aspect.orb_degrees,
+      selection_rule: "orb_degrees <= 2; presentation priority only",
+    }));
+  return {
+    basis: "unweighted descriptive structure only; no dominance, dignity, personality, or predictive score is implied",
+    sign_distribution: {
+      fact_id: "F-WA-S01",
+      kind: "derived_calculation_fact",
+      body_count: planets.length,
+      unweighted_element_counts: countValues(planets.map((planet) => SIGN_ELEMENTS[planet.sign_index])),
+      unweighted_modality_counts: countValues(planets.map((planet) => SIGN_MODALITIES[planet.sign_index])),
+      source_planet_ids: planets.map((planet) => planet.fact_id),
+      interpretation_limit: "Sun through Pluto each count once; angles are excluded and counts do not establish dominance",
+    },
+    reference_points: {
+      fact_id: "F-WA-S02",
+      kind: "derived_calculation_fact",
+      luminary_ids: planets.filter((planet) => ["sun", "moon"].includes(planet.body)).map((planet) => planet.fact_id),
+      angle_ids: angles ? [angles.ascendant.fact_id, angles.midheaven.fact_id] : [],
+    },
+    tight_aspects: tightAspects,
+    house_occupancy: houses ? {
+      fact_id: "F-WA-S03",
+      kind: "derived_calculation_fact",
+      system: houses.system,
+      unweighted_planet_counts: countValues(houses.placements.map((placement) => String(placement.house))),
+      interpretation_limit: "occupancy is a count of emitted planet placements, not a house-strength score",
+    } : null,
+  };
+}
+
 function unknownTimeCalculation(birth, profile) {
   const { start, end } = civilDayBounds(birth);
   const startMs = Number(start.epochMilliseconds);
@@ -171,7 +254,7 @@ function unknownTimeCalculation(birth, profile) {
   const sampleDates = [];
   for (let epoch = startMs; epoch < endMs; epoch += 60 * 1000) sampleDates.push(new Date(epoch));
   sampleDates.push(new Date(endMs));
-  const samples = sampleDates.map(planetFacts);
+  const samples = sampleDates.map((date) => planetFacts(date, { includeMotion: false }));
   const ranges = samples[0].map((first, index) => {
     const track = samples.map((sample) => sample[index]);
     const signs = [...new Set(track.map((item) => item.sign))];
@@ -187,6 +270,7 @@ function unknownTimeCalculation(birth, profile) {
       fact_id: `F-WA-U${String(index + 1).padStart(2, "0")}`,
       kind: "calculation_fact",
       body: first.body,
+      label_zh: first.label_zh,
       start_longitude: first.longitude,
       end_longitude: track.at(-1).longitude,
       unwrapped_minimum_longitude: round(minimum),
@@ -259,6 +343,7 @@ export function calculateWestern(rawInput, profileOverride = {}) {
       angles,
       houses,
       aspects,
+      structure: chartStructure(planets, aspects, houses, angles),
     },
     warnings,
     meta: {

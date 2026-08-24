@@ -2,11 +2,13 @@
 
 Fortune Teller is designed so that deterministic local engines carry calculation correctness. Model capability changes how much synthesis and auditing can be done safely; it does not change chart facts or make divination predictively valid.
 
-## 1. Two task modes, not a model-status guess
+## 1. Four task modes, not a model-status guess
 
-Expose `standard` and `audit` modes. Do not attempt to infer product subscription, hidden model name, or reasoning budget from conversational style.
+Expose `quick`, `standard`, `deep`, and `audit` modes. Do not attempt to infer product subscription, hidden model name, or reasoning budget from conversational style.
 
 - Default to `standard`.
+- Use `quick` for a very short answer-first preview; keep the calculation receipt behind an evidence request.
+- Use `deep` for one system, one main topic, compound-fact synthesis, counter-readings, and complete evidence cards.
 - Offer `audit` when the user wants multiple systems, multiple school profiles, a large unknown-time candidate set, full source tracing, or a machine-readable appendix.
 - If the environment identifies its capabilities explicitly, use them. Otherwise keep the standard limits and let the user opt into a deeper pass.
 
@@ -20,6 +22,9 @@ Expose `standard` and `audit` modes. Do not attempt to infer product subscriptio
 | Collect and confirm input | Yes | Yes |
 | Run one local engine | Yes | Yes |
 | Explain one topic | Yes, with structured cards | Yes |
+| Zi Wei explicit target-date phase | Yes, when natal + decadal + yearly facts and R-ZW-006 are present | Longer multi-domain synthesis and second review |
+| Tarot current question | Yes, answer-first with multi-card interaction | Longer decision comparison and second review |
+| One-system deep reading | Yes, when rules and sources cover the requested scope; narrow otherwise | Recommended for a longer synthesis and second-pass review |
 | Summarize engine-produced time sensitivity | Yes | Yes |
 | Independently compare many raw candidates | Avoid; use engine aggregation | Review full candidate ledger |
 | Compare systems | One topic and two systems at a time | Multiple systems/topics with conflict matrix |
@@ -41,7 +46,19 @@ Standard mode should be robust on a general model because choices are constraine
 
 Standard mode is complete, not a teaser. It must provide a useful answer, visible limitations, and evidence access without requiring an upgrade.
 
-## 4. Audit mode contract
+## 4. Deep mode contract
+
+Deep mode is a professional synthesis contract, not a promise of predictive accuracy. It follows `professional-reading.md` and requires:
+
+- one declared system and profile by default;
+- compound observations rather than isolated-symbol keyword lists;
+- reasoning summaries, dependencies, counter-readings, source coverage, and sensitivity for every material interpretation;
+- explicit refusal to fill specialist gaps such as unsupported strength/useful-god, Zi Wei flow-month/day/hour or event timing, or uncalculated Western techniques;
+- a final narrative review after machine validation.
+
+A standard/general model may complete deep mode when the scope is narrow and the registry covers the requested rules. Recommend a stronger model for many interacting facts or a formal second pass. If the knowledge layer is missing, both tiers must narrow the answer; a stronger model cannot repair missing rules or sources.
+
+## 5. Audit mode contract
 
 Audit mode adds depth but cannot loosen any input, evidence, privacy, or safety gate.
 
@@ -65,7 +82,7 @@ Audit mode must not:
 - reinterpret calculation uncertainty as predictive probability;
 - claim that greater reasoning depth produces greater supernatural accuracy.
 
-## 5. Complexity routing
+## 6. Complexity routing
 
 Recommend audit mode when any condition holds:
 
@@ -74,7 +91,7 @@ Recommend audit mode when any condition holds:
 - the user requests exact provenance for every claim;
 - a report must be published, reviewed, or reproduced;
 - the standard pass detects several direct conflicts;
-- a rectification candidate ranking is requested.
+- a requested workflow would need a specialist calculation that this release does not implement; audit mode should document the gap rather than imitate the missing engine.
 
 Stay in standard mode when:
 
@@ -83,7 +100,7 @@ Stay in standard mode when:
 - the result has only a few stable facts;
 - the user prefers conversation over a formal report.
 
-## 6. Graceful degradation
+## 7. Graceful degradation
 
 When context or model capability is limited:
 
@@ -95,7 +112,7 @@ When context or model capability is limited:
 
 Never degrade by dropping warnings, fabricating links, substituting prose calculation, or hiding candidate sensitivity.
 
-## 7. Cross-Codex/Claude portability
+## 8. Cross-Codex/Claude portability
 
 The shared contract is `SKILL.md`, relative references, local CLI, and JSON envelopes.
 
@@ -106,11 +123,11 @@ The shared contract is `SKILL.md`, relative references, local CLI, and JSON enve
 - Keep safety and evidence validation inside the skill/package so both hosts use the same gates.
 - If a host cannot run local commands, say that calculation is unavailable; do not emulate the engine from memory.
 
-## 8. Suggested user-facing explanation
+## 9. Suggested user-facing explanation
 
-> 普通模型就能完成排盘、单体系解读和基础时辰敏感性，因为关键计算由本地程序完成。Pro 更适合多体系比较、完整来源审计和大批候选盘的冲突检查；它不会改变盘面事实，也不代表预测更有效。
+> 普通模型就能完成排盘、单体系标准解读，并在出生时间不确定时说明哪些结果稳定、哪些暂时不能判断；规则覆盖充分时，也能完成聚焦的深度解读。Pro 更适合长篇综合、多体系比较、完整来源审计和第二遍对抗复核。它不会改变盘面事实，也不能补上缺失的规则或来源，更不代表预测更有效。
 
-## 9. Tier acceptance checks
+## 10. Tier acceptance checks
 
 - Standard mode completes a one-system reading without upgrade pressure.
 - Standard and audit modes produce identical facts for the same envelope.

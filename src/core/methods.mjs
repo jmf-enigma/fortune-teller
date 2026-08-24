@@ -1,6 +1,12 @@
 import { listProfiles } from "./profiles.mjs";
 
 const date = { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$", examples: ["2000-08-16"] };
+const targetDate = {
+  type: "string",
+  pattern: "^\\d{4}-\\d{2}-\\d{2}$",
+  examples: ["2026-08-23"],
+  description: "optional Gregorian date for calculation-only Zi Wei decadal and yearly facts; requires a known birth time",
+};
 const time = { type: "string", pattern: "^\\d{2}:\\d{2}(?::\\d{2})?$", examples: ["04:00"] };
 const timezone = { type: "string", description: "IANA timezone", examples: ["Asia/Shanghai"] };
 const latitude = { type: "number", minimum: -90, maximum: 90 };
@@ -11,6 +17,10 @@ function birthProperties(extra = {}) {
   return {
     date,
     time,
+    time_precision: {
+      enum: ["minute", "second", "unknown"],
+      description: "optional normalized-input provenance; when supplied it must match time and is always recalculated",
+    },
     timezone,
     latitude,
     longitude,
@@ -32,17 +42,43 @@ function deepFreeze(value, seen = new WeakSet()) {
   return Object.freeze(value);
 }
 
+function quality(
+  calculationStatus,
+  interpretationStatus,
+  calculationNote,
+  sourceCoverage = "partial",
+  externalReview = "fixture_reviewed",
+) {
+  return {
+    calculation_status: calculationStatus,
+    interpretation_status: interpretationStatus,
+    source_coverage: sourceCoverage,
+    external_review: externalReview,
+    calculation_note: calculationNote,
+    predictive_validity: "not_established",
+  };
+}
+
 export const METHODS = deepFreeze([
   {
     id: "bazi",
     label_zh: "四柱八字",
     label_en: "BaZi / Four Pillars",
-    status: "stable",
+    status: "stable-utc+08-civil-calendar-reference",
+    quality: quality(
+      "profile_specific",
+      "sourced_traditional_rule",
+      "release-tested pinned wrapper with UTC+08:00 offset fail-closed",
+    ),
     engine: "lunar-typescript@1.8.6 + late-Zi consistency wrapper",
     usage: calculatorUsage("bazi"),
     required_fields: ["date", "timezone"],
     validated_date_range: { min: "1900-01-01", max: "2100-12-31" },
     time_behavior: "time optional; unknown time scans every real minute of the civil day, groups consecutive pillar regimes, and omits a single inferred hour pillar",
+    limitations: [
+      "calendar-boundary calculations currently require every admitted civil instant to use UTC+08:00; other offsets fail closed rather than mixing local wall time with the dependency's calendar reference",
+      "mean-solar and apparent-solar BaZi profiles are disabled until year/month solar-term boundaries can be separated from local day/hour calculation",
+    ],
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -55,17 +91,30 @@ export const METHODS = deepFreeze([
     id: "ziwei",
     label_zh: "紫微斗数",
     label_en: "Zi Wei Dou Shu",
-    status: "stable",
+    status: "qualified-birthplace-civil-calendar-day",
+    quality: quality(
+      "profile_specific",
+      "sourced_traditional_rule",
+      "release-tested pinned wrapper with qualified birthplace-civil overseas calendar-day convention",
+    ),
     engine: "iztro@2.6.0",
     usage: calculatorUsage("ziwei"),
     required_fields: ["date", "timezone", "chart_sex"],
     validated_date_range: { min: "1900-01-01", max: "2100-12-31" },
-    time_behavior: "time optional; unknown time scans every real minute of the civil day, groups consecutive calculation regimes, and never returns one inferred chart",
+    time_behavior: "time optional; unknown time scans every real minute of the civil day, groups consecutive calculation regimes, and never returns one inferred chart; optional target_date period facts require a known birth time",
+    limitations: [
+      "the declared calendar_day_basis is birthplace-civil; outside UTC+08:00 this is a profile-specific overseas convention rather than a universal Zi Wei rule",
+      "mean-solar and apparent-solar Zi Wei overrides are disabled until calendar-day selection and local time-index calculation can be represented as separate clocks",
+      "target_date returns the decadal/yearly structure resolved for the explicitly requested date as calculation facts only; it does not infer auspiciousness or events",
+    ],
     inputSchema: {
       type: "object",
       additionalProperties: false,
       required: ["date", "timezone", "chart_sex"],
-      properties: birthProperties({ chart_sex: { enum: ["male", "female"], description: "binary parameter required by the traditional chart algorithm; not an inferred identity" } }),
+      properties: birthProperties({
+        chart_sex: { enum: ["male", "female"], description: "binary parameter required by the traditional chart algorithm; not an inferred identity" },
+        target_date: targetDate,
+      }),
     },
     profiles: listProfiles("ziwei"),
   },
@@ -74,6 +123,11 @@ export const METHODS = deepFreeze([
     label_zh: "西洋占星本命盘",
     label_en: "Western natal astrology",
     status: "stable-whole-sign",
+    quality: quality(
+      "profile_specific",
+      "sourced_traditional_rule",
+      "release-tested pinned astronomy wrapper with whole-sign profile and multi-window motion audit",
+    ),
     engine: "astronomy-engine@2.1.19",
     usage: calculatorUsage("western"),
     required_fields: ["date", "timezone"],
@@ -94,6 +148,11 @@ export const METHODS = deepFreeze([
     label_zh: "塔罗",
     label_en: "Tarot",
     status: "stable",
+    quality: quality(
+      "wrapper_conformant",
+      "sourced_traditional_rule",
+      "release-tested local draw with replayable or user-supplied provenance",
+    ),
     engine: "local SHA-256 replayable random stream",
     usage: calculatorUsage("tarot"),
     required_fields: ["question"],
@@ -136,6 +195,11 @@ export const METHODS = deepFreeze([
     label_zh: "周易三钱起卦",
     label_en: "I Ching three-coin casting",
     status: "stable",
+    quality: quality(
+      "wrapper_conformant",
+      "sourced_traditional_rule",
+      "release-tested local cast with replayable or user-supplied provenance",
+    ),
     engine: "local SHA-256 replayable three-coin casting",
     usage: calculatorUsage("iching"),
     required_fields: ["question"],
@@ -157,6 +221,11 @@ export const METHODS = deepFreeze([
     label_zh: "梅花易数",
     label_en: "Meihua Yishu",
     status: "preview",
+    quality: quality(
+      "profile_specific",
+      "fact_only",
+      "preview-only deterministic two-number profile",
+    ),
     engine: "local deterministic two-number casting",
     usage: calculatorUsage("meihua"),
     required_fields: ["first_number", "second_number"],
@@ -179,6 +248,7 @@ export const METHODS = deepFreeze([
     label_zh: "六爻纳甲",
     label_en: "Liu Yao Najia",
     status: "planned",
+    quality: quality("unavailable", "unresolved", "not implemented", "none", "not_reviewed"),
     engine: null,
     usage: null,
     required_fields: [],
@@ -190,6 +260,7 @@ export const METHODS = deepFreeze([
     label_zh: "奇门遁甲",
     label_en: "Qi Men Dun Jia",
     status: "planned",
+    quality: quality("unavailable", "unresolved", "not implemented", "none", "not_reviewed"),
     engine: null,
     usage: null,
     required_fields: [],
@@ -201,6 +272,7 @@ export const METHODS = deepFreeze([
     label_zh: "吠陀占星",
     label_en: "Vedic / Jyotish",
     status: "planned",
+    quality: quality("unavailable", "unresolved", "not implemented", "none", "not_reviewed"),
     engine: null,
     usage: null,
     required_fields: [],

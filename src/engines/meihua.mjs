@@ -53,7 +53,7 @@ export function calculateMeihua(rawInput, profileOverride = {}) {
     },
     warnings: [
       "Meihua support is preview-only and implements one explicit two-number convention.",
-      "No time-based casting, body/use analysis, or predictive timing is implemented in v0.1.0.",
+      "No time-based casting, body/use analysis, or predictive timing is implemented in this release.",
     ],
     meta: { interpretation_included: false },
   });

@@ -2,7 +2,7 @@
 
 Use this reference only after the live method registry confirms that `meihua` is available and the user explicitly accepts its `preview` status. The engine implements one narrow, deterministic two-number convention. It is not a general Meihua Yishu engine and does not validate forecasting.
 
-## Actual support in v0.1.0
+## Actual support
 
 The engine currently supports:
 
@@ -61,8 +61,9 @@ Facts are deterministic under this one convention. Determinism means reproducibi
 ### R-MH-001 — One-based modulo preserves the last value
 
 - `type`: traditional, implementation-specific
-- `source_status`: engine_documented
-- `requires`: input numbers and the declared profile
+- `source_status`: verified
+- `source_ids`: `SRC-MH-MEIHUA-WIKISOURCE`
+- `requires`: cited upper- and lower-trigram facts; both mandatory fact groups are checked, together with the input numbers and declared profile
 - `rule`: Map a positive integer to `1..8`; a multiple of 8 maps to 8 rather than 0. Use the profile order `乾兑离震巽坎艮坤`.
 - `allowed`: audit the returned trigram number from the exact input.
 - `forbidden`: switch to zero-based modulo or another trigram order after seeing the result.
@@ -70,8 +71,9 @@ Facts are deterministic under this one convention. Determinism means reproducibi
 ### R-MH-002 — First is upper; second is lower
 
 - `type`: traditional, profile-specific
-- `source_status`: engine_documented
-- `requires`: both trigram fact IDs and both inputs
+- `source_status`: verified
+- `source_ids`: `SRC-MH-MEIHUA-WIKISOURCE`
+- `requires`: cited upper- and lower-trigram fact IDs; both mandatory fact groups are checked, together with both inputs
 - `rule`: Under this profile only, `first_number` selects the upper trigram and `second_number` the lower trigram.
 - `allowed`: report the selected trigrams and construct the primary lines lower-first.
 - `forbidden`: claim that this assignment is universal across all Meihua schools.
@@ -79,7 +81,8 @@ Facts are deterministic under this one convention. Determinism means reproducibi
 ### R-MH-003 — Moving-line formula is fixed before interpretation
 
 - `type`: traditional, profile-specific
-- `source_status`: engine_documented
+- `source_status`: verified
+- `source_ids`: `SRC-MH-MEIHUA-WIKISOURCE`
 - `requires`: `facts.moving_line` and `input.moving_line_supplied`
 - `rule`: If the user did not supply a moving line, compute one-based modulo six of the two-number sum. If supplied, preserve the value 1–6.
 - `allowed`: disclose whether the line was supplied or derived.
@@ -89,20 +92,21 @@ Facts are deterministic under this one convention. Determinism means reproducibi
 
 - `type`: calculation guard with traditional downstream use
 - `source_status`: engine_documented
-- `requires`: primary lines, moving-line fact, and transformed lines
+- `requires`: cited primary, transformed, and moving-line facts; all three mandatory fact groups are checked
 - `rule`: Flip only the one-based moving line from the bottom; all other lines remain unchanged.
 - `allowed`: verify primary-to-transformed consistency.
 - `forbidden`: add multiple changes or attach body/use, timing, or outcome rules absent from the engine.
 
 ## Source status and school differences
 
-- The two-number mapping, trigram order, moving-line formula, and transformation are `engine_documented` conventions.
-- This reference does not bundle or verify a primary Meihua text, historical edition, author quotation, commentary, chapter, or page. Do not invent any of these.
+- `SRC-MH-MEIHUA-WIKISOURCE` provides checked historical provenance, with recorded edition/attribution limitations, for the eight-remainder trigram indexing, six-remainder moving-line indexing, and upper/lower assignment used by R-MH-001 through R-MH-003. It does not validate outcomes or expand the preview beyond its registered two-number profile.
+- The exact local table, transformation implementation, and profile ID remain project implementation details. R-MH-004 is therefore `engine_documented` and carries no external source ID.
+- A registered source does not verify an unchecked quotation, commentary, chapter, page, edition claim, or model-authored paraphrase. Do not invent any of these.
 - Upper/lower assignment, modulo convention, number source, moving-line formula, body/use, and timing methods can differ by lineage or practitioner. Only the explicit current profile is supported.
 - Trigram/hexagram names come from the package's local table. They do not authorize quoting Zhouyi text or a modern commentary.
 - Preview status is a software-maturity statement, separate from the unvalidated predictive status of the tradition.
 
-## Safe output example
+## Evidence/audit example — not the ordinary answer
 
 > **计算事实**：按 `meihua-two-number-v1`，第一个数映射为上卦 `F-MH-T01`，第二个数映射为下卦 `F-MH-T02`；`F-MH-L01` 记录由固定公式得到或用户明确提供的动爻。
 >

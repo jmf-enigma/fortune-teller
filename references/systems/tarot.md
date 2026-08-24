@@ -2,7 +2,7 @@
 
 Use this reference only after the live method registry confirms that `tarot` is available. The engine records a user-supplied or local draw from a 78-card Rider–Waite–Smith naming profile and attaches short local keyword prompts. It does not forecast events or choose cards through model intuition.
 
-## Actual support in v0.1.0
+## Actual support
 
 The engine currently supports:
 
@@ -71,7 +71,8 @@ Each `meta.card_keyword_references[].prompt` is a short local project summary. I
 ### R-TR-002 — Orientation selects the local keyword branch
 
 - `type`: traditional, profile-specific
-- `source_status`: engine_documented
+- `source_status`: verified
+- `source_ids`: `SRC-TR-WAITE-WIKISOURCE`
 - `requires`: the fact card's `orientation`, the same-card prompt in `meta.card_keyword_references`, and `profile.reversals`
 - `rule`: When reversals are enabled, use the returned upright/reversed keyword branch exactly. When disabled, do not invent reversal meaning.
 - `allowed`: treat the keyword as one possible reflective lens.
@@ -97,13 +98,15 @@ Each `meta.card_keyword_references[].prompt` is a short local project summary. I
 
 ## Source status and tradition differences
 
+- `SRC-TR-WAITE-WIKISOURCE` provides checked historical provenance for Rider–Waite card identity and bounded upright/reversed vocabulary under R-TR-002. It does not prescribe this project's spreads, validate outcomes, or make project-authored prompts quotations from Waite.
 - Deck names follow the declared Rider–Waite–Smith naming profile. Images and original guidebook passages are not included.
 - Keyword strings are local, concise interpretive references and have `engine_documented` status. They must not be represented as quotations from A. E. Waite, Pamela Colman Smith, a modern author, or a named school.
+- R-TR-001, R-TR-003, and R-TR-004 are project-authored or audit rules and carry no external source IDs.
 - Reversal use, spread positions, elemental correspondences, timing, and card combinations vary among readers. Only `reversals` and the registered spreads are implemented here.
 - Do not copy modern copyrighted card descriptions or web readings. Write a short original paraphrase tied to the returned keyword and evidence card.
 - Traditional provenance does not establish predictive validity.
 
-## Safe output example
+## Evidence/audit example — not the ordinary answer
 
 > **抽取事实**：如果冻结结果中 `F-TR-001.position=action`，则牌名、方向和关键词均须从同一张事实记录读取。
 >

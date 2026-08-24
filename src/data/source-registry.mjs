@@ -1,0 +1,163 @@
+const VERIFICATION_NOTE =
+  "verified means that the cited edition or implementation and its stated scope were checked; it does not validate divinatory predictions";
+
+const sources = [
+  {
+    id: "SRC-BZ-LUNAR-TS-1.8.6",
+    systems: ["bazi"],
+    type: "official_implementation",
+    title: "lunar-typescript v1.8.6",
+    author_or_maintainer: "6tail",
+    url: "https://github.com/6tail/lunar-typescript/tree/v1.8.6",
+    scope: "Pinned implementation provenance for Four Pillars, Five Elements, hidden stems, and Ten Gods fields calculated by this project.",
+    limitations: "Supports calculation and terminology only. It does not establish predictive validity or justify life-event forecasts.",
+    supported_rule_ids: ["R-BZ-001", "R-BZ-002"],
+    verification_status: "verified",
+    verified_as: "provenance_and_scope_only",
+    verified_on: "2026-08-23",
+  },
+  {
+    id: "SRC-BZ-SANMING-WIKISOURCE",
+    systems: ["bazi"],
+    type: "historical_primary_text",
+    title: "San Ming Tong Hui (三命通會)",
+    author_or_maintainer: "Wikisource transcription of the traditional text",
+    url: "https://zh.wikisource.org/wiki/%E4%B8%89%E5%91%BD%E9%80%9A%E6%9C%83",
+    scope: "Historical provenance for traditional Four-Pillars structure, Ten Gods, and stem/branch relational vocabulary used as bounded reflective language.",
+    limitations: "A historical compilation with edition and attribution questions; it is not empirical evidence and does not support deterministic forecasts.",
+    supported_rule_ids: ["R-BZ-001", "R-BZ-002"],
+    verification_status: "verified",
+    verified_as: "provenance_and_scope_only",
+    verified_on: "2026-08-23",
+  },
+  {
+    id: "SRC-ZW-IZTRO-2.6.0",
+    systems: ["ziwei"],
+    type: "official_implementation",
+    title: "iztro v2.6.0 and official quick-start documentation",
+    author_or_maintainer: "SylarLong / iztro maintainers",
+    url: "https://github.com/SylarLong/iztro/tree/v2.6.0",
+    scope: "Pinned implementation provenance for natal chart layout, palace/star placement, soul/body labels, indexed periods, and explicit target-date decadal/yearly calculation fields.",
+    limitations: "Supports reproducible calculation fields, not the truth of personality or event predictions derived from them.",
+    supported_rule_ids: ["R-ZW-001", "R-ZW-002", "R-ZW-003", "R-ZW-005"],
+    verification_status: "verified",
+    verified_as: "provenance_and_scope_only",
+    verified_on: "2026-08-23",
+  },
+  {
+    id: "SRC-ZW-ZIWEI-QUANSHU",
+    systems: ["ziwei"],
+    type: "historical_primary_text",
+    title: "Zi Wei Dou Shu Quan Shu (紫微斗數全書), iztro historical-text guide",
+    author_or_maintainer: "iztro documentation project",
+    url: "https://docs.iztro.com/learn/ancientBook",
+    scope: "Historical provenance for palace/star and soul/body terminology used in bounded traditional readings.",
+    limitations: "The host documentation warns that the historical material can be exaggerated or internally inconsistent; it requires rational, non-literal interpretation.",
+    supported_rule_ids: ["R-ZW-001", "R-ZW-002"],
+    verification_status: "verified",
+    verified_as: "provenance_and_scope_only",
+    verified_on: "2026-08-23",
+  },
+  {
+    id: "SRC-ZW-IZTRO-HOROSCOPE-GUIDE",
+    systems: ["ziwei"],
+    type: "official_method_guide",
+    title: "Zi Wei Dou Shu Horoscope Guide",
+    author_or_maintainer: "iztro documentation project",
+    url: "https://docs.iztro.com/learn/horoscope",
+    scope: "Official bounded method guidance for reading a target period in the order natal chart, decadal scope, then yearly scope, and for treating period palaces as themes rather than guaranteed events.",
+    limitations: "A modern traditional-method guide, not empirical validation. It does not authorize event certainty, exact timing, or an interpretation that skips natal, decadal, or yearly context.",
+    supported_rule_ids: ["R-ZW-006"],
+    verification_status: "verified",
+    verified_as: "provenance_and_scope_only",
+    verified_on: "2026-08-23",
+  },
+  {
+    id: "SRC-WA-ASTRONOMY-2.1.19",
+    systems: ["western"],
+    type: "official_implementation",
+    title: "Astronomy Engine 2.1.19 JavaScript source",
+    author_or_maintainer: "Don Cross / Astronomy Engine maintainers",
+    url: "https://github.com/cosinekitty/astronomy/tree/v2.1.19/source/js",
+    scope: "Pinned astronomy implementation provenance for ecliptic positions and motion geometry used by this project.",
+    limitations: "Astronomical coordinates do not validate astrological meanings; zodiac division and interpretive choices remain model conventions.",
+    supported_rule_ids: ["R-WA-001", "R-WA-004"],
+    verification_status: "verified",
+    verified_as: "provenance_and_scope_only",
+    verified_on: "2026-08-23",
+  },
+  {
+    id: "SRC-WA-TETRABIBLOS-PG70850",
+    systems: ["western"],
+    type: "historical_primary_text",
+    title: "Ptolemy's Tetrabiblos, J. M. Ashmand translation",
+    author_or_maintainer: "Project Gutenberg ebook 70850",
+    url: "https://www.gutenberg.org/ebooks/70850",
+    scope: "Historical provenance for zodiacal and aspect terminology used in bounded traditional interpretations.",
+    limitations: "Does not select this project's house system or orb policy and is not evidence of predictive accuracy.",
+    supported_rule_ids: ["R-WA-001", "R-WA-003"],
+    verification_status: "verified",
+    verified_as: "provenance_and_scope_only",
+    verified_on: "2026-08-23",
+  },
+  {
+    id: "SRC-TR-WAITE-WIKISOURCE",
+    systems: ["tarot"],
+    type: "historical_primary_text",
+    title: "The Pictorial Key to the Tarot",
+    author_or_maintainer: "A. E. Waite; Wikisource transcription",
+    url: "https://en.wikisource.org/wiki/The_Pictorial_Key_to_the_Tarot",
+    scope: "Historical provenance for Rider-Waite card identity and upright/reversed divinatory vocabulary.",
+    limitations: "Does not validate outcomes, prescribe this project's spreads, or make the project's original prompts quotations from Waite.",
+    supported_rule_ids: ["R-TR-002"],
+    verification_status: "verified",
+    verified_as: "provenance_and_scope_only",
+    verified_on: "2026-08-23",
+  },
+  {
+    id: "SRC-YJ-ZHOUYI-WIKISOURCE",
+    systems: ["iching"],
+    type: "historical_primary_text",
+    title: "Zhou Yi (周易)",
+    author_or_maintainer: "Wikisource transcription of the traditional text",
+    url: "https://zh.wikisource.org/wiki/%E5%91%A8%E6%98%93",
+    scope: "Historical provenance for the sixty-four hexagram identities, names, and bottom-to-top six-line structure.",
+    limitations: "Does not establish this project's random-cast probabilities, changing-line selection policy, or concrete future outcomes.",
+    supported_rule_ids: ["R-YJ-001", "R-YJ-003"],
+    verification_status: "verified",
+    verified_as: "provenance_and_scope_only",
+    verified_on: "2026-08-23",
+  },
+  {
+    id: "SRC-MH-MEIHUA-WIKISOURCE",
+    systems: ["meihua"],
+    type: "historical_primary_text",
+    title: "Mei Hua Yi Shu (梅花易數)",
+    author_or_maintainer: "Wikisource transcription of the traditional text",
+    url: "https://zh.wikisource.org/wiki/%E6%A2%85%E8%8A%B1%E6%98%93%E6%95%B8",
+    scope: "Historical provenance for eight-remainder trigram indexing, six-remainder moving-line indexing, and upper/lower trigram assignment.",
+    limitations: "Editions and attribution vary. This project implements one narrow two-number profile and does not infer guaranteed real-world outcomes.",
+    supported_rule_ids: ["R-MH-001", "R-MH-002", "R-MH-003"],
+    verification_status: "verified",
+    verified_as: "provenance_and_scope_only",
+    verified_on: "2026-08-23",
+  },
+];
+
+function deepFreeze(value) {
+  if (value && typeof value === "object" && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const child of Object.values(value)) deepFreeze(child);
+  }
+  return value;
+}
+
+export const SOURCE_VERIFICATION_NOTE = VERIFICATION_NOTE;
+export const SOURCES = deepFreeze(sources);
+const SOURCE_BY_ID = new Map(SOURCES.map((source) => [source.id, source]));
+
+export function getSourceById(id) {
+  return SOURCE_BY_ID.get(id);
+}
+
+if (SOURCE_BY_ID.size !== SOURCES.length) throw new Error("source registry contains duplicate IDs");

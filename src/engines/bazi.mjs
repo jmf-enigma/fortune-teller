@@ -24,6 +24,30 @@ const NAYIN = [
 ];
 const XUN_STARTS = ["甲子", "甲戌", "甲申", "甲午", "甲辰", "甲寅"];
 const XUN_VOID = ["戌亥", "申酉", "午未", "辰巳", "寅卯", "子丑"];
+const CALENDAR_REFERENCE_OFFSET = "+08:00";
+const STEM_COMBINATIONS = [["甲", "己"], ["乙", "庚"], ["丙", "辛"], ["丁", "壬"], ["戊", "癸"]];
+const BRANCH_HARMONIES = [["子", "丑"], ["寅", "亥"], ["卯", "戌"], ["辰", "酉"], ["巳", "申"], ["午", "未"]];
+const BRANCH_CLASHES = [["子", "午"], ["丑", "未"], ["寅", "申"], ["卯", "酉"], ["辰", "戌"], ["巳", "亥"]];
+const BRANCH_THREE_HARMONIES = [
+  { branches: ["申", "子", "辰"], element: "水" },
+  { branches: ["亥", "卯", "未"], element: "木" },
+  { branches: ["寅", "午", "戌"], element: "火" },
+  { branches: ["巳", "酉", "丑"], element: "金" },
+];
+
+function ensureCalendarReferenceOffset(zoned, birth) {
+  if (zoned.offset === CALENDAR_REFERENCE_OFFSET) return;
+  throw new FortuneTellerError(
+    "UNSUPPORTED_BAZI_CALENDAR_OFFSET",
+    "BaZi calendar boundaries are currently safe only when every admitted birth instant uses UTC+08:00; astronomical-instant year/month boundary calculation is not yet implemented for other offsets",
+    {
+      timezone: birth.timezone,
+      actual_offset: zoned.offset,
+      required_offset: CALENDAR_REFERENCE_OFFSET,
+      guidance: "Do not convert the recorded local time by hand. Use a calculator with astronomical-instant solar-term boundaries or wait for that profile to be implemented.",
+    },
+  );
+}
 
 function call(object, name) {
   return object[name]();
@@ -110,6 +134,100 @@ function pillarFact(eightChar, prefix, label, index, timeNormalization = null) {
   };
 }
 
+function countValues(values) {
+  const counts = Object.create(null);
+  for (const value of values) counts[value] = (counts[value] || 0) + 1;
+  return counts;
+}
+
+function pairedRelationships(pillars, field, pairs, type, startIndex) {
+  const relationships = [];
+  for (let left = 0; left < pillars.length; left += 1) {
+    for (let right = left + 1; right < pillars.length; right += 1) {
+      const values = [pillars[left][field], pillars[right][field]];
+      if (!pairs.some((pair) => pair.every((value) => values.includes(value)))) continue;
+      relationships.push({
+        fact_id: `F-BZ-R${String(startIndex + relationships.length).padStart(2, "0")}`,
+        kind: "derived_calculation_fact",
+        relationship: type,
+        values,
+        pillar_ids: [pillars[left].fact_id, pillars[right].fact_id],
+        pillars: [pillars[left].pillar, pillars[right].pillar],
+      });
+    }
+  }
+  return relationships;
+}
+
+function chartStructure(pillars) {
+  const day = pillars.find((pillar) => pillar.pillar === "day");
+  const month = pillars.find((pillar) => pillar.pillar === "month");
+  const dayStemIndex = STEMS.indexOf(day.heavenly_stem);
+  const visibleStems = pillars.map((pillar) => pillar.heavenly_stem);
+  const branches = pillars.map((pillar) => pillar.earthly_branch);
+  const hiddenStems = pillars.flatMap((pillar) => pillar.hidden_stems);
+  const relationships = [
+    ...pairedRelationships(pillars, "heavenly_stem", STEM_COMBINATIONS, "stem_five_combination", 1),
+  ];
+  relationships.push(...pairedRelationships(
+    pillars,
+    "earthly_branch",
+    BRANCH_HARMONIES,
+    "branch_six_harmony",
+    relationships.length + 1,
+  ));
+  relationships.push(...pairedRelationships(
+    pillars,
+    "earthly_branch",
+    BRANCH_CLASHES,
+    "branch_clash",
+    relationships.length + 1,
+  ));
+  for (const group of BRANCH_THREE_HARMONIES) {
+    if (!group.branches.every((branch) => branches.includes(branch))) continue;
+    const participants = pillars.filter((pillar) => group.branches.includes(pillar.earthly_branch));
+    relationships.push({
+      fact_id: `F-BZ-R${String(relationships.length + 1).padStart(2, "0")}`,
+      kind: "derived_calculation_fact",
+      relationship: "branch_full_three_harmony",
+      values: group.branches,
+      traditional_element_label: group.element,
+      pillar_ids: participants.map((pillar) => pillar.fact_id),
+      pillars: participants.map((pillar) => pillar.pillar),
+    });
+  }
+  return {
+    basis: "transparent structural derivations only; counts are unweighted occurrences, not a strength, pattern, or useful-god score",
+    day_master: {
+      fact_id: "F-BZ-S01",
+      kind: "derived_calculation_fact",
+      heavenly_stem: day.heavenly_stem,
+      element: STEM_ELEMENTS[dayStemIndex],
+      polarity: dayStemIndex % 2 === 0 ? "yang" : "yin",
+      source_pillar_id: day.fact_id,
+    },
+    month_context: {
+      fact_id: "F-BZ-S02",
+      kind: "derived_calculation_fact",
+      earthly_branch: month.earthly_branch,
+      branch_element: BRANCH_ELEMENTS[BRANCHES.indexOf(month.earthly_branch)],
+      source_pillar_id: month.fact_id,
+      interpretation_limit: "month branch is exposed as context; no seasonal strength is inferred",
+    },
+    occurrence_counts: {
+      fact_id: "F-BZ-S03",
+      kind: "derived_calculation_fact",
+      visible_stem_elements: countValues(visibleStems.map((stem) => STEM_ELEMENTS[STEMS.indexOf(stem)])),
+      branch_elements: countValues(branches.map((branch) => BRANCH_ELEMENTS[BRANCHES.indexOf(branch)])),
+      hidden_stem_elements: countValues(hiddenStems.map((stem) => STEM_ELEMENTS[STEMS.indexOf(stem)])),
+      visible_ten_gods: countValues(pillars.map((pillar) => pillar.ten_god_stem)),
+      hidden_ten_gods: countValues(pillars.flatMap((pillar) => pillar.ten_gods_hidden_stems)),
+      interpretation_limit: "visible stems, branches, and hidden stems are deliberately not pooled or weighted",
+    },
+    relationships,
+  };
+}
+
 function chartFromResolved(resolved, profile) {
   const value = resolved.local;
   const solar = Solar.fromYmdHms(value.year, value.month, value.day, value.hour, value.minute, value.second);
@@ -139,7 +257,9 @@ function chartFromResolved(resolved, profile) {
 }
 
 function chartAt(birth, profile) {
-  return chartFromResolved(resolveCalculationTime(birth, profile.time_basis), profile);
+  const resolved = resolveCalculationTime(birth, profile.time_basis);
+  ensureCalendarReferenceOffset(resolved.zoned, birth);
+  return chartFromResolved(resolved, profile);
 }
 
 function ensureValidatedRange(birth) {
@@ -197,6 +317,7 @@ function unknownTimeCalculation(birth, profile) {
   if (probeEpochs.at(-1) !== endEpoch) probeEpochs.push(endEpoch);
   const candidates = probeEpochs.map((epoch) => {
     const zoned = Temporal.Instant.fromEpochMilliseconds(epoch).toZonedDateTimeISO(birth.timezone);
+    ensureCalendarReferenceOffset(zoned, birth);
     const resolved = resolveZonedCalculationTime(zoned, birth, profile.time_basis);
     const chart = chartFromResolved(resolved, profile);
     return {
@@ -305,6 +426,7 @@ export function calculateBazi(rawInput, profileOverride = {}) {
       solar_date: chart.solar_date,
       lunar_date: chart.lunar_date,
       pillars: chart.pillars,
+      structure: chartStructure(chart.pillars),
       auxiliary: chart.auxiliary,
     },
     warnings,

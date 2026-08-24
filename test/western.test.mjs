@@ -14,12 +14,20 @@ test("J2000 wrapper fixture has stable apparent geocentric longitudes", () => {
   assert.ok(Math.abs(result.facts.angles.audit.ascendant_horizon_residual_z) < 1e-8);
   assert.ok(result.facts.angles.audit.midheaven_above_horizon_z > 0);
   assert.ok(Math.abs(result.facts.angles.audit.midheaven_meridian_residual_y) < 1e-8);
+  assert.equal(result.facts.structure.sign_distribution.body_count, 10);
+  assert.equal(
+    Object.values(result.facts.structure.sign_distribution.unweighted_element_counts).reduce((sum, count) => sum + count, 0),
+    10,
+  );
+  assert.ok(result.facts.structure.tight_aspects.every((item) => item.orb_degrees <= 2 && item.source_aspect_id));
+  assert.match(result.facts.structure.basis, /no dominance, dignity, personality, or predictive score/);
 });
 
 test("unknown Western time uses a full real-day minute scan and omits angles and houses", () => {
   const result = calculate("western", { date: "2000-01-01", timezone: "UTC" });
   assert.equal(result.facts.angles.status, "unavailable");
   assert.equal(result.facts.houses.status, "unavailable");
+  assert.equal(result.facts.planet_ranges.find((item) => item.body === "sun").label_zh, "太阳");
   assert.equal(result.sensitivity.sample_count, 1441);
   assert.equal(result.sensitivity.sample_interval, "60 seconds plus exact day end");
   assert.match(result.warnings.join("\n"), /Ascendant/);
@@ -43,4 +51,38 @@ test("Western coordinates must be supplied together, while both may be omitted",
   assert.equal(result.facts.planets.length, 10);
   assert.equal(result.facts.angles, null);
   assert.match(result.warnings.join("\n"), /Latitude\/longitude/);
+});
+
+test("slow outer planets use agreeing multi-window motion instead of a body-independent speed cutoff", () => {
+  const result = calculate("western", {
+    date: "2000-08-16", time: "04:00", timezone: "Asia/Shanghai",
+  });
+  const byBody = Object.fromEntries(result.facts.planets.map((planet) => [planet.body, planet]));
+  for (const body of ["neptune", "pluto"]) {
+    assert.equal(byBody[body].motion_state, "retrograde");
+    assert.equal(byBody[body].retrograde, true);
+    assert.equal(byBody[body].motion_audit.consistent_direction, true);
+    assert.deepEqual(byBody[body].motion_audit.direction_signs, [-1]);
+    assert.match(byBody[body].motion_method, /±6h, ±12h, and ±24h/);
+  }
+});
+
+test("conflicting multi-window direction near a real station remains uncertain", () => {
+  const result = calculate("western", {
+    date: "2000-05-08", time: "12:15", timezone: "UTC",
+  });
+  const neptune = result.facts.planets.find((planet) => planet.body === "neptune");
+  assert.equal(neptune.motion_state, "stationary-or-uncertain");
+  assert.equal(neptune.retrograde, null);
+  assert.equal(neptune.motion_audit.consistent_direction, false);
+  assert.deepEqual(neptune.motion_audit.direction_signs, [-1, 1]);
+});
+
+test("Western calculation preserves the precision of the supplied clock time", () => {
+  const minute = calculate("western", { date: "2000-01-01", time: "12:00", timezone: "UTC" });
+  const second = calculate("western", { date: "2000-01-01", time: "12:00:30", timezone: "UTC" });
+  const unknown = calculate("western", { date: "2000-01-01", timezone: "UTC" });
+  assert.equal(minute.input.time_precision, "minute");
+  assert.equal(second.input.time_precision, "second");
+  assert.equal(unknown.input.time_precision, "unknown");
 });

@@ -1,4 +1,4 @@
 interface:
   display_name: "Fortune Teller"
-  short_description: "Local-first, auditable Chinese and Western divination"
-  default_prompt: "Use $fortune-teller to guide an interactive, local-first reading with explicit calculation facts and uncertainty."
+  short_description: "Result-first Chinese and Western readings, calculated locally"
+  default_prompt: "Use $fortune-teller to ask whether I want a life overview, one life area, or help with a current question; calculate locally, then give the useful answer before the technical basis."

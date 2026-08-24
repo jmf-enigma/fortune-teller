@@ -19,6 +19,8 @@ const CALCULATORS = {
 
 export { METHODS };
 export { validateReading } from "./core/reading-validator.mjs";
+export { RULES } from "./data/rule-registry.mjs";
+export { SOURCES, SOURCE_VERIFICATION_NOTE } from "./data/source-registry.mjs";
 
 export function calculate(system, input, profile = {}) {
   const method = getMethod(system);

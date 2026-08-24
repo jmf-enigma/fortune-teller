@@ -1,7 +1,15 @@
 {
   "name": "fortune-teller",
-  "version": "0.1.0",
-  "description": "Local-first, auditable Chinese and Western divination engines and Agent Skill.",
+  "version": "0.2.0",
+  "description": "Result-first Chinese and Western divination Agent Skill with local, auditable calculation engines.",
+  "homepage": "https://github.com/jmf-enigma/fortune-teller#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jmf-enigma/fortune-teller.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jmf-enigma/fortune-teller/issues"
+  },
   "type": "module",
   "license": "MIT",
   "private": true,
@@ -21,6 +29,7 @@
     "scripts",
     "src",
     "test",
+    "release-files.json",
     "README.md",
     "README.en.md",
     "BENCHMARK.md",
@@ -34,6 +43,7 @@
     "start": "node scripts/fortune-teller.mjs interactive",
     "calculate": "node scripts/fortune-teller.mjs calculate",
     "methods": "node scripts/fortune-teller.mjs methods",
+    "sources": "node scripts/fortune-teller.mjs sources",
     "doctor": "node scripts/doctor.mjs",
     "test": "node --test",
     "verify": "node scripts/release-check.mjs",

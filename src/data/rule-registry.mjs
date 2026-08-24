@@ -1,0 +1,287 @@
+import { SOURCES, getSourceById } from "./source-registry.mjs";
+
+const ruleDefinitions = [
+  {
+    id: "R-BZ-001", system: "bazi", summary: "Read the calculated Four Pillars as chart structure.",
+    allowed_scopes: ["pillar_structure", "chart_structure", "calculation_audit"],
+    required_fact_prefixes: ["/facts/pillars", "/facts/stable_pillars", "/facts/structure"], minimum_fact_references: 1,
+    source_ids: ["SRC-BZ-LUNAR-TS-1.8.6", "SRC-BZ-SANMING-WIKISOURCE"], interpretation_ceiling: "traditional_structure",
+    permitted_epistemic_status: ["calculation_fact", "traditional_rule", "interpretation", "unresolved"], protective: false,
+  },
+  {
+    id: "R-BZ-002", system: "bazi", summary: "Use Ten Gods only as bounded traditional relational vocabulary.",
+    allowed_scopes: ["ten_god_relation", "reflective_theme"],
+    required_fact_prefixes: ["/facts/pillars", "/facts/structure/day_master", "/facts/structure/occurrence_counts"],
+    minimum_fact_references: 1, source_ids: ["SRC-BZ-LUNAR-TS-1.8.6", "SRC-BZ-SANMING-WIKISOURCE"],
+    interpretation_ceiling: "bounded_reflection", permitted_epistemic_status: ["traditional_rule", "interpretation", "unresolved"], protective: false,
+  },
+  {
+    id: "R-BZ-003", system: "bazi", summary: "Describe time and day-boundary profile effects without adding interpretation.",
+    allowed_scopes: ["time_profile", "day_boundary", "profile_comparison", "calculation_audit"],
+    required_fact_prefixes: ["/facts/resolved_time", "/facts/mode"], minimum_fact_references: 1,
+    material_fact_paths: ["/facts/resolved_time", "/facts/mode"],
+    source_ids: [], interpretation_ceiling: "calculation_only",
+    permitted_epistemic_status: ["calculation_fact", "unresolved"], protective: false,
+  },
+  {
+    id: "R-BZ-004", system: "bazi", summary: "Keep unknown birth-time effects explicit and sensitivity-bounded.",
+    allowed_scopes: ["unknown_time_sensitivity", "uncertainty"],
+    required_fact_prefixes: ["/facts/stable_pillars", "/facts/time_pillar", "/facts/mode"], minimum_fact_references: 1,
+    material_fact_paths: ["/facts/time_pillar"],
+    required_fact_values: [{ path: "/facts/mode", equals: "unknown-time-sensitivity" }],
+    source_ids: [], interpretation_ceiling: "uncertainty_only",
+    permitted_epistemic_status: ["calculation_fact", "unresolved"], protective: true,
+  },
+  {
+    id: "R-ZW-001", system: "ziwei", summary: "Relate named stars to their calculated palace context without event certainty.",
+    allowed_scopes: ["star_palace_context", "reflective_theme"],
+    required_fact_prefixes: ["/facts/palaces"],
+    minimum_fact_references: 1, source_ids: ["SRC-ZW-IZTRO-2.6.0", "SRC-ZW-ZIWEI-QUANSHU"],
+    interpretation_ceiling: "bounded_reflection", permitted_epistemic_status: ["traditional_rule", "interpretation", "unresolved"], protective: false,
+  },
+  {
+    id: "R-ZW-002", system: "ziwei", summary: "Use soul/body labels as traditional chart labels, not fixed personality diagnoses.",
+    allowed_scopes: ["soul_body_labels", "reflective_theme"],
+    required_fact_prefixes: ["/facts/summary", "/facts/stable_summary"], minimum_fact_references: 1,
+    material_fact_paths: [
+      "/facts/summary/soul_star", "/facts/summary/body_star", "/facts/summary/five_elements_class",
+      "/facts/summary/soul_palace_branch", "/facts/summary/body_palace_branch",
+    ],
+    source_ids: ["SRC-ZW-IZTRO-2.6.0", "SRC-ZW-ZIWEI-QUANSHU"], interpretation_ceiling: "bounded_reflection",
+    permitted_epistemic_status: ["traditional_rule", "interpretation", "unresolved"], protective: false,
+  },
+  {
+    id: "R-ZW-003", system: "ziwei", summary: "Report the chart's indexed periods as calculated labels only.",
+    allowed_scopes: ["period_indexing", "calculation_audit"], required_fact_prefixes: ["/facts/palaces"],
+    minimum_fact_references: 1, source_ids: ["SRC-ZW-IZTRO-2.6.0"], interpretation_ceiling: "traditional_structure",
+    permitted_epistemic_status: ["calculation_fact", "traditional_rule", "unresolved"], protective: false,
+  },
+  {
+    id: "R-ZW-004", system: "ziwei", summary: "Keep unknown birth-time chart variation explicit.",
+    allowed_scopes: ["unknown_time_sensitivity", "uncertainty"],
+    required_fact_prefixes: ["/facts/stable_summary", "/facts/single_chart", "/facts/mode"], minimum_fact_references: 1,
+    material_fact_paths: ["/facts/single_chart/status"],
+    required_fact_values: [{ path: "/facts/mode", equals: "unknown-time-sensitivity" }],
+    source_ids: [], interpretation_ceiling: "uncertainty_only",
+    permitted_epistemic_status: ["calculation_fact", "unresolved"], protective: true,
+  },
+  {
+    id: "R-ZW-005", system: "ziwei", summary: "Report explicit target-date decadal and yearly output as calculation structure only.",
+    allowed_scopes: ["target_period_calculation", "period_indexing", "calculation_audit"],
+    required_fact_prefixes: ["/facts/periods/target", "/facts/periods/decadal", "/facts/periods/yearly"],
+    minimum_fact_references: 1,
+    source_ids: ["SRC-ZW-IZTRO-2.6.0"], interpretation_ceiling: "traditional_structure",
+    permitted_epistemic_status: ["calculation_fact", "traditional_rule", "unresolved"], protective: false,
+  },
+  {
+    id: "R-ZW-006", system: "ziwei", summary: "Synthesize one bounded life-stage theme only from natal, decadal, and yearly context together.",
+    allowed_scopes: ["phase_theme", "life_stage"],
+    required_fact_prefixes: ["/facts/palaces", "/facts/periods/decadal", "/facts/periods/yearly"],
+    required_fact_groups: [["/facts/palaces"], ["/facts/periods/decadal"], ["/facts/periods/yearly"]],
+    minimum_fact_references: 3,
+    source_ids: ["SRC-ZW-IZTRO-HOROSCOPE-GUIDE"], interpretation_ceiling: "bounded_reflection",
+    permitted_epistemic_status: ["traditional_rule", "interpretation", "unresolved"], protective: false,
+  },
+  {
+    id: "R-WA-001", system: "western", summary: "Use calculated ecliptic longitude and zodiac placement as the factual base.",
+    allowed_scopes: ["zodiac_placement", "zodiac_theme", "calculation_audit"],
+    required_fact_prefixes: [
+      "/facts/planets", "/facts/planet_ranges", "/facts/structure/sign_distribution", "/facts/structure/reference_points",
+    ], minimum_fact_references: 1,
+    source_ids: ["SRC-WA-ASTRONOMY-2.1.19", "SRC-WA-TETRABIBLOS-PG70850"], interpretation_ceiling: "bounded_reflection",
+    permitted_epistemic_status: ["calculation_fact", "traditional_rule", "interpretation", "unresolved"], protective: false,
+  },
+  {
+    id: "R-WA-002", system: "western", summary: "Treat angles and whole-sign houses as profile-specific calculated conventions.",
+    allowed_scopes: ["houses", "angles", "house_availability", "calculation_audit"],
+    required_fact_prefixes: ["/facts/houses", "/facts/angles", "/facts/structure/house_occupancy"], minimum_fact_references: 1,
+    material_fact_paths: ["/facts/houses", "/facts/angles"],
+    source_ids: [], interpretation_ceiling: "calculation_only",
+    permitted_epistemic_status: ["calculation_fact", "unresolved"], protective: false,
+  },
+  {
+    id: "R-WA-003", system: "western", summary: "Use computed aspects as bounded traditional relational prompts.",
+    allowed_scopes: ["aspects", "aspect_theme"],
+    required_fact_prefixes: ["/facts/aspects", "/facts/structure/tight_aspects"], minimum_fact_references: 1,
+    source_ids: ["SRC-WA-TETRABIBLOS-PG70850"], interpretation_ceiling: "bounded_reflection",
+    permitted_epistemic_status: ["traditional_rule", "interpretation", "unresolved"], protective: false,
+  },
+  {
+    id: "R-WA-004", system: "western", summary: "Report calculated apparent motion state without treating it as an event forecast.",
+    allowed_scopes: ["motion_state", "calculation_audit"], required_fact_prefixes: ["/facts/planets"],
+    minimum_fact_references: 1, source_ids: ["SRC-WA-ASTRONOMY-2.1.19"], interpretation_ceiling: "calculation_only",
+    permitted_epistemic_status: ["calculation_fact", "unresolved"], protective: false,
+  },
+  {
+    id: "R-TR-001", system: "tarot", summary: "Bind each card to its declared spread position.",
+    allowed_scopes: ["spread_position", "reflective_theme"], required_fact_prefixes: ["/facts/cards"],
+    minimum_fact_references: 1, source_ids: [], interpretation_ceiling: "bounded_reflection",
+    permitted_epistemic_status: ["calculation_fact", "interpretation", "unresolved"], protective: false,
+  },
+  {
+    id: "R-TR-002", system: "tarot", summary: "Use upright or reversed card orientation as bounded traditional vocabulary.",
+    allowed_scopes: ["card_orientation", "reflective_theme"], required_fact_prefixes: ["/facts/cards"],
+    minimum_fact_references: 1, source_ids: ["SRC-TR-WAITE-WIKISOURCE"], interpretation_ceiling: "bounded_reflection",
+    permitted_epistemic_status: ["traditional_rule", "interpretation", "unresolved"], protective: false,
+  },
+  {
+    id: "R-TR-003", system: "tarot", summary: "Synthesize multiple declared card positions as a reflective comparison.",
+    allowed_scopes: ["multi_card_synthesis", "reflective_theme"], required_fact_prefixes: ["/facts/cards"],
+    minimum_fact_references: 2, source_ids: [], interpretation_ceiling: "bounded_reflection",
+    permitted_epistemic_status: ["interpretation", "unresolved"], protective: false,
+  },
+  {
+    id: "R-TR-004", system: "tarot", summary: "Keep the user-supplied, seeded, or unseeded draw provenance visible.",
+    allowed_scopes: ["draw_provenance", "calculation_audit"], required_fact_prefixes: ["/facts/mode"],
+    material_fact_paths: ["/facts/mode"],
+    minimum_fact_references: 1, source_ids: [], interpretation_ceiling: "calculation_only",
+    permitted_epistemic_status: ["calculation_fact", "unresolved"], protective: true,
+  },
+  {
+    id: "R-YJ-001", system: "iching", summary: "Read and report the six lines in bottom-to-top order.",
+    allowed_scopes: ["line_order", "calculation_audit"], required_fact_prefixes: ["/facts/lines"],
+    minimum_fact_references: 1, source_ids: ["SRC-YJ-ZHOUYI-WIKISOURCE"], interpretation_ceiling: "traditional_structure",
+    permitted_epistemic_status: ["calculation_fact", "traditional_rule", "unresolved"], protective: false,
+  },
+  {
+    id: "R-YJ-002", system: "iching", summary: "Transform only the explicitly marked changing lines.",
+    allowed_scopes: ["line_transformation", "calculation_audit"],
+    required_fact_prefixes: ["/facts/lines", "/facts/changing_lines"], minimum_fact_references: 1,
+    material_fact_paths: ["/facts/changing_lines"],
+    required_fact_groups: [["/facts/lines"], ["/facts/changing_lines"]],
+    source_ids: [], interpretation_ceiling: "calculation_only",
+    permitted_epistemic_status: ["calculation_fact", "unresolved"], protective: false,
+  },
+  {
+    id: "R-YJ-003", system: "iching", summary: "Identify and structurally compare the primary and transformed hexagrams.",
+    allowed_scopes: ["hexagram_identity", "structural_comparison"],
+    required_fact_prefixes: ["/facts/primary", "/facts/transformed"], minimum_fact_references: 1,
+    required_fact_groups: [["/facts/primary"], ["/facts/transformed"]],
+    source_ids: ["SRC-YJ-ZHOUYI-WIKISOURCE"], interpretation_ceiling: "bounded_reflection",
+    permitted_epistemic_status: ["calculation_fact", "traditional_rule", "interpretation", "unresolved"], protective: false,
+  },
+  {
+    id: "R-YJ-004", system: "iching", summary: "Keep user-supplied, seeded, or unseeded cast provenance visible.",
+    allowed_scopes: ["cast_provenance", "calculation_audit"], required_fact_prefixes: ["/facts/mode"],
+    material_fact_paths: ["/facts/mode"],
+    minimum_fact_references: 1, source_ids: [], interpretation_ceiling: "calculation_only",
+    permitted_epistemic_status: ["calculation_fact", "unresolved"], protective: true,
+  },
+  {
+    id: "R-MH-001", system: "meihua", summary: "Derive trigram indices with the profile's eight-remainder convention.",
+    allowed_scopes: ["number_to_trigram", "calculation_audit"],
+    required_fact_prefixes: ["/facts/upper_trigram", "/facts/lower_trigram"], minimum_fact_references: 1,
+    required_fact_groups: [["/facts/upper_trigram"], ["/facts/lower_trigram"]],
+    source_ids: ["SRC-MH-MEIHUA-WIKISOURCE"], interpretation_ceiling: "traditional_structure",
+    permitted_epistemic_status: ["calculation_fact", "traditional_rule", "unresolved"], protective: false,
+  },
+  {
+    id: "R-MH-002", system: "meihua", summary: "Preserve the profile's upper/lower trigram assignment.",
+    allowed_scopes: ["upper_lower_assignment", "calculation_audit"],
+    required_fact_prefixes: ["/facts/upper_trigram", "/facts/lower_trigram"], minimum_fact_references: 1,
+    required_fact_groups: [["/facts/upper_trigram"], ["/facts/lower_trigram"]],
+    source_ids: ["SRC-MH-MEIHUA-WIKISOURCE"], interpretation_ceiling: "traditional_structure",
+    permitted_epistemic_status: ["calculation_fact", "traditional_rule", "unresolved"], protective: false,
+  },
+  {
+    id: "R-MH-003", system: "meihua", summary: "Derive the moving line with the profile's six-remainder convention.",
+    allowed_scopes: ["moving_line_derivation", "calculation_audit"], required_fact_prefixes: ["/facts/moving_line"],
+    minimum_fact_references: 1, source_ids: ["SRC-MH-MEIHUA-WIKISOURCE"], interpretation_ceiling: "traditional_structure",
+    permitted_epistemic_status: ["calculation_fact", "traditional_rule", "unresolved"], protective: false,
+  },
+  {
+    id: "R-MH-004", system: "meihua", summary: "Flip only the calculated moving line to form the transformed hexagram.",
+    allowed_scopes: ["line_transformation", "calculation_audit"],
+    required_fact_prefixes: ["/facts/primary", "/facts/transformed", "/facts/moving_line"], minimum_fact_references: 1,
+    required_fact_groups: [["/facts/primary"], ["/facts/transformed"], ["/facts/moving_line"]],
+    source_ids: [], interpretation_ceiling: "calculation_only",
+    permitted_epistemic_status: ["calculation_fact", "unresolved"], protective: false,
+  },
+];
+
+const rules = ruleDefinitions.map((rule) => ({
+  ...rule,
+  source_status: rule.source_ids.length > 0 ? "verified" : "engine_documented",
+}));
+
+function deepFreeze(value) {
+  if (value && typeof value === "object" && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const child of Object.values(value)) deepFreeze(child);
+  }
+  return value;
+}
+
+export const RULES = deepFreeze(rules);
+const RULE_BY_ID = new Map(RULES.map((rule) => [rule.id, rule]));
+
+export function getRuleById(id) {
+  return RULE_BY_ID.get(id);
+}
+
+if (RULE_BY_ID.size !== RULES.length) throw new Error("rule registry contains duplicate IDs");
+for (const rule of RULES) {
+  if (
+    rule.material_fact_paths
+    && (
+      !Array.isArray(rule.material_fact_paths)
+      || rule.material_fact_paths.length === 0
+      || new Set(rule.material_fact_paths).size !== rule.material_fact_paths.length
+      || rule.material_fact_paths.some((path) =>
+        typeof path !== "string"
+        || !path.startsWith("/facts/")
+        || !rule.required_fact_prefixes.some((prefix) => path === prefix || path.startsWith(`${prefix}/`)))
+    )
+  ) {
+    throw new Error(`rule ${rule.id} has invalid material fact paths`);
+  }
+  if (
+    rule.required_fact_groups
+    && (
+      !Array.isArray(rule.required_fact_groups)
+      || rule.required_fact_groups.length === 0
+      || rule.required_fact_groups.some((group) =>
+        !Array.isArray(group)
+        || group.length === 0
+        || group.some((prefix) => !rule.required_fact_prefixes.includes(prefix)))
+    )
+  ) {
+    throw new Error(`rule ${rule.id} has invalid required fact groups`);
+  }
+  if (
+    rule.required_fact_values
+    && (
+      !Array.isArray(rule.required_fact_values)
+      || rule.required_fact_values.length === 0
+      || rule.required_fact_values.some((requirement) =>
+        !requirement
+        || typeof requirement !== "object"
+        || Array.isArray(requirement)
+        || typeof requirement.path !== "string"
+        || !requirement.path.startsWith("/facts/")
+        || !Object.hasOwn(requirement, "equals")
+        || !rule.required_fact_prefixes.some((prefix) =>
+          requirement.path === prefix || requirement.path.startsWith(`${prefix}/`)))
+    )
+  ) {
+    throw new Error(`rule ${rule.id} has invalid required fact values`);
+  }
+  if (rule.source_status === "verified" && rule.source_ids.length === 0) {
+    throw new Error(`verified rule ${rule.id} has no source bundle`);
+  }
+  if (rule.source_status === "engine_documented" && rule.source_ids.length > 0) {
+    throw new Error(`engine-documented rule ${rule.id} unexpectedly cites external sources`);
+  }
+  for (const sourceId of rule.source_ids) {
+    const source = getSourceById(sourceId);
+    if (!source) throw new Error(`rule ${rule.id} cites unknown source ${sourceId}`);
+    if (!source.systems.includes(rule.system) || !source.supported_rule_ids.includes(rule.id)) {
+      throw new Error(`source ${sourceId} does not declare support for rule ${rule.id}`);
+    }
+  }
+}
+for (const source of SOURCES) {
+  for (const ruleId of source.supported_rule_ids) {
+    if (!RULE_BY_ID.has(ruleId)) throw new Error(`source ${source.id} cites unknown rule ${ruleId}`);
+  }
+}

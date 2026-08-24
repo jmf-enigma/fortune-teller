@@ -2,7 +2,7 @@
 
 Use this reference only after the live method registry confirms that `iching` is available. The engine records six user-supplied or locally cast lines, derives a primary and transformed hexagram, and returns King Wen number/name metadata. It does not include judgment or line-text interpretation and does not validate forecasting.
 
-## Actual support in v0.1.0
+## Actual support
 
 The engine currently supports:
 
@@ -57,8 +57,9 @@ The Boolean line arrays represent Yang as `true` and Yin as `false`. Do not expo
 ### R-YJ-001 — Lines are ordered from bottom to top
 
 - `type`: traditional, profile-specific
-- `source_status`: engine_documented
-- `requires`: all six `facts.lines[].fact_id` and `profile.line_order=bottom-up`
+- `source_status`: verified
+- `source_ids`: `SRC-YJ-ZHOUYI-WIKISOURCE`
+- `requires`: at least one cited `facts.lines[].fact_id` and `profile.line_order=bottom-up`; a statement about the complete six-line sequence should cite all six
 - `rule`: Position 1 is the bottom line and position 6 is the top line. Preserve this order in any display or explanation.
 - `allowed`: “第 2 爻自下而上计数。”
 - `forbidden`: reverse the list for presentation and then interpret the reversed positions as original facts.
@@ -67,7 +68,7 @@ The Boolean line arrays represent Yang as `true` and Yin as `false`. Do not expo
 
 - `type`: traditional
 - `source_status`: engine_documented
-- `requires`: line values and `facts.changing_lines`
+- `requires`: at least one cited fact from `facts.lines` and one from `facts.changing_lines`; both mandatory groups are checked
 - `rule`: `6` is old Yin changing to Yang; `9` is old Yang changing to Yin; `7` and `8` remain Yang and Yin respectively in this profile.
 - `allowed`: verify that the transformed Boolean pattern flips exactly the indexed changing lines.
 - `forbidden`: invent a changing line not present in the frozen cast.
@@ -75,8 +76,9 @@ The Boolean line arrays represent Yang as `true` and Yin as `false`. Do not expo
 ### R-YJ-003 — Hexagram identity follows the local King Wen mapping
 
 - `type`: traditional, implementation mapping
-- `source_status`: engine_documented
-- `requires`: `facts.primary` or `facts.transformed` fact ID and both trigram keys
+- `source_status`: verified
+- `source_ids`: `SRC-YJ-ZHOUYI-WIKISOURCE`
+- `requires`: cited `facts.primary` and `facts.transformed` fact IDs; both mandatory groups are checked
 - `rule`: The first three bottom-up lines form the lower trigram; the last three form the upper trigram; the local table maps that pair to a King Wen number/name.
 - `allowed`: report number, name, trigrams, and line pattern as calculation facts.
 - `forbidden`: quote a judgment or line text that is not bundled and verified.
@@ -92,13 +94,14 @@ The Boolean line arrays represent Yang as `true` and Yin as `false`. Do not expo
 
 ## Source status and tradition differences
 
-- Trigram data, line transformations, King Wen numbering, and hexagram names are local implementation tables with `engine_documented` status.
-- No verified edition of the Zhouyi, Ten Wings, judgment text, line text, commentary, translation, chapter, or page is bundled here. Do not fabricate or quote one from model memory.
+- `SRC-YJ-ZHOUYI-WIKISOURCE` provides checked historical provenance for the sixty-four hexagram identities, names, and bottom-to-top six-line structure used by R-YJ-001 and R-YJ-003. It does not establish this project's random-cast probabilities, changing-line selection policy, or concrete outcomes.
+- Line-value transformation and casting provenance under R-YJ-002 and R-YJ-004 are local implementation/audit rules and carry no external source IDs.
+- The registry does not verify a Ten Wings passage, judgment text, line text, commentary, translation, chapter, page, or unchecked edition claim. Do not fabricate or quote one from model memory.
 - Three-coin, yarrow-stalk, and other casting practices have different probability structures. This engine implements only the declared three-coin profile.
 - Traditions differ on how to prioritize multiple changing lines and how to relate primary and transformed hexagrams. Because no such interpretive selector is implemented, do not silently choose one.
 - Ancient names may be public-domain material, but modern translations and commentary can be copyrighted. Do not reproduce them without a supplied, authorized source.
 
-## Safe output example
+## Evidence/audit example — not the ordinary answer
 
 > **起卦事实**：六爻按自下而上记录；实际动爻位置只从 `facts.changing_lines` 读取，并回查相应 `F-YJ-L*` 的数值。`F-YJ-H01` 与 `F-YJ-H02` 分别保存本卦和变卦的卦名、序号与上下卦。
 >

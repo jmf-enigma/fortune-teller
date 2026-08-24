@@ -6,13 +6,13 @@ const PRESETS = {
   bazi: [
     { status: "stable", profile: { id: "bazi-civil-midnight-consistent-v1", time_basis: "civil", day_boundary: "midnight" } },
     { status: "stable", profile: { id: "bazi-civil-zi-start-consistent-v1", time_basis: "civil", day_boundary: "zi-start" } },
-    { status: "experimental", profile: { id: "bazi-apparent-solar-midnight-v1", time_basis: "apparent-solar", day_boundary: "midnight" }, requires: ["longitude"] },
   ],
   ziwei: [
     {
       status: "stable",
       profile: {
         id: "ziwei-default-v1", time_basis: "civil", fix_leap_month: true,
+        calendar_day_basis: "birthplace-civil",
         year_divide: "normal", horoscope_divide: "normal", age_divide: "normal",
         day_divide: "forward", algorithm: "default",
       },
@@ -21,6 +21,7 @@ const PRESETS = {
       status: "qualified",
       profile: {
         id: "ziwei-zhongzhou-v1", time_basis: "civil", fix_leap_month: true,
+        calendar_day_basis: "birthplace-civil",
         year_divide: "exact", horoscope_divide: "exact", age_divide: "normal",
         day_divide: "current", algorithm: "zhongzhou",
       },
@@ -58,8 +59,8 @@ export const DEFAULT_PROFILES = Object.fromEntries(
 );
 
 const OVERRIDABLE = {
-  bazi: new Set(["time_basis", "day_boundary"]),
-  ziwei: new Set(["time_basis", "fix_leap_month", "year_divide", "horoscope_divide", "age_divide", "day_divide", "algorithm"]),
+  bazi: new Set(["day_boundary"]),
+  ziwei: new Set(["fix_leap_month", "year_divide", "horoscope_divide", "age_divide", "day_divide", "algorithm"]),
   western: new Set(["aspect_orbs_degrees"]),
   tarot: new Set(["reversals"]),
   iching: new Set(),
@@ -68,11 +69,9 @@ const OVERRIDABLE = {
 
 const ALLOWED = {
   bazi: {
-    time_basis: new Set(["civil", "mean-solar", "apparent-solar"]),
     day_boundary: new Set(["midnight", "zi-start"]),
   },
   ziwei: {
-    time_basis: new Set(["civil", "mean-solar", "apparent-solar"]),
     year_divide: new Set(["normal", "exact"]),
     horoscope_divide: new Set(["normal", "exact"]),
     age_divide: new Set(["normal", "birthday"]),

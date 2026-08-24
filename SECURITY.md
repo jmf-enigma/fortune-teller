@@ -2,11 +2,11 @@
 
 ## Supported version
 
-Security fixes are applied to the latest `0.1.x` release candidate until a stable release policy is announced.
+Security fixes are applied to the latest `0.2.x` release candidate until a stable release policy is announced.
 
 ## Reporting a vulnerability
 
-After the project is hosted on GitHub, use a private GitHub Security Advisory when available. Do not place birth records, precise locations, private questions, replay seeds, terminal dumps containing personal data, or exploit details in a public issue.
+Use a private GitHub Security Advisory in the public repository when available. Do not place birth records, precise locations, private questions, replay seeds, terminal dumps containing personal data, or exploit details in a public issue.
 
 Until a private reporting channel is configured, report only that a private security contact is needed; do not disclose the sensitive payload publicly.
 
