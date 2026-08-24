@@ -63,6 +63,60 @@ test("BaZi emits month-command candidates, seasonal context, located roots, and 
   assert.match(JSON.stringify(structure), /not a strength|without a numerical weight|not one point/u);
 });
 
+test("pattern adjudication retains every month-qi candidate and names none as the exact human commander", () => {
+  const pattern = adjudicateBazi(calculate("bazi", BASE)).lenses.pattern;
+  assert.equal(pattern.selected_candidate_id, null);
+  assert.equal(pattern.primary_frame_candidate_id, "H-BZ-MONTH-QI-01");
+  assert.equal(pattern.exact_commander_status, "unresolved_without_solar_term_segment_rule");
+  assert.deepEqual(pattern.candidates.map((candidate) => ({
+    hidden_stem: candidate.candidate_basis.hidden_stem,
+    ten_god: candidate.candidate_basis.ten_god,
+    hidden_position: candidate.candidate_basis.hidden_position,
+    transparency: candidate.candidate_basis.transparency,
+    status: candidate.candidate_basis.status,
+    exact_commander: candidate.candidate_basis.exact_commander,
+  })), [
+    {
+      hidden_stem: "庚",
+      ten_god: "偏财",
+      hidden_position: "main",
+      transparency: "visible",
+      status: "month_branch_main_qi_frame",
+      exact_commander: false,
+    },
+    {
+      hidden_stem: "壬",
+      ten_god: "七杀",
+      hidden_position: "middle",
+      transparency: "hidden_only",
+      status: "secondary_qi_not_transparent",
+      exact_commander: false,
+    },
+    {
+      hidden_stem: "戊",
+      ten_god: "食神",
+      hidden_position: "residual",
+      transparency: "hidden_only",
+      status: "secondary_qi_not_transparent",
+      exact_commander: false,
+    },
+  ]);
+  assert.match(pattern.conclusion, /精确人元司令未决|保留3个藏干候选/u);
+});
+
+test("strength reports season, root, and visible axes without relaxing the strict decision gate", () => {
+  const strength = adjudicateBazi(calculate("bazi", BASE)).lenses.strength;
+  const axes = strength.evidence_dimensions.three_axis_tendency;
+  assert.equal(axes.season.direction, "pressure");
+  assert.equal(axes.season.boundary, "month_branch_main_qi_frame_not_exact_human_command");
+  assert.equal(axes.roots.direction, "usable_with_cautions");
+  assert.equal(axes.visible_surface.direction, "mixed");
+  assert.equal(axes.strict_resolution, "unresolved");
+  assert.match(axes.policy, /do not vote|do not.*relax/u);
+  assert.equal(strength.selected_hypothesis_id, null);
+  assert.match(strength.conclusion, /季节环境|地支|天干表层|三条证据/u);
+});
+
 test("three-punishment pair components carry a school-variance boundary", () => {
   const calculation = calculate("bazi", BASE);
   const pair = calculation.facts.structure.relationships.find((item) => (
@@ -136,4 +190,42 @@ test("decadal environment is invariant to yearly interactions and uses layer-spe
     assert.ok(interaction.layer_fact_ids.every((factId) => factId !== "F-BZ-Y01"));
     assert.doesNotMatch(interaction.label, /运年|流年/u);
   }
+});
+
+test("fixed-grid regression preserves the strict strength gate and never promotes presence-only routes", () => {
+  const counts = {
+    strength: { unresolved: 0, strong: 0, weak: 0 },
+    pattern: { established: 0, damaged: 0, broken: 0, rescued: 0, unresolved: 0 },
+    unsupported_offset: 0,
+  };
+  const stateKeys = {
+    "成立": "established",
+    "受损": "damaged",
+    "破格": "broken",
+    "救应": "rescued",
+    "未决": "unresolved",
+  };
+  for (let year = 1980; year <= 2020; year += 1) {
+    for (let month = 1; month <= 12; month += 1) {
+      for (const time of ["00:00", "04:00", "08:00", "12:00", "16:00", "20:00"]) {
+        const date = `${year}-${String(month).padStart(2, "0")}-15`;
+        try {
+          const result = adjudicateBazi(calculate("bazi", { date, time, timezone: "Asia/Shanghai" }));
+          const selected = result.lenses.strength.selected_hypothesis_id;
+          if (selected?.endsWith("STRONG")) counts.strength.strong += 1;
+          else if (selected?.endsWith("WEAK")) counts.strength.weak += 1;
+          else counts.strength.unresolved += 1;
+          counts.pattern[stateKeys[result.lenses.pattern.hypothesis.state]] += 1;
+        } catch (error) {
+          if (error?.code !== "UNSUPPORTED_BAZI_CALENDAR_OFFSET") throw error;
+          counts.unsupported_offset += 1;
+        }
+      }
+    }
+  }
+  assert.deepEqual(counts.strength, { unresolved: 2708, strong: 29, weak: 41 });
+  assert.equal(counts.pattern.broken, 0);
+  assert.equal(counts.pattern.rescued, 0);
+  assert.equal(Object.values(counts.pattern).reduce((sum, count) => sum + count, 0), 2778);
+  assert.equal(counts.unsupported_offset, 174);
 });

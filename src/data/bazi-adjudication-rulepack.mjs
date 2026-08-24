@@ -54,6 +54,7 @@ export const BAZI_ADJUDICATION_RULEPACK_META = deepFreeze({
   quantitative_policy: "no_scores_no_weights_no_school_averaging",
   phase_policy: "natal_baseline_then_decadal_environment_then_yearly_trigger",
   event_policy: "no_named_event_prediction",
+  route_closure_policy: "visible_presence_can_close_a_screening_predicate_but_cannot_close_location_strength_or_effect",
   source_audit_status: "ziping_chapter_9_and_27_anchored_with_bounded_machine_routes",
   sources: [
     {
@@ -159,7 +160,7 @@ const COMMON_PATTERN_SOURCE = {
   source_status: "primary_chapter_anchored_bounded_machine_routes",
   source_refs: ["SRC-BZ-ZIPING-ZHENQUAN-NLC", "chapter_9_formation_failure_rescue"],
   prerequisites: [
-    "month-command relation is available",
+    "month-branch hidden-stem candidates are available without claiming the exact human commander",
     "visible stems are kept separate from hidden stems",
     "only explicitly encoded compound routes may change state",
   ],
@@ -175,11 +176,11 @@ export const BAZI_MONTH_COMMAND_PATTERN_RULES = deepFreeze({
       { id: "F-OFFICER-PRINT", label: "官逢印", all: ["visible:印星"] },
     ],
     damage_routes: [
-      { id: "D-OFFICER-HURT", label: "官逢伤", all: ["visible:伤官"], closure: "closed" },
+      { id: "D-OFFICER-HURT", label: "官逢伤", all: ["visible:伤官"], closure: "presence_closed_effect_unresolved" },
       { id: "D-OFFICER-BRANCH", label: "月令官星一侧见刑冲破害", all: ["month:刑冲破害"], closure: "screening_only" },
     ],
     rescue_routes: [
-      { id: "R-OFFICER-HURT-PRINT", label: "透印解伤护官", for_damage: "D-OFFICER-HURT", all: ["visible:印星"], closure: "closed" },
+      { id: "R-OFFICER-HURT-PRINT", label: "透印解伤护官", for_damage: "D-OFFICER-HURT", all: ["visible:印星"], closure: "presence_closed_effect_unresolved" },
     ],
   },
   七杀: {
@@ -191,10 +192,10 @@ export const BAZI_MONTH_COMMAND_PATTERN_RULES = deepFreeze({
       { id: "F-KILL-PRINT", label: "杀印相生", all: ["visible:印星"] },
     ],
     damage_routes: [
-      { id: "D-KILL-WEALTH", label: "七杀逢财增杀", all: ["visible:财星"], closure: "closed" },
+      { id: "D-KILL-WEALTH", label: "七杀逢财增杀", all: ["visible:财星"], closure: "presence_closed_effect_unresolved" },
     ],
     rescue_routes: [
-      { id: "R-KILL-WEALTH-FOOD", label: "食神制杀以解财增杀", for_damage: "D-KILL-WEALTH", all: ["visible:食神"], closure: "closed" },
+      { id: "R-KILL-WEALTH-FOOD", label: "食神制杀以解财增杀", for_damage: "D-KILL-WEALTH", all: ["visible:食神"], closure: "presence_closed_effect_unresolved" },
     ],
   },
   正财: {
@@ -206,12 +207,12 @@ export const BAZI_MONTH_COMMAND_PATTERN_RULES = deepFreeze({
       { id: "F-WEALTH-FOOD-STRONG", label: "食伤生财而有根带比", all: ["visible:食伤", "strength:can_carry", "visible:比劫"] },
     ],
     damage_routes: [
-      { id: "D-WEALTH-KILL", label: "财格透七杀", all: ["visible:七杀"], closure: "closed" },
-      { id: "D-WEALTH-ROBBERY", label: "比劫争财", all: ["visible:比劫"], closure: "closed" },
+      { id: "D-WEALTH-KILL", label: "财格透七杀", all: ["visible:七杀"], closure: "presence_closed_effect_unresolved" },
+      { id: "D-WEALTH-ROBBERY", label: "比劫争财", all: ["visible:比劫"], closure: "presence_closed_effect_unresolved" },
     ],
     rescue_routes: [
-      { id: "R-WEALTH-KILL-FOOD", label: "食神制杀以存财", for_damage: "D-WEALTH-KILL", all: ["visible:食神"], closure: "closed" },
-      { id: "R-WEALTH-ROBBERY-OFFICER", label: "官星制比劫以护财", for_damage: "D-WEALTH-ROBBERY", all: ["visible:正官"], closure: "closed" },
+      { id: "R-WEALTH-KILL-FOOD", label: "食神制杀以存财", for_damage: "D-WEALTH-KILL", all: ["visible:食神"], closure: "presence_closed_effect_unresolved" },
+      { id: "R-WEALTH-ROBBERY-OFFICER", label: "官星制比劫以护财", for_damage: "D-WEALTH-ROBBERY", all: ["visible:正官"], closure: "presence_closed_effect_unresolved" },
     ],
   },
   偏财: {
@@ -223,12 +224,12 @@ export const BAZI_MONTH_COMMAND_PATTERN_RULES = deepFreeze({
       { id: "F-WEALTH-FOOD-STRONG", label: "食伤生财而有根带比", all: ["visible:食伤", "strength:can_carry", "visible:比劫"] },
     ],
     damage_routes: [
-      { id: "D-WEALTH-KILL", label: "财格透七杀", all: ["visible:七杀"], closure: "closed" },
-      { id: "D-WEALTH-ROBBERY", label: "比劫争财", all: ["visible:比劫"], closure: "closed" },
+      { id: "D-WEALTH-KILL", label: "财格透七杀", all: ["visible:七杀"], closure: "presence_closed_effect_unresolved" },
+      { id: "D-WEALTH-ROBBERY", label: "比劫争财", all: ["visible:比劫"], closure: "presence_closed_effect_unresolved" },
     ],
     rescue_routes: [
-      { id: "R-WEALTH-KILL-FOOD", label: "食神制杀以存财", for_damage: "D-WEALTH-KILL", all: ["visible:食神"], closure: "closed" },
-      { id: "R-WEALTH-ROBBERY-OFFICER", label: "官星制比劫以护财", for_damage: "D-WEALTH-ROBBERY", all: ["visible:正官"], closure: "closed" },
+      { id: "R-WEALTH-KILL-FOOD", label: "食神制杀以存财", for_damage: "D-WEALTH-KILL", all: ["visible:食神"], closure: "presence_closed_effect_unresolved" },
+      { id: "R-WEALTH-ROBBERY-OFFICER", label: "官星制比劫以护财", for_damage: "D-WEALTH-ROBBERY", all: ["visible:正官"], closure: "presence_closed_effect_unresolved" },
     ],
   },
   正印: {
@@ -240,10 +241,10 @@ export const BAZI_MONTH_COMMAND_PATTERN_RULES = deepFreeze({
       { id: "F-PRINT-OUTPUT", label: "身印有根有助而食伤泄秀", all: ["strength:can_carry", "visible:食伤"] },
     ],
     damage_routes: [
-      { id: "D-PRINT-WEALTH", label: "财星坏印", all: ["visible:财星"], closure: "closed" },
+      { id: "D-PRINT-WEALTH", label: "财星坏印", all: ["visible:财星"], closure: "presence_closed_effect_unresolved" },
     ],
     rescue_routes: [
-      { id: "R-PRINT-WEALTH-PEER", label: "比劫制财以护印", for_damage: "D-PRINT-WEALTH", all: ["visible:比劫"], closure: "closed" },
+      { id: "R-PRINT-WEALTH-PEER", label: "比劫制财以护印", for_damage: "D-PRINT-WEALTH", all: ["visible:比劫"], closure: "presence_closed_effect_unresolved" },
     ],
   },
   偏印: {
@@ -255,12 +256,12 @@ export const BAZI_MONTH_COMMAND_PATTERN_RULES = deepFreeze({
       { id: "F-PRINT-OUTPUT", label: "身印有根有助而食伤泄秀", all: ["strength:can_carry", "visible:食伤"] },
     ],
     damage_routes: [
-      { id: "D-PRINT-WEALTH", label: "财星坏印", all: ["visible:财星"], closure: "closed" },
-      { id: "D-OWL-FOOD", label: "枭印夺食", all: ["visible:食神"], closure: "closed" },
+      { id: "D-PRINT-WEALTH", label: "财星坏印", all: ["visible:财星"], closure: "presence_closed_effect_unresolved" },
+      { id: "D-OWL-FOOD", label: "枭印夺食", all: ["visible:食神"], closure: "presence_closed_effect_unresolved" },
     ],
     rescue_routes: [
-      { id: "R-PRINT-WEALTH-PEER", label: "比劫制财以护印", for_damage: "D-PRINT-WEALTH", all: ["visible:比劫"], closure: "closed" },
-      { id: "R-OWL-FOOD-WEALTH", label: "财星制枭以护食", for_damage: "D-OWL-FOOD", all: ["visible:财星"], closure: "closed" },
+      { id: "R-PRINT-WEALTH-PEER", label: "比劫制财以护印", for_damage: "D-PRINT-WEALTH", all: ["visible:比劫"], closure: "presence_closed_effect_unresolved" },
+      { id: "R-OWL-FOOD-WEALTH", label: "财星制枭以护食", for_damage: "D-OWL-FOOD", all: ["visible:财星"], closure: "presence_closed_effect_unresolved" },
     ],
   },
   食神: {
@@ -272,11 +273,11 @@ export const BAZI_MONTH_COMMAND_PATTERN_RULES = deepFreeze({
       { id: "F-FOOD-KILL-PRINT", label: "食带杀而无财，透印转入杀印路线", all: ["visible:七杀", "visible:印星", "absent:财星"] },
     ],
     damage_routes: [
-      { id: "D-FOOD-OWL", label: "食神逢枭", all: ["visible:偏印"], closure: "closed" },
+      { id: "D-FOOD-OWL", label: "食神逢枭", all: ["visible:偏印"], closure: "presence_closed_effect_unresolved" },
       { id: "D-FOOD-WEALTH-KILL", label: "食神生财而又露杀", all: ["visible:财星", "visible:七杀"], closure: "screening_only" },
     ],
     rescue_routes: [
-      { id: "R-FOOD-OWL-WEALTH", label: "财星制枭护食", for_damage: "D-FOOD-OWL", all: ["visible:财星"], closure: "closed" },
+      { id: "R-FOOD-OWL-WEALTH", label: "财星制枭护食", for_damage: "D-FOOD-OWL", all: ["visible:财星"], closure: "presence_closed_effect_unresolved" },
     ],
   },
   伤官: {
@@ -288,10 +289,10 @@ export const BAZI_MONTH_COMMAND_PATTERN_RULES = deepFreeze({
       { id: "F-HURT-KILL-NO-WEALTH", label: "伤官带杀而无财", all: ["visible:七杀", "absent:财星"] },
     ],
     damage_routes: [
-      { id: "D-HURT-OFFICER-NON-METAL-WATER", label: "非金水伤官见官", all: ["visible:正官", "command:not_metal_water"], closure: "closed" },
+      { id: "D-HURT-OFFICER-NON-METAL-WATER", label: "非金水伤官见官", all: ["visible:正官", "command:not_metal_water"], closure: "presence_closed_effect_unresolved" },
     ],
     rescue_routes: [
-      { id: "R-HURT-OFFICER-PRINT", label: "印星制伤以护官", for_damage: "D-HURT-OFFICER-NON-METAL-WATER", all: ["visible:印星"], closure: "closed" },
+      { id: "R-HURT-OFFICER-PRINT", label: "印星制伤以护官", for_damage: "D-HURT-OFFICER-NON-METAL-WATER", all: ["visible:印星"], closure: "presence_closed_effect_unresolved" },
     ],
   },
   比肩: {
@@ -304,10 +305,10 @@ export const BAZI_MONTH_COMMAND_PATTERN_RULES = deepFreeze({
       { id: "F-LU-KILL", label: "透杀而遇制", all: ["visible:七杀", "visible:食伤"] },
     ],
     damage_routes: [
-      { id: "D-LU-WEALTH-ROBBERY", label: "禄格见财又逢比劫", all: ["visible:财星", "visible:比劫"], closure: "closed" },
+      { id: "D-LU-WEALTH-ROBBERY", label: "禄格见财又逢比劫", all: ["visible:财星", "visible:比劫"], closure: "presence_closed_effect_unresolved" },
     ],
     rescue_routes: [
-      { id: "R-LU-WEALTH-OFFICER", label: "官星制比劫以护财", for_damage: "D-LU-WEALTH-ROBBERY", all: ["visible:正官"], closure: "closed" },
+      { id: "R-LU-WEALTH-OFFICER", label: "官星制比劫以护财", for_damage: "D-LU-WEALTH-ROBBERY", all: ["visible:正官"], closure: "presence_closed_effect_unresolved" },
     ],
   },
   劫财: {
@@ -320,10 +321,10 @@ export const BAZI_MONTH_COMMAND_PATTERN_RULES = deepFreeze({
       { id: "F-JIE-KILL", label: "透杀而遇制", all: ["visible:七杀", "visible:食伤"] },
     ],
     damage_routes: [
-      { id: "D-JIE-WEALTH-ROBBERY", label: "月劫见财又逢比劫", all: ["visible:财星", "visible:比劫"], closure: "closed" },
+      { id: "D-JIE-WEALTH-ROBBERY", label: "月劫见财又逢比劫", all: ["visible:财星", "visible:比劫"], closure: "presence_closed_effect_unresolved" },
     ],
     rescue_routes: [
-      { id: "R-JIE-WEALTH-OFFICER", label: "官星制比劫以护财", for_damage: "D-JIE-WEALTH-ROBBERY", all: ["visible:正官"], closure: "closed" },
+      { id: "R-JIE-WEALTH-OFFICER", label: "官星制比劫以护财", for_damage: "D-JIE-WEALTH-ROBBERY", all: ["visible:正官"], closure: "presence_closed_effect_unresolved" },
     ],
   },
 });

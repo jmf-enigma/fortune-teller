@@ -30,9 +30,10 @@ function allKeys(value, output = []) {
   return output;
 }
 
-test("v0.5 rule pack declares sources, prerequisites, and qualitative adjudication only", () => {
+test("rule pack declares sources, prerequisites, and qualitative adjudication only", () => {
   assert.equal(BAZI_ADJUDICATION_RULEPACK_META.quantitative_policy, "no_scores_no_weights_no_school_averaging");
   assert.equal(BAZI_ADJUDICATION_RULEPACK_META.event_policy, "no_named_event_prediction");
+  assert.match(BAZI_ADJUDICATION_RULEPACK_META.route_closure_policy, /presence.*cannot_close/u);
   assert.ok(BAZI_ADJUDICATION_RULEPACK_META.sources.every((source) => source.source_status));
   assert.ok(BAZI_ADJUDICATION_RULES.length >= 6);
   for (const rule of BAZI_ADJUDICATION_RULES) {
@@ -49,6 +50,7 @@ test("v0.5 rule pack declares sources, prerequisites, and qualitative adjudicati
     assert.ok(Array.isArray(rule.formation_routes) && rule.formation_routes.length > 0);
     assert.ok(Array.isArray(rule.damage_routes));
     assert.ok(Array.isArray(rule.rescue_routes));
+    assert.ok([...rule.damage_routes, ...rule.rescue_routes].every((route) => route.closure !== "closed"));
   }
   for (const view of Object.values(BAZI_VIEW_DEFINITIONS)) {
     assert.ok(view.source_status);
@@ -74,28 +76,28 @@ test("a screening-only unresolved damage route cannot manufacture full rescue", 
   assert.equal(result.hypothesis.state, BAZI_ADJUDICATION_STATES.damaged);
   assert.ok(result.route_adjudication.active_damage_routes.some((item) => item.closure === "screening_only"));
   assert.ok(result.route_adjudication.active_rescue_routes.length > 0);
-  assert.match(result.conclusion, /只判受损，不越级判破格或救应/u);
+  assert.match(result.conclusion, /只判受损，不越级判(?:最终)?破格或救应/u);
 });
 
-test("one closed rescue cannot erase a second unresolved damage route", () => {
+test("presence-only rescue cannot erase unresolved damage or become an effective remedy", () => {
   const result = adjudicateBazi(bazi({
     date: "1980-02-09", time: "12:00", timezone: "Asia/Shanghai",
   }));
   assert.equal(result.lenses.pattern.hypothesis.label, "食神格候选");
   assert.equal(result.lenses.pattern.hypothesis.state, BAZI_ADJUDICATION_STATES.damaged);
   assert.ok(result.lenses.pattern.route_adjudication.active_rescue_routes.some((item) => (
-    item.id === "R-FOOD-OWL-WEALTH" && item.closure === "closed"
+    item.id === "R-FOOD-OWL-WEALTH" && item.closure === "presence_closed_effect_unresolved"
   )));
   const disease = result.lenses.useful_god_views.find((view) => view.lens === "病药");
-  assert.equal(disease.state, BAZI_ADJUDICATION_STATES.damaged);
-  assert.deepEqual(disease.proposed_directions, ["偏财"]);
-  assert.match(disease.conclusion, /尚未形成覆盖全部受损路线的闭合救应/u);
+  assert.equal(disease.state, BAZI_ADJUDICATION_STATES.unresolved);
+  assert.deepEqual(disease.proposed_directions, []);
+  assert.match(disease.conclusion, /候选病点|不把筛查信号升级成救应/u);
 
-  const closed = adjudicateBazi(bazi({
+  const formerlyClosed = adjudicateBazi(bazi({
     date: "1993-06-08", time: "12:00", timezone: "Asia/Shanghai",
   })).lenses.useful_god_views.find((view) => view.lens === "病药");
-  assert.equal(closed.state, BAZI_ADJUDICATION_STATES.rescued);
-  assert.ok(closed.proposed_directions.length > 0);
+  assert.equal(formerlyClosed.state, BAZI_ADJUDICATION_STATES.unresolved);
+  assert.deepEqual(formerlyClosed.proposed_directions, []);
 });
 
 test("mixed natal facts keep strong and weak hypotheses visible instead of manufacturing a score", () => {
@@ -148,36 +150,38 @@ test("route-level carrying facts make the formerly unreachable formation routes 
   }
 });
 
-test("source-anchored compound routes preserve formation, damage, breakage, and paired rescue", () => {
-  const rescued = adjudicateBazi(bazi({
+test("source-anchored presence routes preserve candidates without final breakage or rescue", () => {
+  const rescueCandidate = adjudicateBazi(bazi({
     date: "1993-06-08", time: "12:00", timezone: "Asia/Shanghai",
   })).lenses.pattern;
-  assert.equal(rescued.hypothesis.label, "正官格候选");
-  assert.equal(rescued.hypothesis.state, BAZI_ADJUDICATION_STATES.rescued);
-  assert.deepEqual(rescued.state_history, [
+  assert.equal(rescueCandidate.hypothesis.label, "正官格候选");
+  assert.equal(rescueCandidate.hypothesis.state, BAZI_ADJUDICATION_STATES.damaged);
+  assert.deepEqual(rescueCandidate.state_history, [
     BAZI_ADJUDICATION_STATES.established,
     BAZI_ADJUDICATION_STATES.damaged,
-    BAZI_ADJUDICATION_STATES.rescued,
   ]);
-  assert.ok(rescued.damage.length > 0);
-  assert.ok(rescued.rescue.length > 0);
-  assert.deepEqual(rescued.formation.matched_routes.map((item) => item.id), ["F-OFFICER-PRINT"]);
-  assert.deepEqual(rescued.route_adjudication.active_damage_routes.map((item) => item.id), ["D-OFFICER-HURT"]);
-  assert.deepEqual(rescued.route_adjudication.active_rescue_routes.map((item) => item.id), ["R-OFFICER-HURT-PRINT"]);
+  assert.ok(rescueCandidate.damage.length > 0);
+  assert.ok(rescueCandidate.rescue.length > 0);
+  assert.deepEqual(rescueCandidate.formation.matched_routes.map((item) => item.id), ["F-OFFICER-PRINT"]);
+  assert.deepEqual(rescueCandidate.route_adjudication.active_damage_routes.map((item) => item.id), ["D-OFFICER-HURT"]);
+  assert.deepEqual(rescueCandidate.route_adjudication.active_rescue_routes.map((item) => item.id), ["R-OFFICER-HURT-PRINT"]);
+  assert.ok(rescueCandidate.route_adjudication.active_rescue_routes.every((item) => (
+    item.closure === "presence_closed_effect_unresolved"
+  )));
 
-  const broken = adjudicateBazi(bazi({
+  const breakCandidate = adjudicateBazi(bazi({
     date: "1992-05-15", time: "12:00", timezone: "Asia/Shanghai",
   })).lenses.pattern;
-  assert.equal(broken.hypothesis.state, BAZI_ADJUDICATION_STATES.broken);
-  assert.deepEqual(broken.state_history, [
+  assert.equal(breakCandidate.hypothesis.state, BAZI_ADJUDICATION_STATES.damaged);
+  assert.deepEqual(breakCandidate.state_history, [
     BAZI_ADJUDICATION_STATES.established,
     BAZI_ADJUDICATION_STATES.damaged,
-    BAZI_ADJUDICATION_STATES.broken,
   ]);
-  assert.ok(broken.damage.length > 0);
-  assert.equal(broken.rescue.length, 0);
-  assert.deepEqual(broken.formation.matched_routes.map((item) => item.id), ["F-OFFICER-WEALTH"]);
-  assert.match(broken.route_adjudication.coverage, /复合路线|不补算/u);
+  assert.ok(breakCandidate.damage.length > 0);
+  assert.equal(breakCandidate.rescue.length, 0);
+  assert.deepEqual(breakCandidate.formation.matched_routes.map((item) => item.id), ["F-OFFICER-WEALTH"]);
+  assert.ok(breakCandidate.route_adjudication.active_damage_routes.every((item) => item.closure !== "effect_closed"));
+  assert.match(breakCandidate.route_adjudication.coverage, /制化效力|不得升级/u);
 });
 
 test("climate and passage are recomputed from replay facts and ignore caller claims", () => {

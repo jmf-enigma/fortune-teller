@@ -5,6 +5,7 @@ import { runInNewContext } from "node:vm";
 import { makeEnvelope } from "../core/result.mjs";
 import { FortuneTellerError } from "../core/errors.mjs";
 import { resolveProfile } from "../core/profiles.mjs";
+import { buildZiweiPatternEvidence, compactZiweiPatternEvidence } from "../core/ziwei-pattern-evidence.mjs";
 import {
   civilDayBounds,
   hourToZiweiIndex,
@@ -506,10 +507,38 @@ function palaceStructure(palaces) {
       }
     }
   }
+  const palaceByFactId = new Map(palaces.map((palace) => [palace.fact_id, palace]));
+  const emptyPalaceContexts = palaceRelations.flatMap((relation, index) => {
+    const target = palaceByFactId.get(relation.focus_palace_id);
+    if (!target || target.major_stars.length > 0) return [];
+    const opposite = palaceByFactId.get(relation.opposite_palace_id);
+    if (!opposite) throw new Error("Zi Wei empty-palace context could not resolve its exact opposite palace");
+    return [{
+      fact_id: `F-ZW-E${String(index + 1).padStart(2, "0")}`,
+      kind: "derived_calculation_fact",
+      target_palace_id: target.fact_id,
+      target_palace: target.name,
+      relation_fact_id: relation.fact_id,
+      source_palace_id: opposite.fact_id,
+      source_palace: opposite.name,
+      status: opposite.major_stars.length > 0 ? "context_available" : "context_unavailable",
+      major_stars: opposite.major_stars.map((star) => ({
+        name: star.name,
+        source_palace_id: opposite.fact_id,
+        source_palace: opposite.name,
+        borrowed_for: "context_only",
+      })),
+      borrowed_attributes: ["name"],
+      forbidden_transfer: ["brightness", "mutagen", "minor_stars", "adjective_stars"],
+      derivation: "target palace has no natal major star; use only exact opposite-palace major-star names as revocable context",
+      interpretation_limit: "context only; these stars do not sit in the target palace and carry no borrowed brightness or transformation",
+    }];
+  });
   return {
     basis: "structural index only; no single-star or predictive interpretation is implied",
     palace_relations: palaceRelations,
     mutagen_locations: mutagenLocations,
+    empty_palace_contexts: emptyPalaceContexts,
   };
 }
 
@@ -539,6 +568,9 @@ function makeTopicUnits(palaces, structure) {
       throw new Error(`Zi Wei topic ${spec.topic} did not resolve to one complete four-directions component set`);
     }
     const componentIds = new Set(relation.four_directions_palace_ids);
+    const primaryMajorStarContext = structure.empty_palace_contexts.find(
+      (item) => item.target_palace_id === primaryPalace.fact_id,
+    );
     const secondaryContext = spec.secondary_context_palace_names.map((palaceName) => {
       const palace = exactlyOne(
         palaces,
@@ -559,6 +591,9 @@ function makeTopicUnits(palaces, structure) {
       primary_palace_id: primaryPalace.fact_id,
       relation_fact_id: relation.fact_id,
       component_palace_ids: [...relation.four_directions_palace_ids],
+      ...(primaryMajorStarContext ? {
+        primary_major_star_context_fact_id: primaryMajorStarContext.fact_id,
+      } : {}),
       natal_mutagen_fact_ids: structure.mutagen_locations
         .filter((item) => componentIds.has(item.palace_id))
         .map((item) => item.fact_id),
@@ -658,7 +693,7 @@ function makePhaseTopicUnits(topicUnits, periods) {
   });
 }
 
-function makeChart(date, timeIndex, gender, profile, targetDate = null) {
+function makeChart(date, timeIndex, gender, profile, targetDate = null, includePatternEvidence = true) {
   const functionalChart = astro.withOptions({
     type: "solar",
     dateStr: date,
@@ -673,25 +708,32 @@ function makeChart(date, timeIndex, gender, profile, targetDate = null) {
   const structure = palaceStructure(palaces);
   const topicUnits = makeTopicUnits(palaces, structure);
   const periods = targetDate ? calculatePeriodFacts(functionalChart, targetDate, palaces, profile) : null;
+  const summary = {
+    gender: result.gender,
+    solar_date: result.solarDate,
+    lunar_date: result.lunarDate,
+    chinese_date: result.chineseDate,
+    time: result.time,
+    time_range: result.timeRange,
+    zodiac: result.zodiac,
+    western_sign: result.sign,
+    soul_star: result.soul,
+    body_star: result.body,
+    five_elements_class: result.fiveElementsClass,
+    soul_palace_branch: result.earthlyBranchOfSoulPalace,
+    body_palace_branch: result.earthlyBranchOfBodyPalace,
+  };
+  const patternEvidence = includePatternEvidence ? compactZiweiPatternEvidence(buildZiweiPatternEvidence({
+    palaces,
+    structure,
+    birth_year_heavenly_stem: summary.chinese_date?.trim()?.slice(0, 1),
+  })) : null;
   return {
-    summary: {
-      gender: result.gender,
-      solar_date: result.solarDate,
-      lunar_date: result.lunarDate,
-      chinese_date: result.chineseDate,
-      time: result.time,
-      time_range: result.timeRange,
-      zodiac: result.zodiac,
-      western_sign: result.sign,
-      soul_star: result.soul,
-      body_star: result.body,
-      five_elements_class: result.fiveElementsClass,
-      soul_palace_branch: result.earthlyBranchOfSoulPalace,
-      body_palace_branch: result.earthlyBranchOfBodyPalace,
-    },
+    summary,
     palaces,
     structure,
     topic_units: topicUnits,
+    ...(patternEvidence ? { pattern_evidence: patternEvidence } : {}),
     ...(periods ? {
       periods,
       phase_topic_units: makePhaseTopicUnits(topicUnits, periods),
@@ -754,7 +796,7 @@ function scanUnknownTimeRegimes(birth, profile) {
 }
 
 function serializeRegime(regime, regimeIndex, gender, profile) {
-  const chart = makeChart(regime.start.calculationDate, regime.start.timeIndex, gender, profile);
+  const chart = makeChart(regime.start.calculationDate, regime.start.timeIndex, gender, profile, null, false);
   return {
     regime_index: regimeIndex,
     civil_probe_range: {
@@ -855,6 +897,7 @@ export function calculateZiwei(rawInput, profileOverride = {}) {
         palaces: chart.palaces,
         structure: chart.structure,
         topic_units: chart.topic_units,
+        pattern_evidence: chart.pattern_evidence,
         ...(chart.periods ? { periods: chart.periods } : {}),
         ...(chart.phase_topic_units ? { phase_topic_units: chart.phase_topic_units } : {}),
       },

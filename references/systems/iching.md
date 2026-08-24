@@ -1,4 +1,4 @@
-# I Ching Three-Coin Casting (`iching`) — 0.5.0
+# I Ching Three-Coin Casting (`iching`) — 0.6.0
 
 This route records six bottom-up line values, identifies the primary and transformed hexagrams, and applies one transparent project-authored structural selection protocol. It does not bundle the Judgment, Image, Ten Wings, 384 line texts, or a validated forecasting method.
 

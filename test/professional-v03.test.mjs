@@ -10,6 +10,7 @@ import {
 import {
   calculateFactsHash,
   calculateReproducibilityHash,
+  ENGINE_VERSION,
   verifyCalculationEnvelope,
 } from "../src/core/result.mjs";
 import {
@@ -513,18 +514,27 @@ function makeEmptyPrimaryPalaceDraft() {
   const primaryPalace = calculation.facts.palaces.find((palace) => palace.fact_id === unit.primary_palace_id);
   assert.ok(primaryPalace);
   assert.deepEqual(primaryPalace.major_stars, []);
-  const supportingPalace = calculation.facts.palaces.find(
-    (palace) => unit.component_palace_ids.includes(palace.fact_id) && palace.major_stars.length > 0,
+  const context = calculation.facts.structure.empty_palace_contexts.find(
+    (item) => item.fact_id === unit.primary_major_star_context_fact_id,
   );
-  assert.ok(supportingPalace);
-  const factIds = [unit.fact_id, unit.relation_fact_id, ...unit.component_palace_ids];
-  const statement = "人生整体取向只先核对完整主题结构，不补写主宫不存在的主星含义。";
-  return {
+  assert.ok(context);
+  assert.equal(context.target_palace_id, primaryPalace.fact_id);
+  assert.equal(context.source_palace_id, unit.component_palace_ids[3]);
+  assert.ok(context.major_stars.length > 0);
+  const factIds = [...new Set([
+    unit.fact_id,
+    unit.relation_fact_id,
+    ...unit.component_palace_ids,
+    context.fact_id,
+  ])];
+  assert.equal(factIds.length, 7);
+  const statement = "命宫本身没有主星；只把精确对宫的主星名称作为辅助语境，不视为命宫坐守，也不借亮度或四化。";
+  return bindReadingToCalculations({
     calculation,
     reading: {
       system: "ziwei",
       level: "deep",
-      title: "空主宫降级边界测试",
+      title: "空主宫精确对宫语境测试",
       user_focus: "人生整体取向",
       disclaimer: "传统术数只作反思参考，不是经过验证的预测。",
       summary: statement,
@@ -540,15 +550,17 @@ function makeEmptyPrimaryPalaceDraft() {
         rule_ids: ["R-ZW-007"],
         topic_unit_id: unit.fact_id,
         semantic_bindings: [{
-          kind: "star_in_palace",
-          fact_id: supportingPalace.fact_id,
-          star: supportingPalace.major_stars[0].name,
-          palace: supportingPalace.name,
-          star_group: "major",
+          kind: "opposite_major_star_context",
+          fact_id: context.fact_id,
+          star: context.major_stars[0].name,
+          target_palace: context.target_palace,
+          source_palace_fact_id: context.source_palace_id,
+          source_palace: context.source_palace,
+          borrowed_for: "context_only",
         }],
         evidence_bindings: requestedEvidence(factIds),
-        reasoning_summary: "主宫没有登记主星时，封闭含义层必须停止，不从关联宫位借星补结论。",
-        alternative_readings: ["只保留可核验的主题结构事实。"],
+        reasoning_summary: "主宫无主星时，只使用已登记的精确对宫名称语境；坐守、亮度与四化均不得转移。",
+        alternative_readings: ["若对宫语境事实无法精确重放，则只保留空宫这一排盘事实。"],
         calculation_certainty: "high",
         input_sensitivity: { label: "stable", coverage: null },
         school_stability: "profile_specific",
@@ -557,12 +569,12 @@ function makeEmptyPrimaryPalaceDraft() {
         interpretation_profile_id: profile.id,
         rule_pack_hash: profile.rule_pack_hash,
         assessment: currentAssessment("overview", "empty-primary"),
-        practical_reflection: "只查看排盘事实，不生成主星轴向解释。",
+        practical_reflection: "把对宫线索只当作补充提问，不把它写成命宫坐守或现实事件。",
       }],
-      uncertainty_summary: "空主宫不授权借用其他宫位主星生成深层含义。",
+      uncertainty_summary: "空主宫只授权精确对宫名称作辅助语境，不授权借亮度、四化或生成现实事件。",
       next_steps: deepNextSteps(),
     },
-  };
+  });
 }
 
 function makeNatalCareerTransformationReading(calculation = calculate("ziwei", ZIWEI_MULTI_MUTAGEN_BIRTH)) {
@@ -1013,7 +1025,7 @@ test("calculation envelopes reject a self-rehashed unknown engine version", () =
   calculation.engine_version = "999.0.0";
   calculation.facts_hash = calculateFactsHash(calculation);
   calculation.reproducibility_hash = calculateReproducibilityHash(calculation);
-  assert.deepEqual(verifyCalculationEnvelope(calculation), ["engine_version must be 0.5.0"]);
+  assert.deepEqual(verifyCalculationEnvelope(calculation), [`engine_version must be ${ENGINE_VERSION}`]);
   assert.throws(
     () => bindReadingToCalculations({ ...makeIChingReading(), calculation }),
     (error) => error.code === "INVALID_CALCULATION_ENVELOPE" && /engine_version/u.test(error.message),
@@ -1803,12 +1815,65 @@ test("public Zi Wei meaning helpers reject a self-rehashed calculation that cann
   }
 });
 
-test("an empty registered topic primary palace fails closed instead of borrowing stars", () => {
-  assert.throws(
-    () => bindReadingToCalculations(makeEmptyPrimaryPalaceDraft()),
-    (error) => error.code === "MEANING_LAYER_UNAVAILABLE"
-      && /NO_REGISTERED_MAJOR_STAR/u.test(error.message),
+test("an empty registered topic primary palace binds only exact opposite context without borrowed attributes", () => {
+  const payload = makeEmptyPrimaryPalaceDraft();
+  assertValid(payload);
+  const claim = payload.reading.claims[0];
+  const unit = payload.calculation.facts.topic_units.find((item) => item.fact_id === claim.topic_unit_id);
+  assert.ok(unit);
+  const context = payload.calculation.facts.structure.empty_palace_contexts.find(
+    (item) => item.fact_id === unit.primary_major_star_context_fact_id,
   );
+  assert.ok(context);
+  const focus = claim.meaning_binding.palace_axis_groups[0];
+  assert.deepEqual(focus.major_star_axes, []);
+  assert.deepEqual(
+    focus.context_only_major_star_axes.map((axis) => axis.star),
+    context.major_stars.map((star) => star.name),
+  );
+  assert.ok(focus.context_only_major_star_axes.every((axis) => (
+    axis.fact_id === context.fact_id
+      && axis.target_palace === context.target_palace
+      && axis.source_palace_fact_id === context.source_palace_id
+      && axis.source_palace === context.source_palace
+      && axis.borrowed_for === "context_only"
+      && !Object.hasOwn(axis, "brightness")
+      && !Object.hasOwn(axis, "mutagen")
+  )));
+  assert.ok(claim.meaning_binding.palace_axis_groups.slice(1).every(
+    (group) => group.context_only_major_star_axes.length === 0,
+  ));
+  assert.ok(claim.fact_ids.includes(context.fact_id));
+  const semanticContext = claim.semantic_bindings.filter(
+    (binding) => binding.kind === "opposite_major_star_context",
+  );
+  assert.deepEqual(
+    semanticContext.map((binding) => binding.star),
+    context.major_stars.map((star) => star.name),
+  );
+  assert.ok(semanticContext.every((binding) => (
+    binding.fact_id === context.fact_id
+      && binding.target_palace === context.target_palace
+      && binding.source_palace_fact_id === context.source_palace_id
+      && binding.source_palace === context.source_palace
+      && binding.borrowed_for === "context_only"
+      && !Object.hasOwn(binding, "brightness")
+      && !Object.hasOwn(binding, "transformation")
+  )));
+  assert.match(claim.statement, /主宫本身无主星.*辅助语境.*不视为本宫坐守.*不借亮度或四化/u);
+
+  const nonFocusContext = structuredClone(payload);
+  nonFocusContext.reading.claims[0].meaning_binding.palace_axis_groups[1]
+    .context_only_major_star_axes.push(structuredClone(focus.context_only_major_star_axes[0]));
+  assertInvalid(
+    nonFocusContext,
+    /context_only_major_star_axes|must NOT have more than 0 items|must exactly equal the binding mechanically derived/u,
+  );
+
+  const forgedBrightness = structuredClone(payload);
+  forgedBrightness.reading.claims[0].semantic_bindings
+    .find((binding) => binding.kind === "opposite_major_star_context").brightness = "旺";
+  assertInvalid(forgedBrightness, /additional properties|brightness|contains unknown fields/u);
 });
 
 test("a non-Ziwei interpretation cannot opt into prospective hypothesis mode", () => {

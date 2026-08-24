@@ -1,4 +1,4 @@
-# Western Natal Astrology (`western`) — 0.5.0
+# Western Natal Astrology (`western`) — 0.6.0
 
 This is a geocentric tropical natal-chart route with whole-sign houses. The result-first adjudicator uses a bounded classical structure; it does not establish personality or event prediction.
 

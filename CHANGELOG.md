@@ -2,6 +2,32 @@
 
 All notable project changes are documented here.
 
+## 0.6.0 - 2026-08-24
+
+Professional-depth release focused on readable BaZi life topics and bounded Zi Wei named-pattern evidence. It reuses only pinned, license-compatible upstream work and keeps traditional mechanics separate from real-world predictive claims.
+
+### Added
+
+- Three replay-verified BaZi topic routes for career/study, wealth/resources, and long-term relationships. Visible stems and hidden-stem candidates remain separate; two axes appearing together are reported only as co-presence, not a causal or closed chain.
+- BaZi topic phase context that can emphasize only a natal axis already present. A mixed period separates natal-axis emphasis from phase-only Ten Gods; relationship phases prioritize replayed decadal/yearly relations to the day branch.
+- A fixed MIT-licensed adaptation of Mingyu's Zi Wei detector with 55 reproducible traditional pattern conditions and 32 explicit refusal boundaries. It is supplemental evidence only, with neutral ordinary labels and traditional names retained as advanced provenance.
+- Empty-focus-palace Zi Wei support limited to exact replayed opposite-palace major-star names as `context_only`; brightness, transformations, auxiliary/pressure stars, and sitting-star language are prohibited.
+- Fifteen UTC+08 BaZi golden/differential fixtures spanning ordinary charts, hour sweep, LiChun/Jingzhe, late Zi, midnight, and Zi-start profiles, with four convention differences from the pinned `chinese-fortune` reference documented explicitly.
+
+### Changed
+
+- Month-command adjudication retains every library-order hidden-stem candidate and no longer presents main qi as the exact day-specific human commander.
+- Strength evidence exposes season, root, and visible-stem axes without weakening the strict establishment gate. Presence-only damage/rescue cannot become breakage or effective rescue.
+- The guided result page shows the selected BaZi topic's phase context before generic period details and discloses the traditional binary parameter's optional relationship-lens use.
+- Unknown-time BaZi routing now matches the professional adjudicator and requests an exact birth time instead of promising a result the current route cannot deliver.
+- The source registry contains 16 records and the rule registry 38 applicability-constrained rules.
+
+### Evidence boundary
+
+- The 55 Zi Wei conditions are not a complete all-school corpus and do not vote on the five-topic conclusion, assign scores, or predict events.
+- The BaZi topic mappings are project-authored bounded organization of traditional facts, not classical quotations or a sourced life-event map.
+- Independent forward red-team checks found no remaining P0/P1 in the new BaZi topic layer or Zi Wei pattern/empty-palace contracts. This remains automated engineering review, not practitioner certification or proof of predictive validity.
+
 ## 0.5.0 - 2026-08-24
 
 Result-first professional-depth release across all six implemented systems. It strengthens closed reasoning and ordinary-language interaction without adding unsupported methods or claiming predictive validity.

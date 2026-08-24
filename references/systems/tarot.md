@@ -1,4 +1,4 @@
-# Tarot (`tarot`) — 0.5.0
+# Tarot (`tarot`) — 0.6.0
 
 The Tarot route freezes one focused question, one registered spread and one 78-card Rider–Waite–Smith naming-profile draw. The model explains that frozen draw; it never selects cards, redraws until favourable, or treats a pattern count as a vote.
 

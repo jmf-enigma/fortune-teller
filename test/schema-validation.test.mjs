@@ -156,6 +156,63 @@ function bindClosedZiwei(scope) {
   });
 }
 
+function bindClosedEmptyZiwei() {
+  const calculation = calculate("ziwei", {
+    date: "2001-01-01",
+    time: "00:00",
+    timezone: "Asia/Shanghai",
+    chart_sex: "female",
+  });
+  const profile = interpretationProfile();
+  const topic = "overview";
+  const unit = calculation.facts.topic_units.find((item) => item.topic === topic);
+  assert.ok(unit?.primary_major_star_context_fact_id);
+  const context = calculation.facts.structure.empty_palace_contexts.find(
+    (item) => item.fact_id === unit.primary_major_star_context_fact_id,
+  );
+  assert.ok(context?.major_stars?.length > 0);
+  const factIds = [...new Set([
+    unit.fact_id,
+    unit.relation_fact_id,
+    ...unit.component_palace_ids,
+    context.fact_id,
+  ])];
+  const statement = "准备生成空主宫的机器绑定结果。";
+  return bindReadingToCalculations({
+    calculation,
+    reading: {
+      system: "ziwei",
+      level: "standard",
+      title: "紫微空宫主题核对",
+      user_focus: "整体主题",
+      disclaimer: "紫微斗数属于传统解释体系，不是经过验证的事件预测。",
+      summary: statement,
+      uncertainty_summary: "对宫主星只作辅助语境。",
+      claims: [{
+        claim_id: "C-schema-r-zw-007-empty",
+        statement,
+        topic,
+        epistemic_status: "interpretation",
+        system: "ziwei",
+        profile: calculation.profile.id,
+        scope: "topic_synthesis",
+        fact_ids: factIds,
+        rule_ids: ["R-ZW-007"],
+        topic_unit_id: unit.fact_id,
+        calculation_certainty: "high",
+        input_sensitivity: { label: "stable", coverage: null },
+        school_stability: "profile_specific",
+        source_status: "verified",
+        source_ids: ["SRC-ZW-IZTRO-2.6.0", "SRC-ZW-IZTRO-PALACE-GUIDE"],
+        interpretation_profile_id: profile.id,
+        rule_pack_hash: profile.rule_pack_hash,
+        assessment: placeholderAssessment(topic),
+      }],
+      next_steps: [],
+    },
+  });
+}
+
 test("every published JSON Schema compiles under draft 2020-12", () => {
   const schemas = loadSchemas();
   const ajv = schemaValidator(schemas);
@@ -199,4 +256,30 @@ test("the published schema rejects an incomplete phase meaning binding", () => {
   delete payload.reading.claims[0].meaning_binding.phase.boundary_conventions;
   payload.reading.claims[0].meaning_binding.transformation_lenses = [];
   assert.equal(validateReadingSchema(payload.reading), false);
+});
+
+test("the published schema permits only focus-level exact opposite context for an empty Zi Wei palace", () => {
+  const schemas = loadSchemas();
+  const ajv = schemaValidator(schemas);
+  const validateReadingSchema = ajv.getSchema("urn:fortune-teller:schema:reading:3");
+  const payload = bindClosedEmptyZiwei();
+  const binding = payload.reading.claims[0].meaning_binding;
+  const focus = binding.palace_axis_groups[0];
+  assert.deepEqual(focus.major_star_axes, []);
+  assert.ok(focus.context_only_major_star_axes.length > 0);
+  assert.equal(validateReadingSchema(payload.reading), true, ajv.errorsText(validateReadingSchema.errors));
+
+  const missingBoth = structuredClone(payload.reading);
+  missingBoth.claims[0].meaning_binding.palace_axis_groups[0].context_only_major_star_axes = [];
+  assert.equal(validateReadingSchema(missingBoth), false, "focus must have direct axes or context axes");
+
+  const nonFocus = structuredClone(payload.reading);
+  nonFocus.claims[0].meaning_binding.palace_axis_groups[1]
+    .context_only_major_star_axes.push(structuredClone(focus.context_only_major_star_axes[0]));
+  assert.equal(validateReadingSchema(nonFocus), false, "non-focus groups must not carry opposite context");
+
+  const borrowedBrightness = structuredClone(payload.reading);
+  borrowedBrightness.claims[0].meaning_binding.palace_axis_groups[0]
+    .context_only_major_star_axes[0].brightness = "旺";
+  assert.equal(validateReadingSchema(borrowedBrightness), false, "context axes must reject borrowed brightness");
 });

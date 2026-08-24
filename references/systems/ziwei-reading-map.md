@@ -80,7 +80,7 @@ For `R-ZW-007` and `R-ZW-009`, binding schema `fortune-teller/ziwei-meaning-bind
 3. `trine_plus_8` with `relation_offset: 8`;
 4. `opposite_plus_6` with `relation_offset: 6`.
 
-Each group has exactly `{relation_role, relation_offset, palace: {fact_id, name}, major_star_axes: [...]}` and binds every registered major-star axis in that palace; major-star semantic bindings retain `brightness`. Same-palace combinations and natal context conditions are derived from the complete four-palace facts. Do not omit, duplicate, move, borrow, or suppress registered content. An empty focus group or malformed registered star closes the route. This remains bounded coverage, not a complete Zi Wei judgment.
+Each group explicitly carries both `major_star_axes` and `context_only_major_star_axes`. Non-focus groups must keep the context-only array empty. The focus group is an exclusive choice: either it binds every sitting major-star axis with emitted `brightness`, or—only when the focus palace is empty—it binds exact opposite-palace major-star names as context only. Opposite context has no brightness or transformation and cannot be described as sitting in the focus palace. Same-palace combinations and natal context conditions are derived from the complete four-palace facts. Do not omit, duplicate, move, or suppress registered content. Missing or malformed context closes the route. This remains bounded coverage, not a complete Zi Wei judgment.
 
 Semantic binding is mandatory. If a sentence names star X in palace Y, the cited palace fact must actually contain star X and be palace Y. A star found elsewhere in the chart cannot support that sentence merely because its symbolism is convenient.
 

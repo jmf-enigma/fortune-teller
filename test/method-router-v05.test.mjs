@@ -34,7 +34,7 @@ test("birth overview presents three parallel lenses without an accuracy winner",
   assert.doesNotMatch(route.options.map((item) => item.reason).join("\n"), /最准|更准|准确率|胜出|winner/iu);
 });
 
-test("unknown birth time keeps all birth methods usable but narrows their scope", () => {
+test("unknown birth time blocks the BaZi professional result while other birth methods retain their declared limits", () => {
   const route = recommendMethods({
     goal: "life_overview",
     available_data: {
@@ -46,12 +46,15 @@ test("unknown birth time keeps all birth methods usable but narrows their scope"
     },
   });
 
-  for (const system of ["bazi", "ziwei", "western"]) {
+  for (const system of ["ziwei", "western"]) {
     const option = bySystem(route, system);
     assert.equal(option.readiness, "ready_with_limits");
     assert.equal(missingField(option, "birth_time")?.impact, "limits_scope");
     assert.ok(!option.missing_data.some((item) => item.field === "birth_time" && item.impact === "blocks_method"));
   }
+  const bazi = bySystem(route, "bazi");
+  assert.equal(bazi.readiness, "needs_data");
+  assert.equal(missingField(bazi, "birth_time")?.impact, "blocks_method");
   assert.equal(missingField(bySystem(route, "western"), "coordinates")?.impact, "limits_scope");
   assert.equal(missingField(bySystem(route, "bazi"), "coordinates"), undefined);
   assert.equal(missingField(bySystem(route, "ziwei"), "coordinates"), undefined);
@@ -76,6 +79,39 @@ test("missing coordinates block a requested Western house domain but not the gen
   assert.equal(missingField(western, "coordinates")?.impact, "blocks_requested_scope");
   assert.match(missingField(western, "coordinates").why, /主题宫/u);
   assert.match(western.limits.join("\n"), /上升点、中天和宫位/u);
+  const bazi = bySystem(route, "bazi");
+  assert.equal(bazi.readiness, "ready");
+  assert.equal(bazi.fit, "direct");
+  assert.match(bazi.reason, /透干与藏干分开/u);
+});
+
+test("BaZi exposes only its three closed topic routes and requires a unique chart for them", () => {
+  for (const domain of ["career_study", "wealth_resources", "relationships"]) {
+    const complete = recommendMethods({
+      goal: "life_domain",
+      domain,
+      available_data: { birth_date: true, birth_time: true, timezone: true },
+    });
+    const bazi = bySystem(complete, "bazi");
+    assert.equal(bazi.readiness, "ready");
+    assert.equal(bazi.supported, true);
+    assert.equal(bazi.fit, "direct");
+
+    const unknownTime = recommendMethods({
+      goal: "life_domain",
+      domain,
+      available_data: { birth_date: true, birth_time: false, timezone: true },
+    });
+    assert.equal(missingField(bySystem(unknownTime, "bazi"), "birth_time")?.impact, "blocks_requested_scope");
+    assert.equal(bySystem(unknownTime, "bazi").readiness, "needs_data");
+  }
+
+  const wellbeing = recommendMethods({
+    goal: "life_domain",
+    domain: "wellbeing_rhythm",
+    available_data: { birth_date: true, birth_time: true, timezone: true },
+  });
+  assert.equal(bySystem(wellbeing, "bazi").readiness, "unavailable");
 });
 
 test("life-domain routing requires an exact domain and exposes unsupported method scopes", () => {
@@ -99,7 +135,7 @@ test("life-domain routing requires an exact domain and exposes unsupported metho
   assert.equal(bySystem(route, "ziwei").readiness, "unavailable");
   assert.equal(bySystem(route, "bazi").readiness, "unavailable");
   assert.match(bySystem(route, "ziwei").reason, /多宫|田宅/u);
-  assert.match(bySystem(route, "bazi").reason, /不把十神直接泛化/u);
+  assert.match(bySystem(route, "bazi").reason, /没有闭合这个领域/u);
 });
 
 test("birth calculations report blocking data separately from optional depth data", () => {
@@ -113,7 +149,7 @@ test("birth calculations report blocking data separately from optional depth dat
 
   assert.equal(missingField(bazi, "birth_date")?.impact, "blocks_method");
   assert.equal(missingField(bazi, "timezone")?.impact, "blocks_method");
-  assert.equal(missingField(bazi, "birth_time")?.impact, "limits_scope");
+  assert.equal(missingField(bazi, "birth_time")?.impact, "blocks_method");
   assert.equal(missingField(bazi, "chart_sex")?.impact, "limits_scope");
   assert.equal(missingField(ziwei, "chart_sex")?.impact, "blocks_method");
   assert.equal(bazi.readiness, "needs_data");

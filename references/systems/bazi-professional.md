@@ -1,4 +1,4 @@
-# 八字专业裁决 v0.5
+# 八字专业裁决 v0.6
 
 本文件描述 `src/core/bazi-adjudicator.mjs`。它只解释当前引擎能重放的排盘事实和已登记路线，不把传统方法包装成科学预测，也不从用户经历倒推时辰、旺衰、格局或用神。
 
@@ -29,11 +29,17 @@ const calculation = calculate("bazi", {
 
 const result = adjudicateBazi(calculation);
 // 或 adjudicate(calculation)
+
+const career = adjudicate(calculation, { topic: "career_study" });
+const wealth = adjudicate(calculation, { topic: "wealth_resources" });
+const relationships = adjudicate(calculation, { topic: "relationships" });
 ```
 
 CLI 可用通用 `adjudicate`；`adjudicate-bazi` 保留为兼容入口。两者都只读取一份已计算的 envelope。
 
 这里的机械裁决报告与通用 reading artifact 是两个合同。普通结果可以直接展示 `adjudicateBazi` 的输出；如果另行构造证据绑定 reading，仍须服从 `rule-registry` 和 `reading-validator` 的认识上限，不能把裁决器之外的自由改写称为已机器证明。
+
+三条专题路线只组织已计算事实：事业学习看职责、学习支持、成果输出；财富资源看资源、产出转化、共同资源边界；长期关系以日支及其合冲刑害等关系为主。透干与藏干分开；两个轴同时出现只叫“同见”，不叫闭合链。岁运只可强调原局已有轴，新增十神单列。关系阶段先读岁运与日支的精确关系，男财／女官杀只在用户显式选择传统二元参数后作为流派性补充，不能描述伴侣或预测结果。
 
 ## 固定分析次序
 

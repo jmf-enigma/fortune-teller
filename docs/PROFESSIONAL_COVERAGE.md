@@ -1,13 +1,13 @@
-# Professional Depth and Coverage — 0.5.0
+# Professional Depth and Coverage — 0.6.0
 
-Fortune Teller 0.5.0 gives all six shipped systems a replay-checked, result-first adjudication path. “More accurate” here means fewer correctable calculation, rule-selection, evidence-selection, and narrative-promotion errors inside a declared profile. It does **not** mean that divination has established real-world predictive validity. The release has automated fixture review, not independent practitioner certification.
+Fortune Teller 0.6.0 gives all six shipped systems a replay-checked, result-first adjudication path. “More accurate” here means fewer correctable calculation, rule-selection, evidence-selection, and narrative-promotion errors inside a declared profile. It does **not** mean that divination has established real-world predictive validity. The release has automated fixture and independent adversarial engineering review, not practitioner certification.
 
 ## Coverage matrix
 
 | System | Closed calculation and adjudication chain | What the user receives first | Important unavailable depth |
 |---|---|---|---|
-| BaZi | Four Pillars → season and month-command evidence → located roots and visible forces → competing strength hypotheses → registered formation/damage/paired-rescue routes → separate 格局、扶抑、调候、通关、病药 lenses → full registered-route re-adjudication at natal, decadal, and yearly layers | current route state, plain-language reason, the conditions that would change it, then technical evidence | human-command day weights, exact force weights, full position/transformation state machine, full climate exception corpus, special/following/transformation patterns, concrete event mapping |
-| Zi Wei Dou Shu | known-time chart → selected topic palace → complete 三方四正 → registered same-palace, brightness, auxiliary/malefic and transformation conditions → natal baseline → decadal environment → yearly trigger when complete | one readable topic conclusion, plain meaning and stage explanation; unknown time or unsupported topic returns an explicit refusal | complete named-pattern corpus, broad school-specific Flying/钦天/河洛 routes, 流月/日/时, rectification, concrete event timing |
+| BaZi | Four Pillars → all month-command candidates → season/root/visible-stem strength axes → registered formation/damage/paired-rescue routes → separate 格局、扶抑、调候、通关、病药 lenses → selected career/wealth/relationship topic → replayed decadal/yearly context | selected-topic conclusion first; co-presence stays a clue, phase-only gods stay phase-only, and relationship periods lead with relations to the day branch | exact human-command day weights, full force/position/transformation state machine, complete climate exceptions and special patterns, sourced event mapping |
+| Zi Wei Dou Shu | known-time chart → selected topic palace → complete 三方四正 → sitting-star or exact opposite-context axis → registered combinations/context/transformations → natal/decadal/yearly path → 55 mechanical named-pattern checks plus 32 refusal boundaries as supplemental evidence | one readable topic conclusion first; neutral pattern evidence and technical provenance remain secondary; unknown time or unsupported topic refuses | complete all-school pattern corpus, broad Flying/钦天/河洛 routes, 流月/日/时, rectification, concrete event timing |
 | Western natal astrology | tropical positions → applying/separating/exact aspect phase → classical seven-planet domicile/detriment/exaltation/fall → angular/succedent/cadent placement → chart ruler → selected topic house, traditional ruler plus all occupants, luminaries and tight aspects | a topic axis in ordinary language, its constructive and excess expressions, then condition/aspect evidence | alternative zodiacs or houses, modern dignity scoring, nodes/asteroids, transits, progressions, synastry and event timing |
 | Tarot | frozen question and spread → exact card-orientation axis → position role → suit/rank helpers that cannot override the exact card → composition, repetition and adjacency patterns → conditional synthesis and action anchor | direct answer to the question and the most controllable action; a decision spread compares A/B but never declares a winner | specialist spread corpora, arbitrary decks, timing, yes/no certainty, private-mind or event forecasts |
 | I Ching | frozen six-line cast → primary/transformed hexagrams → fixed 0/1/2–5/all-changing selection protocol → centrality, correctness and correspondence checks → bounded process reflection | the main structural change and selected stages in plain language | bundled 卦辞/爻辞/传文, complete 384-line commentary, alternative line-selection schools, 纳甲六爻 and timing |
@@ -15,7 +15,7 @@ Fortune Teller 0.5.0 gives all six shipped systems a replay-checked, result-firs
 
 “Unavailable” is a real refusal boundary. The model may not fill it from memory.
 
-## BaZi: what is actually deeper in 0.5.0
+## BaZi: what is actually deeper in 0.6.0
 
 The engine now emits the evidence needed to keep commonly conflated judgments separate:
 
@@ -28,6 +28,8 @@ The engine now emits the evidence needed to keep commonly conflated judgments se
 
 This closes the former “period relation graph equals activation” shortcut. A yearly Ten God, clash, punishment component or mediator does not by itself become an event. Routes depending on relative weight, exact location, control order, successful transformation, tomb/storehouse, void or a school-specific exception remain candidates or unresolved.
 
+The three topic routes are intentionally narrower than an unrestricted Ten-God life-domain essay. Career/study separates responsibility, learning support, and output; wealth/resources separates resources, output conversion, and shared-resource boundaries; long-term relationships anchors the day branch and groups duplicate branch relations. Two axes appearing together remain `co_presence`, not a closed causal chain. A period can emphasize only a matching natal axis; mixed periods explicitly separate the natal-axis part from phase-only additions. The optional male-wealth/female-official-star relationship lens is disclosed as a school-variable supplement, never a partner description or outcome.
+
 ## The other five result-first chains
 
 ### Zi Wei
@@ -35,6 +37,8 @@ This closes the former “period relation graph equals activation” shortcut. A
 `adjudicateZiweiReading` reuses the existing closed `R-ZW-007/008/009` meaning layer rather than creating a second free-text corpus. It prefers a complete target-date phase route, falls back transparently to a natal topic route, and refuses to choose among unknown-time candidate charts. `family_social` is unavailable because the current closed table does not justify collapsing 田宅、父母、兄弟 and 交友 into another topic palace.
 
 The bounded route still covers five supported topics, complete natal 三方四正, 24 registered same-palace major-star pairs, 14 natal context modifiers, 11 period-star modifiers, and exact natal/decadal/yearly transformations where required. These are conditions, not scores or event guarantees.
+
+Version 0.6.0 additionally adapts 55 reproducible named-pattern predicates and 32 explicit rejection boundaries from Mingyu's fixed MIT-licensed core commit. Every known-time chart receives a complete evaluation ledger, but ordinary output uses neutral structural labels; traditional names are advanced evidence only. Matches do not vote on or rewrite the five-topic conclusion and never generate a score or event. If the selected palace is empty, only exact opposite-palace major-star names may be used as context; brightness, transformations, auxiliary/pressure stars, and “sitting in this palace” language are rejected.
 
 ### Western natal astrology
 
@@ -62,7 +66,7 @@ The preview remains deliberately narrow but is no longer only a hexagram label. 
 
 ## Registry and review status
 
-The 0.5.0 release contract records 15 narrow source records, 36 machine-readable rules, and six interpretation profiles. A source marked `verified` means its identity and declared scope were checked; it does not certify a tradition or prediction. All six profiles retain:
+The 0.6.0 release contract records 16 narrow source records, 38 machine-readable rules, and six interpretation profiles. A source marked `verified` means its identity and declared scope were checked; it does not certify a tradition or prediction. All six profiles retain:
 
 ```text
 review_status: automated_fixture_reviewed
@@ -76,7 +80,7 @@ Three gates must remain separate:
 2. fidelity to the installed traditional rule pack;
 3. real-world predictive validity on preregistered, unseen outcomes.
 
-0.5.0 materially strengthens the first two. The third is not established.
+0.6.0 materially strengthens the first two. The third is not established.
 
 ## Release claim checklist
 

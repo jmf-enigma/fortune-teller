@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-This file covers every production and test-only package resolved by `package-lock.json` for version 0.5.0. Versions are exact. No code, prompts, data tables, translations, or knowledge assets from the competitor repositories in `docs/COMPETITOR_AUDIT.md` are included.
+This file covers every production and test-only package resolved by `package-lock.json` for version 0.6.0, one explicitly identified MIT-licensed source adaptation, and one MIT-licensed test-only differential reference. Apart from the disclosed Mingyu Zi Wei adaptation and the independently checked `chinese-fortune` BaZi fixture candidates, no code, prompts, data tables, translations, or knowledge assets from the competitor repositories in `docs/COMPETITOR_AUDIT.md` are included.
 
 ## Dependency inventory
 
@@ -21,8 +21,10 @@ This file covers every production and test-only package resolved by `package-loc
 | `fast-uri` | 3.1.6 | transitive via Ajv | BSD-3-Clause | Copyright (c) 2011–2021 Gary Court; 2021-present The Fastify team | [fast-uri](https://github.com/fastify/fast-uri) |
 | `json-schema-traverse` | 1.0.0 | transitive via Ajv | MIT | Copyright (c) 2017 Evgeny Poberezkin | [json-schema-traverse](https://github.com/epoberezkin/json-schema-traverse) |
 | `require-from-string` | 2.0.2 | transitive via Ajv | MIT | Copyright (c) Vsevolod Strukchinsky | [require-from-string](https://github.com/floatdrop/require-from-string) |
+| Mingyu `packages/core` Zi Wei pattern detector | commit `bd6963b9b562cbef77c50227b625c0d3e7b36021` | vendored and adapted source | MIT | Copyright (c) 2025 mingyu | [fixed upstream file](https://github.com/Brhiza/mingyu/blob/bd6963b9b562cbef77c50227b625c0d3e7b36021/packages/core/src/ziwei/iztro/pattern-detection.ts) |
+| `ShousenZHANG/chinese-fortune` BaZi tests | commit `4b960823e4e918d9dccc32090e5ad96833e4e427` | test-only differential reference; no runtime dependency or vendored source | MIT | Copyright (c) 2026 chinese-fortune contributors | [fixed upstream tests](https://github.com/ShousenZHANG/chinese-fortune/tree/4b960823e4e918d9dccc32090e5ad96833e4e427/tests) |
 
-The installed npm packages retain their own complete license files. The applicable terms are reproduced or identified below. If this project later vendors dependency source or bundles `node_modules`, the corresponding upstream license files must remain with the distribution.
+The installed npm packages retain their own complete license files. The applicable terms are reproduced or identified below. The adapted Mingyu module retains its fixed repository, commit, source path, copyright and MIT identification in both this notice and its file header; the complete generic MIT permission notice reproduced below applies to that inventory row. The `chinese-fortune` comparison contributed fixture ideas and candidate values only; this project's tests independently verify them against pinned `lunar-typescript` and explicitly preserve the true-solar-time and Zi-boundary convention differences. If this project later vendors other dependency source or bundles `node_modules`, the corresponding upstream license files must remain with the distribution.
 
 ## ISC license — `@js-temporal/polyfill`
 
@@ -52,7 +54,7 @@ When redistributing JSBI source or object form, preserve the package's license a
 
 ## Linked source-registry records
 
-Version 0.5.0 contains 15 machine-readable source **records**. These records store bibliographic or implementation metadata, a URL, a deliberately narrow supported scope, and limitations. They do not vendor the linked pages, copy their prose, or turn them into production dependencies.
+Version 0.6.0 contains 16 machine-readable source **records**. These records store bibliographic or implementation metadata, a URL, a deliberately narrow supported scope, and limitations. Except for the separately disclosed fixed-commit MIT code adaptation, they do not vendor linked pages, copy their prose, or turn them into production dependencies.
 
 | Registry ID | Linked work or implementation | Relationship to this project |
 |---|---|---|
@@ -62,6 +64,7 @@ Version 0.5.0 contains 15 machine-readable source **records**. These records sto
 | `SRC-BZ-DITIAN-SUI-WIKISOURCE` | [《滴天髓》Wikisource transcription](https://zh.wikisource.org/zh-hant/%E6%BB%B4%E5%A4%A9%E9%AB%93) | Historical method provenance for relational strength, body/use, month-command context, and natal/luck/year hierarchy; no passage is bundled |
 | `SRC-BZ-QIONGTONG-WIKISOURCE` | [《穷通宝鉴》Wikisource transcription](https://zh.wikisource.org/zh-hans/%E7%A9%B7%E9%80%9A%E5%AE%9D%E9%89%B4) | Entry-level provenance for the independently transcribed 120-entry source-mention screening index; array position is not priority and no passage is bundled |
 | `SRC-ZW-IZTRO-2.6.0` | [`iztro` v2.6.0](https://github.com/SylarLong/iztro/tree/v2.6.0) | Pinned implementation provenance for chart fields; the installed package is separately covered above |
+| `SRC-ZW-MINGYU-PATTERNS-BD6963B` | [Mingyu fixed Zi Wei pattern detector](https://github.com/Brhiza/mingyu/blob/bd6963b9b562cbef77c50227b625c0d3e7b36021/packages/core/src/ziwei/iztro/pattern-detection.ts) | MIT-licensed source adaptation of 55 reproducible conditions and 32 refusal boundaries; traditional outcome prose and source quotations were removed, while rule mechanics and fixed source locators were retained |
 | `SRC-ZW-ZIWEI-QUANSHU` | [`iztro` historical-text guide for 《紫微斗數全書》](https://docs.iztro.com/learn/ancientBook) | Historical-reference metadata and an explicit caution about exaggerated or inconsistent material; no guide or source-text content is bundled |
 | `SRC-ZW-IZTRO-HOROSCOPE-GUIDE` | [`iztro` Zi Wei horoscope guide](https://docs.iztro.com/learn/horoscope) | Method-order metadata for bounded natal–decadal–yearly phase synthesis; the local reading map is an original paraphrase and no guide prose is bundled |
 | `SRC-ZW-IZTRO-PALACE-GUIDE` | [`iztro` Zi Wei palace guide](https://docs.iztro.com/learn/palace) | Method provenance for keeping one selected palace together with its complete three-directions/four-alignments unit; no guide prose is bundled |
@@ -78,6 +81,7 @@ The registry's `verified` label means only that the project checked the identity
 
 - The Tarot names and compact keywords in this project are independently authored labels and short prompts; no modern guidebook text is bundled.
 - The King Wen line-pattern mapping is an implementation table used for calculation. No copyrighted translation of the hexagram or line texts is bundled.
-- The 36 machine-readable rules and method references contain conservative, independently written workflow constraints; they do not reproduce linked source prose or competitor knowledge bases.
+- The 38 machine-readable rules and method references contain conservative workflow constraints. `R-ZW-010` explicitly routes the disclosed MIT adaptation; the other records do not reproduce competitor knowledge bases.
 - The compact Zi Wei life-area, major-star, transformation, and phase prompts are project-authored bounded summaries. They are not quotations or a copied modern knowledge base.
+- The adapted Zi Wei named-pattern module retains 55 mechanical conditions and 32 refusal boundaries from the fixed Mingyu commit. Traditional outcome interpretations and source quotations are removed; ordinary results use neutral structural labels, and traditional names remain advanced provenance only.
 - Linked historical sources document terminology or traditional provenance only. Pinned engine records document implementation provenance only. Neither establishes the predictive validity of any traditional system.

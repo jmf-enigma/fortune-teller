@@ -90,7 +90,7 @@ export const METHODS = deepFreeze([
         target_date: ["time", "chart_sex"],
       },
       properties: birthProperties({
-        chart_sex: { enum: ["male", "female"], description: "optional binary parameter used only for the traditional luck-cycle direction; not an inferred identity" },
+        chart_sex: { enum: ["male", "female"], description: "optional binary traditional parameter used for luck-cycle direction and, only when the user requests the relationship topic, an explicitly disclosed male-wealth/female-official-star supplementary lens; never inferred as identity and never used to predict relationship outcomes" },
         target_date: targetDate,
       }),
     },

@@ -739,7 +739,7 @@ async function askOptionalCoordinates(rl) {
 
 async function askChartSex(rl, system = "ziwei") {
   stdout.write(system === "bazi"
-    ? "该传统二元参数只用于决定八字大运顺逆，不用于推断或评价身份。\n"
+    ? "该传统二元参数用于八字大运顺逆；若你主动查看长期关系，也只会作为“男命财星／女命官杀”的流派性补充，不用于推断身份或预测婚姻结果。\n"
     : "该参数只用于紫微斗数的传统排盘算法，不用于推断身份。\n");
   return askMenu(rl, "请选择排盘参数：1 男  2 女：", [
     { keys: ["1", "男", "male"], value: "male" },
@@ -1001,7 +1001,7 @@ function birthRows(system, input) {
     }
   }
   if (system === "bazi" && input.chart_sex) {
-    rows.push(["大运顺逆参数", input.chart_sex === "male" ? "男" : "女"]);
+    rows.push(["传统二元参数", `${input.chart_sex === "male" ? "男" : "女"}（大运顺逆；关系专题仅作流派性补充）`]);
     if (input.target_date) rows.push(["想看的日期", input.target_date]);
   }
   if (input.disambiguation === "earlier") rows.push(["重复时刻", "采用夏令时回拨中较早出现的一次"]);
@@ -1393,6 +1393,10 @@ function showResultHome(result, state) {
     stdout.write("\n先说结论：\n");
     stdout.write(`${professional.conclusion}\n`);
     stdout.write(`${professional.plain_language}\n`);
+    if (professional.phase?.topic_activation && professional.phase.topic_activation.status !== "unavailable") {
+      stdout.write("\n当前主题阶段：\n");
+      stdout.write(`- ${professional.phase.topic_activation.plain_zh}\n`);
+    }
     if (professional.phase?.decadal?.status === "available" || professional.phase?.yearly?.status === "available") {
       stdout.write("\n当前阶段：\n");
       if (professional.phase.decadal?.conclusion) stdout.write(`- ${professional.phase.decadal.conclusion}\n`);

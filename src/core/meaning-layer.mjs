@@ -187,13 +187,68 @@ function derivePalaceAxisGroups(unit, facts) {
       relation_offset: spec.relation_offset,
       palace: { fact_id: palace.value.fact_id, name: palace.value.name },
       major_star_axes: stars.records,
+      context_only_major_star_axes: [],
     });
   }
-  if (groups[0].major_star_axes.length === 0) {
+  const focus = groups[0];
+  const contextFactId = unit?.primary_major_star_context_fact_id;
+  if (focus.major_star_axes.length > 0 && contextFactId != null) {
     return unavailable(
-      "NO_REGISTERED_MAJOR_STAR",
-      "所选主题主宫没有任何已登记的十四主星含义；不能借用三方或对宫主星充当主宫。",
+      "UNEXPECTED_EMPTY_PALACE_CONTEXT",
+      "所选主题主宫已有本宫主星，却附带空宫借星事实；两者不能同时成立。",
     );
+  }
+  if (focus.major_star_axes.length === 0) {
+    const context = facts.get(contextFactId);
+    const value = context?.value;
+    const opposite = facts.get(relationValue.opposite_palace_id);
+    const exactNames = Array.isArray(opposite?.value?.major_stars)
+      ? opposite.value.major_stars.map((star) => star?.name) : [];
+    const borrowed = Array.isArray(value?.major_stars) ? value.major_stars : [];
+    const validBorrowed = context
+      && pathMatches(context.path, "/facts/structure/empty_palace_contexts")
+      && value.target_palace_id === relationValue.focus_palace_id
+      && value.source_palace_id === relationValue.opposite_palace_id
+      && value.relation_fact_id === unit.relation_fact_id
+      && value.status === "context_available"
+      && isDeepStrictEqual(value.borrowed_attributes, ["name"])
+      && Array.isArray(value.forbidden_transfer)
+      && value.forbidden_transfer.includes("brightness")
+      && value.forbidden_transfer.includes("mutagen")
+      && borrowed.length > 0
+      && isDeepStrictEqual(borrowed.map((star) => star?.name), exactNames)
+      && borrowed.every((star) => (
+        star?.borrowed_for === "context_only"
+        && star?.source_palace_id === relationValue.opposite_palace_id
+        && star?.source_palace === opposite?.value?.name
+        && !Object.hasOwn(star, "brightness")
+        && !Object.hasOwn(star, "mutagen")
+      ));
+    if (!validBorrowed) {
+      return unavailable(
+        "NO_EXACT_EMPTY_PALACE_CONTEXT",
+        "所选主题主宫为空，但没有与唯一对宫精确对应的主星名称语境；不能跨宫补星或伪装坐守。",
+      );
+    }
+    const contextAxes = borrowed.map((star) => {
+      const meaning = getZiweiMajorStarMeaning(star.name);
+      return meaning ? {
+        meaning_id: meaning.meaning_id,
+        fact_id: value.fact_id,
+        star: star.name,
+        target_palace: focus.palace.name,
+        source_palace_fact_id: value.source_palace_id,
+        source_palace: value.source_palace,
+        borrowed_for: "context_only",
+      } : null;
+    });
+    if (contextAxes.some((item) => !item)) {
+      return unavailable(
+        "UNREGISTERED_OPPOSITE_CONTEXT_STAR",
+        "空宫对宫含有未登记主星，不能生成封闭语义语境。",
+      );
+    }
+    focus.context_only_major_star_axes = contextAxes;
   }
   return {
     ok: true,
@@ -202,6 +257,7 @@ function derivePalaceAxisGroups(unit, facts) {
       unit.fact_id,
       unit.relation_fact_id,
       ...groupSpecs.map((spec) => spec.fact_id),
+      ...(focus.context_only_major_star_axes.length > 0 ? [contextFactId] : []),
     ],
   };
 }
@@ -268,7 +324,13 @@ function deriveNatalTopicAxes(claim, facts, route, assessmentMode) {
   if (!context.ok) return context;
   const unit = context.unit;
   const components = Array.isArray(unit.component_palace_ids) ? unit.component_palace_ids : [];
-  const required = [...new Set([unit.fact_id, unit.primary_palace_id, unit.relation_fact_id, ...components])];
+  const required = [...new Set([
+    unit.fact_id,
+    unit.primary_palace_id,
+    unit.relation_fact_id,
+    ...components,
+    ...(unit.primary_major_star_context_fact_id ? [unit.primary_major_star_context_fact_id] : []),
+  ])];
   if (
     components.length !== 4
     || new Set(components).size !== 4
@@ -490,6 +552,8 @@ function deriveBoundedPhase(claim, facts, route, assessmentMode) {
     unit.natal_topic_unit_id,
     natalUnit?.value?.relation_fact_id,
     ...natalComponents,
+    ...(natalUnit?.value?.primary_major_star_context_fact_id
+      ? [natalUnit.value.primary_major_star_context_fact_id] : []),
     unit.target_fact_id,
     unit.phase_validity_fact_id,
     unit.decadal_star_palace_id,
@@ -798,7 +862,10 @@ function inspectBinding(binding, calculation) {
       || !canonicalDate(requestedDate)
       || !isDeepStrictEqual(binding.phase, expectedPhase)
       || expectedGroups.length !== 4
-      || expectedGroups[0]?.major_star_axes?.length === 0
+      || (
+        expectedGroups[0]?.major_star_axes?.length === 0
+        && expectedGroups[0]?.context_only_major_star_axes?.length === 0
+      )
       || expectedLenses.length === 0
       || expectedPeriodConditionGroups.decadal.length !== 4
       || expectedPeriodConditionGroups.yearly.length !== 4
@@ -822,6 +889,12 @@ function inspectBinding(binding, calculation) {
         star_data: starData,
       };
     }).filter((entry) => entry.meaning && entry.star_data),
+    context_entries: group.context_only_major_star_axes.map((axis) => ({
+      axis,
+      group,
+      meaning: getZiweiMajorStarMeaning(axis.meaning_id),
+      star_data: null,
+    })).filter((entry) => entry.meaning),
     modifier_entries: (() => {
       const palace = facts.get(group.palace.fact_id)?.value;
       const stars = [
@@ -840,6 +913,7 @@ function inspectBinding(binding, calculation) {
     group.combination = getZiweiMajorStarCombination(group.entries.map((entry) => entry.axis.star));
   }
   const starEntries = axisGroups.flatMap((group) => group.entries);
+  const contextStarEntries = axisGroups.flatMap((group) => group.context_entries);
   const transformationEntries = expectedLenses.map((lens) => ({
     lens,
     meaning: getZiweiTransformationMeaning(lens.meaning_id),
@@ -850,6 +924,7 @@ function inspectBinding(binding, calculation) {
     route,
     star_meanings: starEntries.map((entry) => entry.meaning),
     star_entries: starEntries,
+    context_star_entries: contextStarEntries,
     axis_groups: axisGroups,
     period_condition_groups: expectedPeriodConditionGroups,
     transformation_meanings: transformationEntries.map((entry) => entry.meaning),
@@ -880,6 +955,9 @@ const BRIGHTNESS_PLAIN_ZH = new Map([
 
 function focusBrightnessPlainSummary(axisGroups) {
   const focusGroup = axisGroups.find((group) => group.relation_role === "focus");
+  if ((focusGroup?.entries || []).length === 0 && (focusGroup?.context_entries || []).length > 0) {
+    return "主宫为空；对宫主星只作辅助语境，未借入亮度或四化";
+  }
   const conditions = [...new Set((focusGroup?.entries || [])
     .map((entry) => BRIGHTNESS_PLAIN_ZH.get(entry.star_data?.brightness))
     .filter(Boolean))];
@@ -893,9 +971,20 @@ function focusPlainSummary(axisGroups, side) {
   if (focusGroup?.combination) {
     return side === "strength" ? focusGroup.combination.core_zh : focusGroup.combination.risk_zh;
   }
-  return (focusGroup?.entries || []).map((entry) => side === "strength"
+  const entries = (focusGroup?.entries || []).length > 0
+    ? focusGroup.entries : (focusGroup?.context_entries || []);
+  return entries.map((entry) => side === "strength"
     ? entry.meaning.plain_strength_zh
     : entry.meaning.plain_risk_zh).join("；");
+}
+
+function focusContextNotice(axisGroups) {
+  const focusGroup = axisGroups.find((group) => group.relation_role === "focus");
+  const borrowed = focusGroup?.context_entries || [];
+  if (borrowed.length === 0) return "";
+  const stars = borrowed.map((entry) => entry.axis.star).join("、");
+  const source = borrowed[0]?.axis?.source_palace;
+  return `主宫本身无主星；这里只借${palaceLabel(source)}的${stars}作辅助语境，不视为本宫坐守，也不借亮度或四化。`;
 }
 
 const MODIFIER_CLASS_HEADLINES = new Map([
@@ -968,16 +1057,20 @@ function canonicalCriteria(
   topic,
   route,
   starEntries,
+  contextStarEntries,
   transformationEntries,
   periodConditionGroups,
 ) {
   const topicCode = TOPIC_CODES.get(topic.topic);
   const routeCode = route.criterion_route;
   const processBasis = transformationEntries.map(transformationProcessPhrase).join("；");
-  const focusAxisBasis = starEntries
+  const directFocusAxisBasis = starEntries
     .filter((entry) => entry.group.relation_role === "focus")
-    .map((entry) => `${entry.axis.star}在${palaceLabel(entry.axis.palace)}的双向轴`)
-    .join("、");
+    .map((entry) => `${entry.axis.star}在${palaceLabel(entry.axis.palace)}的双向轴`);
+  const contextFocusAxisBasis = contextStarEntries
+    .filter((entry) => entry.group.relation_role === "focus")
+    .map((entry) => `${entry.axis.star}仅由${palaceLabel(entry.axis.source_palace)}借作语境`);
+  const focusAxisBasis = [...directFocusAxisBasis, ...contextFocusAxisBasis].join("、");
   let supportObservable;
   let contradictObservable;
   if (binding.route === "natal_topic_axes") {
@@ -1030,6 +1123,15 @@ export function canonicalZiweiSemanticBindings(binding, calculation) {
     star_group: "major",
     ...(starData?.brightness ? { brightness: starData.brightness } : {}),
   }));
+  const oppositeContexts = inspected.context_star_entries.map(({ axis }) => ({
+    kind: "opposite_major_star_context",
+    fact_id: axis.fact_id,
+    star: axis.star,
+    target_palace: axis.target_palace,
+    source_palace_fact_id: axis.source_palace_fact_id,
+    source_palace: axis.source_palace,
+    borrowed_for: "context_only",
+  }));
   const contextStars = inspected.axis_groups.flatMap((group) => (
     group.modifier_entries.map((entry) => ({
       kind: "star_in_palace",
@@ -1069,7 +1171,7 @@ export function canonicalZiweiSemanticBindings(binding, calculation) {
       palace: lens.palace,
     }
   ));
-  return [...stars, ...contextStars, ...periodStars, ...transformations];
+  return [...stars, ...oppositeContexts, ...contextStars, ...periodStars, ...transformations];
 }
 
 /**
@@ -1087,6 +1189,7 @@ export function canonicalZiweiNarrative(binding, calculation) {
   }
   const {
     topic, route, axis_groups: axisGroups, star_entries: starEntries,
+    context_star_entries: contextStarEntries,
     transformation_entries: transformationEntries,
     period_condition_groups: periodConditionGroups,
   } = inspected;
@@ -1095,25 +1198,27 @@ export function canonicalZiweiNarrative(binding, calculation) {
   const focusStrength = focusPlainSummary(axisGroups, "strength");
   const focusRisk = focusPlainSummary(axisGroups, "risk");
   const focusBrightness = focusBrightnessPlainSummary(axisGroups);
+  const emptyPalaceNotice = focusContextNotice(axisGroups);
   const natalConditions = natalConditionHeadline(axisGroups);
   const criteria = canonicalCriteria(
     binding,
     topic,
     route,
     starEntries,
+    contextStarEntries,
     transformationEntries,
     periodConditionGroups,
   );
 
   if (binding.route === "natal_topic_axes") {
     return {
-      statement: `${topic.label_zh}的主线是：发挥“${focusStrength}”的能力，同时防止“${focusRisk}”。${natalConditions}。现实中重点看${markers}。这不构成具体事件判断。`,
-      reasoning_summary: `这部分先看你在${topic.label_zh}里最核心的做事方式，再看哪些背景会支持或牵制它。重点不是给每颗星加分，而是看“${focusStrength}”能否反复出现，以及“${focusRisk}”是否造成实际代价。${focusBrightness}。三合和对向位置只补充背景，不能代替主宫。`,
+      statement: `${emptyPalaceNotice}${topic.label_zh}的观察主线是：留意“${focusStrength}”的表现，同时防止“${focusRisk}”。${natalConditions}。现实中重点看${markers}。这不构成具体事件判断。`,
+      reasoning_summary: `这部分先看你在${topic.label_zh}里反复出现的做事方式，再看哪些背景会支持或牵制它。重点不是给每颗星加分，而是核对“${focusStrength}”是否反复出现，以及“${focusRisk}”是否造成实际代价。${focusBrightness}。三合和对向位置只补充背景，不能伪装成本宫坐守。`,
       alternative_readings: [
-        "如果连续的现实记录主要由别的原因解释，或主宫所列倾向长期对不上，就应把这条看法降级，而不是拿背景宫位补成命中。",
+        "如果连续的现实记录主要由别的原因解释，或焦点语境所列倾向长期对不上，就应把这条看法降级，而不是拿背景宫位补成命中。",
         "如果只有一次偶发体验，或同一件事既能解释成优势也能解释成风险，目前资料就还不够。",
       ],
-      practical_reflection: `接下来一个月记下两次具体的${topic.label_zh}情境：当时你怎么做、哪里顺、哪里卡，再看主宫所列的能力与风险是否反复出现。`,
+      practical_reflection: `接下来一个月记下两次具体的${topic.label_zh}情境：当时你怎么做、哪里顺、哪里卡，再看焦点语境所列的能力与风险是否反复出现。`,
       assessment: {
         mode: "current_reflection",
         domain: topic.topic,
@@ -1144,10 +1249,10 @@ export function canonicalZiweiNarrative(binding, calculation) {
   const decadalPlain = periodConditionPlainSummary(periodConditionGroups.decadal, "decadal");
   const yearlyPlain = periodConditionPlainSummary(periodConditionGroups.yearly, "yearly");
   return {
-    statement: `${binding.phase.window.start} 至 ${binding.phase.window.end}，${topic.label_zh}先以本命的“${focusStrength}”为底色，同时管理“${focusRisk}”。${decadalPlain}。${yearlyPlain}。主题槽四化过程还强调${processPlain}。${natalConditions}。这是观察重点，不构成具体事件判断。`,
-    reasoning_summary: `这部分先看长期形成的做事底色，再看当前一段较长时期的环境，最后看目标年份带来的触发。${focusBrightness}；它只说明底色容易怎样发挥。后两层只说明哪些条件在当前阶段更明显，不能替代本命主线；三合和对向位置也只能补充背景。时间段按大限和流年同时保持不变的实际区间来定，不直接套一整个公历年。这里不把星曜合成吉凶分数，也不从这些条件直接推出具体事件。`,
+    statement: `${emptyPalaceNotice}${binding.phase.window.start} 至 ${binding.phase.window.end}，${topic.label_zh}先观察本命语境中的“${focusStrength}”，同时管理“${focusRisk}”。${decadalPlain}。${yearlyPlain}。主题槽四化过程还强调${processPlain}。${natalConditions}。这是观察重点，不构成具体事件判断。`,
+    reasoning_summary: `这部分先看长期形成的做事底色，再看当前一段较长时期的环境，最后看目标年份带来的触发。${focusBrightness}；它只说明可核对的传统语境。后两层只说明哪些条件在当前阶段更明显，不能替代本命主线；三合和对向位置也只能补充背景。时间段按大限和流年同时保持不变的实际区间来定，不直接套一整个公历年。这里不把星曜合成吉凶分数，也不从这些条件直接推出具体事件。`,
     alternative_readings: [
-      "如果现实记录只像三方或对向背景，却没有主宫的关键做法，或大限、流年的已登记条件与四化过程持续对不上，就不能说这条阶段主线得到支持。",
+      "如果现实记录只像三方或对向背景，却没有焦点语境的关键做法，或大限、流年的已登记条件与四化过程持续对不上，就不能说这条阶段主线得到支持。",
       "如果记录少于两次、相隔不足30日，或主要靠事后回忆补充，结论应保留为不清楚。",
     ],
     practical_reflection: `在这段时间保存两次相隔至少30日的${topic.label_zh}记录：写下具体事项、你的做法、实际阻力和资源变化，再按本命、大限、流年三层核对，而不是事后只挑一条相似处。`,

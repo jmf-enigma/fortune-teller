@@ -1,6 +1,6 @@
 # Evidence-Bound Deep Reading Protocol
 
-Read this file for `deep` mode, any request for professional depth, or any request to explain why a conclusion follows. Accuracy-first here means reducing correctable calculation, rule-selection, evidence-selection, and free-rewriting errors; it never upgrades traditional divination into validated prediction. Version 0.5.0 gives all six shipped systems a replay-checked result-first adjudicator; Zi Wei `R-ZW-007/008/009` additionally retain the stricter canonical meaning binding inside the general reading artifact. The shipped profiles are automated-fixture reviewed, have no independent practitioner review, and do **not** permit a certified professional label.
+Read this file for `deep` mode, any request for professional depth, or any request to explain why a conclusion follows. Accuracy-first here means reducing correctable calculation, rule-selection, evidence-selection, and free-rewriting errors; it never upgrades traditional divination into validated prediction. Version 0.6.0 gives all six shipped systems a replay-checked result-first adjudicator; BaZi adds three bounded topic routes and Zi Wei `R-ZW-007/008/009` retain the stricter canonical meaning binding plus supplemental 55-condition/32-refusal pattern evidence. The shipped profiles are automated-fixture reviewed, have no independent practitioner review, and do **not** permit a certified professional label.
 
 ## 1. Say what “accurate” means
 

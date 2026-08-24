@@ -34,6 +34,9 @@ import { ZIWEI_MEANING_BINDING_SCHEMA } from "./meaning-layer.mjs";
  * - star_in_palace
  *   { kind, fact_id, star, palace, star_group: "major"|"minor"|"adjective",
  *     brightness? }
+ * - opposite_major_star_context
+ *   { kind, fact_id, star, target_palace, source_palace_fact_id,
+ *     source_palace, borrowed_for: "context_only" }
  * - mutagen_in_palace
  *   { kind, fact_id, star, transformation, palace }
  * - period_transformation
@@ -463,6 +466,39 @@ function bindingExpected(calculation, binding, resolved) {
           palace: value.name, star_group: binding.star_group, ...brightness,
         },
         fragment: `${binding.star}位于${palaceLabel(value.name)}（${STAR_GROUP_LABELS.get(binding.star_group)}${Object.hasOwn(binding, "brightness") ? `，亮度${matchedStar.brightness}` : ""}）`,
+      };
+    }
+    case "opposite_major_star_context": {
+      if (
+        calculation.system !== "ziwei"
+        || !/^\/facts\/structure\/empty_palace_contexts\/\d+$/u.test(path)
+        || value.status !== "context_available"
+        || value.borrowed_attributes?.length !== 1
+        || value.borrowed_attributes[0] !== "name"
+        || !Array.isArray(value.forbidden_transfer)
+        || !value.forbidden_transfer.includes("brightness")
+        || !value.forbidden_transfer.includes("mutagen")
+        || !Array.isArray(value.major_stars)
+        || !value.major_stars.some((star) => (
+          star?.name === binding.star
+          && star.source_palace_id === value.source_palace_id
+          && star.source_palace === value.source_palace
+          && star.borrowed_for === "context_only"
+          && !Object.hasOwn(star, "brightness")
+          && !Object.hasOwn(star, "mutagen")
+        ))
+      ) return null;
+      return {
+        expected: {
+          kind: "opposite_major_star_context",
+          fact_id: binding.fact_id,
+          star: binding.star,
+          target_palace: value.target_palace,
+          source_palace_fact_id: value.source_palace_id,
+          source_palace: value.source_palace,
+          borrowed_for: "context_only",
+        },
+        fragment: `${palaceLabel(value.target_palace)}本身无主星；只将${palaceLabel(value.source_palace)}的${binding.star}作为辅助语境，不视为${palaceLabel(value.target_palace)}坐守，也不带亮度或四化`,
       };
     }
     case "mutagen_in_palace": {

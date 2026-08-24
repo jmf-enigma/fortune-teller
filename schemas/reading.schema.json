@@ -105,10 +105,30 @@
         "palace": { "type": "string", "minLength": 1 }
       }
     },
+    "ziweiContextOnlyMajorStarAxis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "meaning_id", "fact_id", "star", "target_palace",
+        "source_palace_fact_id", "source_palace", "borrowed_for"
+      ],
+      "properties": {
+        "meaning_id": { "type": "string", "pattern": "^ZW-STAR-[A-Z]+$" },
+        "fact_id": { "type": "string", "minLength": 1 },
+        "star": { "type": "string", "minLength": 1 },
+        "target_palace": { "type": "string", "minLength": 1 },
+        "source_palace_fact_id": { "type": "string", "minLength": 1 },
+        "source_palace": { "type": "string", "minLength": 1 },
+        "borrowed_for": { "const": "context_only" }
+      }
+    },
     "ziweiPalaceAxisGroup": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["relation_role", "relation_offset", "palace", "major_star_axes"],
+      "required": [
+        "relation_role", "relation_offset", "palace",
+        "major_star_axes", "context_only_major_star_axes"
+      ],
       "properties": {
         "relation_role": {
           "enum": ["focus", "trine_plus_4", "trine_plus_8", "opposite_plus_6"]
@@ -127,6 +147,11 @@
           "type": "array",
           "uniqueItems": true,
           "items": { "$ref": "#/$defs/ziweiMajorStarAxis" }
+        },
+        "context_only_major_star_axes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/ziweiContextOnlyMajorStarAxis" }
         }
       }
     },
@@ -142,8 +167,34 @@
               "type": "object",
               "properties": {
                 "relation_role": { "const": "focus" },
-                "relation_offset": { "const": 0 },
-                "major_star_axes": { "type": "array", "minItems": 1 }
+                "relation_offset": { "const": 0 }
+              },
+              "oneOf": [
+                {
+                  "properties": {
+                    "major_star_axes": { "type": "array", "minItems": 1 },
+                    "context_only_major_star_axes": { "type": "array", "maxItems": 0 }
+                  }
+                },
+                {
+                  "properties": {
+                    "major_star_axes": { "type": "array", "maxItems": 0 },
+                    "context_only_major_star_axes": { "type": "array", "minItems": 1 }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "allOf": [
+            { "$ref": "#/$defs/ziweiPalaceAxisGroup" },
+            {
+              "type": "object",
+              "properties": {
+                "relation_role": { "const": "trine_plus_4" },
+                "relation_offset": { "const": 4 },
+                "context_only_major_star_axes": { "type": "array", "maxItems": 0 }
               }
             }
           ]
@@ -151,19 +202,27 @@
         {
           "allOf": [
             { "$ref": "#/$defs/ziweiPalaceAxisGroup" },
-            { "type": "object", "properties": { "relation_role": { "const": "trine_plus_4" }, "relation_offset": { "const": 4 } } }
+            {
+              "type": "object",
+              "properties": {
+                "relation_role": { "const": "trine_plus_8" },
+                "relation_offset": { "const": 8 },
+                "context_only_major_star_axes": { "type": "array", "maxItems": 0 }
+              }
+            }
           ]
         },
         {
           "allOf": [
             { "$ref": "#/$defs/ziweiPalaceAxisGroup" },
-            { "type": "object", "properties": { "relation_role": { "const": "trine_plus_8" }, "relation_offset": { "const": 8 } } }
-          ]
-        },
-        {
-          "allOf": [
-            { "$ref": "#/$defs/ziweiPalaceAxisGroup" },
-            { "type": "object", "properties": { "relation_role": { "const": "opposite_plus_6" }, "relation_offset": { "const": 6 } } }
+            {
+              "type": "object",
+              "properties": {
+                "relation_role": { "const": "opposite_plus_6" },
+                "relation_offset": { "const": 6 },
+                "context_only_major_star_axes": { "type": "array", "maxItems": 0 }
+              }
+            }
           ]
         }
       ],
@@ -413,6 +472,22 @@
             "star": { "type": "string" }, "palace": { "type": "string" },
             "star_group": { "enum": ["major", "minor", "adjective"] },
             "brightness": { "enum": ["庙", "旺", "得", "利", "平", "不", "陷"] }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": [
+            "kind", "fact_id", "star", "target_palace",
+            "source_palace_fact_id", "source_palace", "borrowed_for"
+          ],
+          "properties": {
+            "kind": { "const": "opposite_major_star_context" },
+            "fact_id": { "type": "string", "minLength": 1 },
+            "star": { "type": "string", "minLength": 1 },
+            "target_palace": { "type": "string", "minLength": 1 },
+            "source_palace_fact_id": { "type": "string", "minLength": 1 },
+            "source_palace": { "type": "string", "minLength": 1 },
+            "borrowed_for": { "const": "context_only" }
           }
         },
         {

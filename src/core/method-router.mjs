@@ -5,6 +5,7 @@ const QUESTION_KINDS = new Set(["open", "decision_action", "change_structure", "
 const LIFE_DOMAINS = new Set([
   "career_study", "wealth_resources", "relationships", "family_social", "wellbeing_rhythm",
 ]);
+const BAZI_SUPPORTED_DOMAINS = new Set(["career_study", "wealth_resources", "relationships"]);
 
 const GOAL_ALIASES = Object.freeze({
   birth_overview: { goal: "life_overview", question_kind: null },
@@ -233,13 +234,16 @@ function birthBaseMissing(data) {
 function baziOption(data, preferences, domain = null) {
   const missingData = birthBaseMissing(data);
   const limits = [];
+  const supportedDomain = !domain || BAZI_SUPPORTED_DOMAINS.has(domain);
   if (!data.birth_time) {
     missingData.push(missing(
       "birth_time",
-      "limits_scope",
-      "仍可分析全天稳定或分段成立的结构，但不会替你猜一个时柱。",
+      domain && supportedDomain ? "blocks_requested_scope" : "blocks_method",
+      domain && supportedDomain
+        ? "指定领域需要一张唯一四柱来定位日支、透干和藏干；未知时辰时不会从候选盘中挑一张。"
+        : "当前结果层需要一张唯一四柱；未知时辰时不会从候选时柱中挑一张。",
     ));
-    limits.push("未知时辰时不返回单一时柱，时柱相关结论和阶段细节会省略或分段呈现。");
+    limits.push("未知时辰可以检查候选盘分段，但当前专业结果层不会把候选分段冒充一张完整命盘。 ");
   }
   if (preferences.wants_period_timing && !data.chart_sex) {
     missingData.push(missing(
@@ -253,16 +257,24 @@ function baziOption(data, preferences, domain = null) {
   }
   return makeOption({
     system: "bazi",
-    fit: domain ? "supporting" : "parallel",
-    reason: domain
-      ? "当前已闭合的八字结果层只做整体旺衰、格局与阶段路线，不把十神直接泛化成指定人生领域。"
-      : "适合把出生资料组织成四柱结构，并查看季节条件、格局成败与阶段触发；时辰未知时仍可做受限分析。",
-    selectionCue: domain
-      ? "若要看八字整体结构，请改选人生整体；本轮指定领域不返回一个无依据的套话答案。"
+    fit: domain && supportedDomain ? "direct" : domain ? "supporting" : "parallel",
+    reason: domain && supportedDomain
+      ? "按十神所在位置和日支关系看该领域；透干与藏干分开，两轴同见不冒充闭合链，岁运只强调原局已有主题，不直接命名事件。"
+      : domain
+      ? "当前八字主题表没有闭合这个领域，不把相邻十神泛化成答案。"
+      : "适合把出生资料组织成唯一四柱结构，并查看季节条件、格局成败与阶段触发；当前结果层需要明确时辰。",
+    selectionCue: domain && supportedDomain
+      ? "想把该领域拆成具体结构轴，并区分原局背景与当前阶段时选它。"
+      : domain
+      ? "可改选人生整体，或选择已支持这个主题的紫微/西洋路线。"
       : "想看四柱、旺衰证据、格局条件和已实现的大运流年链时选它。",
     missingData,
-    limits: domain ? [...limits, "当前版本尚未安装八字指定领域的闭合主题路由。"] : limits,
-    supported: !domain,
+    limits: domain && !supportedDomain
+      ? [...limits, "当前八字封闭主题表只支持事业学习、财富资源和长期关系。"]
+      : domain
+      ? [...limits, "主题结果只整理传统结构，不预测职位、金额、婚期或必然事件。"]
+      : limits,
+    supported: supportedDomain,
   });
 }
 

@@ -20,7 +20,7 @@ test("Zi Wei result-first wrapper binds one natal topic to its exact four-palace
   assert.ok(result.basis.length >= 6);
   assert.match(result.conclusion, /事业|学业|具体事件判断/u);
   assert.equal(result.safeguards.score_used, false);
-  assert.equal(result.safeguards.borrowed_star_used, false);
+  assert.equal(result.safeguards.opposite_context_used, false);
 });
 
 test("Zi Wei wrapper prefers a closed target-date natal-decadal-yearly route", () => {

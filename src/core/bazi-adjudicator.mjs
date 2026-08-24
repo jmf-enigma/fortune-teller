@@ -1,5 +1,6 @@
 import { verifyCalculationFacts } from "./calculation-verifier.mjs";
 import { FortuneTellerError } from "./errors.mjs";
+import { adjudicateBaziTopic } from "./bazi-topic-adjudicator.mjs";
 import {
   BAZI_ADJUDICATION_RULEPACK_META,
   BAZI_ADJUDICATION_RULES,
@@ -18,6 +19,7 @@ const PRESSURE_GODS = new Set(["食神", "伤官", "正财", "偏财", "正官",
 const STEMS = new Set(["甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸"]);
 const BRANCHES = new Set(["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"]);
 const TEN_GODS = new Set([...SUPPORT_GODS, ...PRESSURE_GODS]);
+const SUPPORTED_TOPICS = new Set(["overview", "career_study", "wealth_resources", "relationships"]);
 const PILLAR_ZH = Object.freeze({ year: "年", month: "月", day: "日", time: "时", decadal: "大运", yearly: "流年" });
 const ROOT_POSITION_ZH = Object.freeze({ main: "本气", middle: "中气", residual: "余气" });
 const TEN_GOD_THEME = Object.freeze({
@@ -160,14 +162,35 @@ function readNatalFacts(calculation) {
     )));
   const rootPillars = pillars.filter((pillar) => rootRecords.some((record) => record.source_pillar_id === pillar.fact_id));
   const relationships = calculation.facts?.structure?.relationships || [];
+  const emittedMonthCommand = calculation.facts?.structure?.month_command;
+  const emittedCandidates = Array.isArray(emittedMonthCommand?.candidates_in_library_order)
+    ? emittedMonthCommand.candidates_in_library_order : [];
+  const monthQiCandidates = month.hidden_stems.map((stem, index) => {
+    const emitted = emittedCandidates[index];
+    const tenGod = month.ten_gods_hidden_stems[index];
+    if (
+      emitted
+      && (emitted.hidden_stem !== stem || emitted.ten_god !== tenGod)
+    ) return null;
+    return {
+      candidate_id: `H-BZ-MONTH-QI-${String(index + 1).padStart(2, "0")}`,
+      hidden_stem: stem,
+      ten_god: tenGod,
+      hidden_position: emitted?.hidden_position || ["main", "middle", "residual"][index] || `position-${index + 1}`,
+      source_fact_id: emittedMonthCommand?.fact_id || month.fact_id,
+    };
+  });
+  if (monthQiCandidates.some((candidate) => !candidate || !TEN_GODS.has(candidate.ten_god))) return null;
+  const monthMainQi = monthQiCandidates.find((candidate) => candidate.hidden_position === "main") || monthQiCandidates[0];
   return {
     pillars,
     month,
     day,
     dayMaster: calculation.facts?.structure?.day_master,
     monthContext: calculation.facts?.structure?.month_context,
-    commandStem: month.hidden_stems[0],
-    commandGod: month.ten_gods_hidden_stems[0],
+    monthMainQiStem: monthMainQi?.hidden_stem,
+    monthMainQiGod: monthMainQi?.ten_god,
+    monthQiCandidates,
     visiblePillars,
     visibleGods,
     visibleSupport: visiblePillars.filter((pillar) => SUPPORT_GODS.has(pillar.ten_god_stem)),
@@ -175,7 +198,7 @@ function readNatalFacts(calculation) {
     rootPillars,
     rootRecords,
     seasonalContext: calculation.facts?.structure?.seasonal_context || null,
-    monthCommand: calculation.facts?.structure?.month_command || null,
+    monthCommand: emittedMonthCommand || null,
     relationships,
     monthRelationshipCautions: relationships.filter((relation) => relation.pillars?.includes("month")),
   };
@@ -193,8 +216,8 @@ function makeHypothesis({ id, label, state, supportingEvidence, contraryEvidence
 }
 
 function adjudicateStrength(natal) {
-  const monthSupports = SUPPORT_GODS.has(natal.commandGod);
-  const monthPressures = PRESSURE_GODS.has(natal.commandGod);
+  const monthSupports = SUPPORT_GODS.has(natal.monthMainQiGod);
+  const monthPressures = PRESSURE_GODS.has(natal.monthMainQiGod);
   const rooted = natal.rootRecords.length > 0;
   const mainRoots = natal.rootRecords.filter((root) => root.hidden_position === "main");
   const secondaryRoots = natal.rootRecords.filter((root) => root.hidden_position !== "main");
@@ -213,8 +236,8 @@ function adjudicateStrength(natal) {
 
   const strongSupport = [];
   const strongContrary = [];
-  if (monthSupports) strongSupport.push(factEvidence(natal.month.fact_id, `月令本气与日主构成${natal.commandGod}，支持日主一侧。`));
-  else if (monthPressures) strongContrary.push(factEvidence(natal.month.fact_id, `月令本气为${natal.commandGod}，不直接支持日主。`, "contrary"));
+  if (monthSupports) strongSupport.push(factEvidence(natal.month.fact_id, `月支本气与日主构成${natal.monthMainQiGod}，支持日主一侧；这不是精确人元司令结论。`));
+  else if (monthPressures) strongContrary.push(factEvidence(natal.month.fact_id, `月支本气为${natal.monthMainQiGod}，不直接支持日主；这不是精确人元司令结论。`, "contrary"));
   for (const root of natal.rootRecords) {
     strongSupport.push(factEvidence(
       root.fact_id,
@@ -241,8 +264,8 @@ function adjudicateStrength(natal) {
 
   const weakSupport = [];
   const weakContrary = [];
-  if (monthPressures) weakSupport.push(factEvidence(natal.month.fact_id, `月令本气为${natal.commandGod}，构成克、泄或耗的季节背景。`));
-  else if (monthSupports) weakContrary.push(factEvidence(natal.month.fact_id, `月令本气为${natal.commandGod}，直接支持日主。`, "contrary"));
+  if (monthPressures) weakSupport.push(factEvidence(natal.month.fact_id, `月支本气为${natal.monthMainQiGod}，构成克、泄或耗的季节背景；这不是精确人元司令结论。`));
+  else if (monthSupports) weakContrary.push(factEvidence(natal.month.fact_id, `月支本气为${natal.monthMainQiGod}，直接支持日主；这不是精确人元司令结论。`, "contrary"));
   if (!rooted) weakSupport.push(factEvidence(natal.day.fact_id, "四支未见比劫根位，弱势假设获得支持。"));
   for (const pillar of natal.visiblePressure) {
     weakSupport.push(factEvidence(pillar.fact_id, `${PILLAR_ZH[pillar.pillar]}干${pillar.ten_god_stem}透出，增加日主承载要求。`));
@@ -289,6 +312,51 @@ function adjudicateStrength(natal) {
     : weakState === BAZI_ADJUDICATION_STATES.established
       ? weak.hypothesis_id
       : null;
+  const rootAxis = !rooted
+    ? "absent"
+    : rootsWithoutRegisteredCaution.length && rootCautions.length
+      ? "usable_with_cautions"
+      : rootsWithoutRegisteredCaution.length
+        ? "usable"
+        : "present_but_usability_unresolved";
+  const surfaceAxis = visiblySupported && visiblyPressured
+    ? "mixed"
+    : visiblySupported
+      ? "support"
+      : visiblyPressured
+        ? "pressure" : "neutral";
+  const threeAxisTendency = {
+    season: {
+      direction: monthSupports ? "support" : monthPressures ? "pressure" : "other",
+      basis_fact_ids: [natal.month.fact_id],
+      boundary: "month_branch_main_qi_frame_not_exact_human_command",
+    },
+    roots: {
+      direction: rootAxis,
+      usable_root_fact_ids: rootsWithoutRegisteredCaution.map((root) => root.fact_id),
+      cautioned_root_fact_ids: rootCautions.map((item) => item.root.fact_id),
+    },
+    visible_surface: {
+      direction: surfaceAxis,
+      support_fact_ids: natal.visibleSupport.map((pillar) => pillar.fact_id),
+      pressure_fact_ids: natal.visiblePressure.map((pillar) => pillar.fact_id),
+    },
+    strict_resolution: selected === strong.hypothesis_id
+      ? "strong_established"
+      : selected === weak.hypothesis_id
+        ? "weak_established" : "unresolved",
+    policy: "three qualitative axes are reported separately; they do not vote, receive weights, or relax the strict establishment conjunctions",
+  };
+  const axisPlain = `${monthSupports
+    ? "季节环境偏向支持日主"
+    : monthPressures
+      ? "季节环境偏向让日主输出、承压或消耗"
+      : "季节环境暂未形成明确方向"}；地支${({
+    absent: "未见日主根位",
+    usable: "见到未受登记关系警示的根位",
+    usable_with_cautions: "既有可用根位，也有受冲刑等关系警示的根位",
+    present_but_usability_unresolved: "虽见根位，但受冲刑等关系影响，可用性尚未闭合",
+  })[rootAxis]}；天干表层${({ support: "偏向支持", pressure: "偏向承压或消耗", mixed: "同时见支持与压力", neutral: "未见明确支持或压力" })[surfaceAxis]}。`;
   return {
     lens: "旺衰",
     source: BAZI_VIEW_DEFINITIONS.strength,
@@ -308,15 +376,16 @@ function adjudicateStrength(natal) {
         interaction_fact_ids: item.interactions.map((relation) => relation.fact_id),
         status: "unresolved_under_registered_branch_interaction",
       })),
+      three_axis_tendency: threeAxisTendency,
       weighting: "none",
     },
     hypotheses: [strong, weak],
     selected_hypothesis_id: selected,
-    conclusion: selected === strong.hypothesis_id
-      ? "当前条件支持日主偏强，但仍保留改判条件。"
+    conclusion: `${axisPlain}${selected === strong.hypothesis_id
+      ? "三条证据共同满足严格偏强条件，但仍保留改判条件。"
       : selected === weak.hypothesis_id
-        ? "当前条件支持日主偏弱，但仍保留改判条件。"
-        : "强弱证据同时存在，当前保持未决，不把混合盘压成一个分数。",
+        ? "三条证据共同满足严格偏弱条件，但仍保留改判条件。"
+        : "三条证据没有共同指向偏强或偏弱，当前保持未决，不把混合盘压成一个分数。"}`,
   };
 }
 
@@ -326,7 +395,7 @@ function matchingVisiblePillars(natal, ruleLabel) {
   ));
 }
 
-function evaluatePatternPredicate(predicate, natal, strength) {
+function evaluatePatternPredicate(predicate, natal, strength, monthQiCandidate) {
   const [kind, value] = predicate.split(":");
   if (kind === "visible") {
     const pillars = matchingVisiblePillars(natal, value);
@@ -389,23 +458,33 @@ function evaluatePatternPredicate(predicate, natal, strength) {
     };
   }
   if (kind === "command" && value === "not_metal_water") {
-    const element = STEM_ELEMENTS[natal.commandStem];
+    const element = STEM_ELEMENTS[monthQiCandidate.hidden_stem];
     return {
       matched: Boolean(element) && !["金", "水"].includes(element),
       fact_ids: [natal.month.fact_id],
-      statement: element ? `月令本气为${element}，属于当前路线所指的非金水伤官条件。` : "月令本气五行不可用。",
+      statement: element ? `当前月支藏干候选为${element}，属于这条路线所指的非金水伤官条件；它不是精确人元司令结论。` : "当前月支藏干候选五行不可用。",
     };
   }
   return { matched: false, fact_ids: [], statement: `未实现条件 ${predicate}。` };
 }
 
-function evaluatePatternRoute(route, natal, strength) {
+function routeClosure(route) {
+  if (route.closure === "effect_closed") return "effect_closed";
+  if (route.closure === "presence_closed_effect_unresolved") return "presence_closed_effect_unresolved";
+  if (route.closure === "screening_only") return "screening_only";
+  if (route.closure === "closed") return "presence_closed_effect_unresolved";
+  return "structure_present_effect_unresolved";
+}
+
+function evaluatePatternRoute(route, natal, strength, monthQiCandidate) {
   const predicates = route.all.map((predicate) => ({
     predicate,
-    ...evaluatePatternPredicate(predicate, natal, strength),
+    ...evaluatePatternPredicate(predicate, natal, strength, monthQiCandidate),
   }));
   return {
     ...route,
+    declared_closure: route.closure || "not_declared",
+    closure: routeClosure(route),
     matched: predicates.every((item) => item.matched),
     predicates,
     fact_ids: unique(predicates.flatMap((item) => item.fact_ids)),
@@ -420,14 +499,52 @@ function routeEvidence(route, role = "support") {
   })));
 }
 
-function adjudicatePattern(natal, strength) {
-  const rule = BAZI_MONTH_COMMAND_PATTERN_RULES[natal.commandGod];
-  if (!rule || !natal.commandStem) {
+function unresolvedPatternCandidate(natal, candidate, reason) {
+  const label = BAZI_MONTH_COMMAND_PATTERN_RULES[candidate.ten_god]?.label || `${candidate.ten_god}格候选`;
+  return {
+    lens: "格局",
+    candidate_id: candidate.candidate_id,
+    candidate_basis: {
+      hidden_stem: candidate.hidden_stem,
+      ten_god: candidate.ten_god,
+      hidden_position: candidate.hidden_position,
+      transparency: "hidden_only",
+      status: "secondary_qi_not_transparent",
+      exact_commander: false,
+    },
+    source: BAZI_VIEW_DEFINITIONS.pattern,
+    hypothesis: makeHypothesis({
+      id: `H-BZ-PATTERN-${candidate.candidate_id}`,
+      label,
+      state: BAZI_ADJUDICATION_STATES.unresolved,
+      supportingEvidence: [factEvidence(natal.month.fact_id, `${ROOT_POSITION_ZH[candidate.hidden_position] || candidate.hidden_position}${candidate.hidden_stem}与日主构成${candidate.ten_god}，仅保留藏干候选。`)],
+      contraryEvidence: [],
+      changeConditions: ["只有该中气或余气透出，或安装可审计的人元司令分段规则后，才重新运行它自己的成败路线。"],
+    }),
+    month_qi_candidate: { ...candidate, fact_id: natal.month.fact_id },
+    transparent_fact_ids: [],
+    formation: { matched_routes: [], unmatched_routes: [] },
+    state_history: [BAZI_ADJUDICATION_STATES.unresolved],
+    damage: [],
+    rescue: [],
+    route_adjudication: {
+      active_damage_routes: [],
+      active_rescue_routes: [],
+      coverage: "中气或余气未透且精确人元司令未安装；不运行其成败路线。",
+    },
+    conclusion: reason,
+  };
+}
+
+function adjudicatePatternCandidate(natal, strength, candidate, primaryFrame = false) {
+  const rule = BAZI_MONTH_COMMAND_PATTERN_RULES[candidate.ten_god];
+  if (!rule || !candidate.hidden_stem) {
     return {
       lens: "格局",
+      candidate_id: candidate.candidate_id,
       source: BAZI_VIEW_DEFINITIONS.pattern,
       hypothesis: makeHypothesis({
-        id: "H-BZ-PATTERN-PRIMARY",
+        id: primaryFrame ? "H-BZ-PATTERN-PRIMARY" : `H-BZ-PATTERN-${candidate.candidate_id}`,
         label: "月令格局候选",
         state: BAZI_ADJUDICATION_STATES.unresolved,
         supportingEvidence: [],
@@ -440,17 +557,17 @@ function adjudicatePattern(natal, strength) {
       conclusion: "月令格局候选无法建立。",
     };
   }
-  const transparent = natal.visiblePillars.filter((pillar) => pillar.heavenly_stem === natal.commandStem);
-  const formationRoutes = rule.formation_routes.map((route) => evaluatePatternRoute(route, natal, strength));
-  const damageRoutes = rule.damage_routes.map((route) => evaluatePatternRoute(route, natal, strength));
-  const rescueRoutes = rule.rescue_routes.map((route) => evaluatePatternRoute(route, natal, strength));
+  const transparent = natal.visiblePillars.filter((pillar) => pillar.heavenly_stem === candidate.hidden_stem);
+  const formationRoutes = rule.formation_routes.map((route) => evaluatePatternRoute(route, natal, strength, candidate));
+  const damageRoutes = rule.damage_routes.map((route) => evaluatePatternRoute(route, natal, strength, candidate));
+  const rescueRoutes = rule.rescue_routes.map((route) => evaluatePatternRoute(route, natal, strength, candidate));
   const matchedFormation = formationRoutes.filter((route) => route.matched);
   const matchedDamage = damageRoutes.filter((route) => route.matched);
   const matchedRescue = rescueRoutes.filter((route) => (
     route.matched && matchedDamage.some((damageRoute) => damageRoute.id === route.for_damage)
   ));
   const support = [
-    factEvidence(natal.month.fact_id, `月令本气${natal.commandStem}与日主构成${natal.commandGod}，只先立${rule.label}，不因格名自动判成。`),
+    factEvidence(natal.month.fact_id, `月支${ROOT_POSITION_ZH[candidate.hidden_position] || candidate.hidden_position}${candidate.hidden_stem}与日主构成${candidate.ten_god}，只立${rule.label}候选；这不是精确人元司令结论。`),
     ...matchedFormation.flatMap((route) => routeEvidence(route)),
   ];
   const contrary = matchedDamage.flatMap((route) => routeEvidence(route, "contrary"));
@@ -462,11 +579,11 @@ function adjudicatePattern(natal, strength) {
     if (matchedDamage.length) {
       stateHistory.push(BAZI_ADJUDICATION_STATES.damaged);
       state = BAZI_ADJUDICATION_STATES.damaged;
-      const closedDamage = matchedDamage.filter((route) => route.closure === "closed");
+      const closedDamage = matchedDamage.filter((route) => route.closure === "effect_closed");
       const unrescuedClosed = closedDamage.filter((damageRoute) => !matchedRescue.some((route) => (
-        route.for_damage === damageRoute.id && route.closure === "closed"
+        route.for_damage === damageRoute.id && route.closure === "effect_closed"
       )));
-      const screeningDamage = matchedDamage.filter((route) => route.closure !== "closed");
+      const screeningDamage = matchedDamage.filter((route) => route.closure !== "effect_closed");
       if (unrescuedClosed.length) {
         stateHistory.push(BAZI_ADJUDICATION_STATES.broken);
         state = BAZI_ADJUDICATION_STATES.broken;
@@ -478,13 +595,13 @@ function adjudicatePattern(natal, strength) {
   } else stateHistory.push(BAZI_ADJUDICATION_STATES.unresolved);
 
   const hypothesis = makeHypothesis({
-    id: "H-BZ-PATTERN-PRIMARY",
+    id: primaryFrame ? "H-BZ-PATTERN-PRIMARY" : `H-BZ-PATTERN-${candidate.candidate_id}`,
     label: rule.label,
     state,
     supportingEvidence: support,
     contraryEvidence: contrary,
     changeConditions: [
-      `若月令本气${natal.commandStem}的透藏关系核对有误，${rule.label}需撤回。`,
+      `若月支${ROOT_POSITION_ZH[candidate.hidden_position] || candidate.hidden_position}${candidate.hidden_stem}的透藏关系核对有误，${rule.label}需撤回。`,
       "若合化、制化、位置或根气核验改变某条复合路线，必须重新走成立—受损—救应链。",
       "没有编码完成的成败路线只保留候选，不得由模型补成成立或破格。",
     ],
@@ -492,12 +609,33 @@ function adjudicatePattern(natal, strength) {
   const rescueEvidence = matchedRescue.flatMap((route) => routeEvidence(route));
   return {
     lens: "格局",
+    candidate_id: candidate.candidate_id,
+    candidate_basis: {
+      hidden_stem: candidate.hidden_stem,
+      ten_god: candidate.ten_god,
+      hidden_position: candidate.hidden_position,
+      transparency: transparent.length ? "visible" : "hidden_only",
+      status: primaryFrame ? "month_branch_main_qi_frame" : "transparent_secondary_qi_candidate",
+      exact_commander: false,
+    },
     source: { ...BAZI_VIEW_DEFINITIONS.pattern, rule_source_status: rule.source_status, rule_source_refs: rule.source_refs },
     hypothesis,
-    command: { stem: natal.commandStem, ten_god: natal.commandGod, fact_id: natal.month.fact_id },
+    month_qi_candidate: { ...candidate, fact_id: natal.month.fact_id },
+    command: {
+      stem: candidate.hidden_stem,
+      ten_god: candidate.ten_god,
+      fact_id: natal.month.fact_id,
+      compatibility_only: true,
+      exact_commander_status: natal.monthCommand?.exact_commander_status || "unresolved_without_solar_term_segment_rule",
+    },
     transparent_fact_ids: transparent.map((pillar) => pillar.fact_id),
     formation: {
-      matched_routes: matchedFormation.map((route) => ({ id: route.id, label: route.label, fact_ids: route.fact_ids })),
+      matched_routes: matchedFormation.map((route) => ({
+        id: route.id,
+        label: route.label,
+        closure: route.closure,
+        fact_ids: route.fact_ids,
+      })),
       unmatched_routes: formationRoutes.filter((route) => !route.matched).map((route) => ({
         id: route.id,
         label: route.label,
@@ -508,9 +646,22 @@ function adjudicatePattern(natal, strength) {
     damage: contrary,
     rescue: rescueEvidence,
     route_adjudication: {
-      active_damage_routes: matchedDamage.map((route) => ({ id: route.id, label: route.label, closure: route.closure, fact_ids: route.fact_ids })),
-      active_rescue_routes: matchedRescue.map((route) => ({ id: route.id, label: route.label, for_damage: route.for_damage, closure: route.closure, fact_ids: route.fact_ids })),
-      coverage: "只裁决《子平真诠》第九章中已编码且当前事实能够直接核对的复合路线；轻重、位置、合而能化等未闭合条件不补算。",
+      active_damage_routes: matchedDamage.map((route) => ({
+        id: route.id,
+        label: route.label,
+        declared_closure: route.declared_closure,
+        closure: route.closure,
+        fact_ids: route.fact_ids,
+      })),
+      active_rescue_routes: matchedRescue.map((route) => ({
+        id: route.id,
+        label: route.label,
+        for_damage: route.for_damage,
+        declared_closure: route.declared_closure,
+        closure: route.closure,
+        fact_ids: route.fact_ids,
+      })),
+      coverage: "当前透干出现可闭合结构筛查，但轻重、位置、根气、制化效力未闭合的路线不得升级为最终破格或救应。",
     },
     conclusion: state === BAZI_ADJUDICATION_STATES.established
       ? `${rule.label}命中${matchedFormation.map((route) => route.label).join("、")}的已编码成格路线，尚未见已编码直接破坏。`
@@ -519,8 +670,49 @@ function adjudicatePattern(natal, strength) {
       : state === BAZI_ADJUDICATION_STATES.broken
           ? `${rule.label}已经成立但命中${matchedDamage.map((route) => route.label).join("、")}，且已编码的对应救应未成立，当前路线按破格处理。`
           : state === BAZI_ADJUDICATION_STATES.damaged
-            ? `${rule.label}已经成立并命中${matchedDamage.map((route) => route.label).join("、")}；相关轻重、位置或制化尚未闭合，只判受损，不越级判破格或救应。`
+            ? `${rule.label}命中成格结构，也见${matchedDamage.map((route) => route.label).join("、")}${matchedRescue.length ? `及配对救应候选${matchedRescue.map((route) => route.label).join("、")}` : ""}；相关轻重、位置、根气或制化效力尚未闭合，只判受损，不越级判最终破格或救应。`
             : `${rule.label}目前只有月令候选；${formationRoutes.length ? "已编码成格路线的复合条件尚未齐" : "该格的机器成格路线尚未安装"}。`,
+  };
+}
+
+function adjudicatePattern(natal, strength) {
+  const candidates = natal.monthQiCandidates.map((candidate) => {
+    const transparent = natal.visiblePillars.some((pillar) => pillar.heavenly_stem === candidate.hidden_stem);
+    const primaryFrame = candidate.hidden_position === "main";
+    if (!primaryFrame && !transparent) {
+      return unresolvedPatternCandidate(
+        natal,
+        candidate,
+        `${ROOT_POSITION_ZH[candidate.hidden_position] || candidate.hidden_position}${candidate.hidden_stem}（${candidate.ten_god}）未透，且精确人元司令分段未安装；保留候选但不运行成败路线。`,
+      );
+    }
+    return adjudicatePatternCandidate(natal, strength, candidate, primaryFrame);
+  });
+  const primary = candidates.find((candidate) => candidate.candidate_basis?.status === "month_branch_main_qi_frame") || candidates[0];
+  if (!primary) {
+    return unresolvedPatternCandidate(
+      natal,
+      { candidate_id: "H-BZ-MONTH-QI-00", hidden_stem: null, ten_god: null, hidden_position: "unknown" },
+      "月支藏干候选无法建立。",
+    );
+  }
+  const candidateSummaries = candidates.map((candidate) => ({
+    candidate_id: candidate.candidate_id,
+    candidate_basis: candidate.candidate_basis,
+    hypothesis: candidate.hypothesis,
+    formation: candidate.formation,
+    state_history: candidate.state_history,
+    route_adjudication: candidate.route_adjudication,
+    conclusion: candidate.conclusion,
+  }));
+  return {
+    ...primary,
+    selected_candidate_id: null,
+    primary_frame_candidate_id: primary.candidate_id,
+    exact_commander_status: natal.monthCommand?.exact_commander_status || "unresolved_without_solar_term_segment_rule",
+    candidate_policy: "retain every month-branch hidden-stem candidate; use main qi only as a seasonal frame, run a secondary route only when that stem is visible, and never call any candidate the exact human commander without a solar-term segment rule",
+    candidates: candidateSummaries,
+    conclusion: `精确人元司令未决；以下只以月支本气框架展开，同时保留${candidateSummaries.length}个藏干候选。${primary.conclusion}`,
   };
 }
 
@@ -528,7 +720,7 @@ function patternDirection(pattern, natal) {
   if (pattern.hypothesis.state === BAZI_ADJUDICATION_STATES.rescued && pattern.rescue.length) {
     return unique(pattern.rescue.map((item) => item.statement.match(/干([^，]+)透出/u)?.[1]));
   }
-  const rule = BAZI_MONTH_COMMAND_PATTERN_RULES[natal.commandGod];
+  const rule = BAZI_MONTH_COMMAND_PATTERN_RULES[pattern.month_qi_candidate?.ten_god || natal.monthMainQiGod];
   if (pattern.hypothesis.state === BAZI_ADJUDICATION_STATES.broken) return unique(rule?.rescue || []);
   if (pattern.hypothesis.state === BAZI_ADJUDICATION_STATES.established) return unique(rule?.maintain || []);
   return [];
@@ -708,11 +900,11 @@ function usefulGodViews(strength, pattern, natal) {
   };
   const climateView = adjudicateClimate(natal);
   const passageView = adjudicatePassage(natal);
-  const closedDamageRoutes = pattern.route_adjudication.active_damage_routes.filter((route) => route.closure === "closed");
-  const screeningDamageRoutes = pattern.route_adjudication.active_damage_routes.filter((route) => route.closure !== "closed");
+  const closedDamageRoutes = pattern.route_adjudication.active_damage_routes.filter((route) => route.closure === "effect_closed");
+  const screeningDamageRoutes = pattern.route_adjudication.active_damage_routes.filter((route) => route.closure !== "effect_closed");
   const closedDamageIds = new Set(closedDamageRoutes.map((route) => route.id));
   const closedRescueRoutes = pattern.route_adjudication.active_rescue_routes.filter((route) => (
-    route.closure === "closed" && closedDamageIds.has(route.for_damage)
+    route.closure === "effect_closed" && closedDamageIds.has(route.for_damage)
   ));
   const closedRescueIds = new Set(closedRescueRoutes.map((route) => route.id));
   const remedyDirections = pattern.rescue
@@ -1173,9 +1365,16 @@ function ordinarySynthesis(strength, pattern, views, conflicts, phase) {
         : pattern.hypothesis.state === BAZI_ADJUDICATION_STATES.damaged
           ? `${pattern.hypothesis.label}已命中成格路线，也见到牵制；因轻重、位置或制化尚未闭合，目前只判受损。`
           : `${pattern.hypothesis.label}目前只能作为候选，不能直接当成定局。`;
-  const strengthPlain = strength.selected_hypothesis_id
-    ? strength.conclusion
-    : "日主承载力同时见到支持和压力，当前不勉强贴强弱标签。";
+  const strengthPlain = strength.conclusion;
+  const resultFirstPattern = pattern.hypothesis.state === BAZI_ADJUDICATION_STATES.established
+    ? `${pattern.hypothesis.label}的已登记成格条件目前闭合。`
+    : pattern.hypothesis.state === BAZI_ADJUDICATION_STATES.damaged
+      ? `${pattern.hypothesis.label}已有成格条件，也见牵制；因作用轻重尚未闭合，目前只判受损。`
+      : pattern.hypothesis.state === BAZI_ADJUDICATION_STATES.broken
+        ? `${pattern.hypothesis.label}的登记破格条件已闭合，且本轮未见同一路线的有效救应。`
+        : pattern.hypothesis.state === BAZI_ADJUDICATION_STATES.rescued
+          ? `${pattern.hypothesis.label}先见明确牵制，再由同一路线的登记条件形成救应。`
+          : `${pattern.hypothesis.label}目前只能保留为候选，不能稳妥定格。`;
   const basis = unique([
     pattern.command?.fact_id,
     ...strength.hypotheses.flatMap((item) => [
@@ -1188,8 +1387,8 @@ function ordinarySynthesis(strength, pattern, views, conflicts, phase) {
   ]);
   return {
     conclusion: conflicts.length
-      ? `${pattern.conclusion} 取用视角存在明确分歧，当前并列保留。`
-      : `${pattern.conclusion} 其余视角只在各自前提内补充。`,
+      ? `${resultFirstPattern} 不同取用视角存在明确分歧，当前并列保留。`
+      : `${resultFirstPattern} 其他视角只在各自前提内补充。`,
     plain_language: `${patternPlain}${strengthPlain} 这不是把不同门派揉成一个答案，而是先说明哪条判断成立、哪里受损、有没有补救，以及哪些仍未决。`,
     basis,
     change_conditions: unique([
@@ -1219,15 +1418,15 @@ function ordinarySynthesis(strength, pattern, views, conflicts, phase) {
  */
 export function adjudicateBazi(calculation, options = {}) {
   const replayStatus = ensureReplayVerifiedBazi(calculation);
-  const topic = options.topic || "overview";
-  if (topic !== "overview") {
+  const topic = options.topic === undefined ? "overview" : options.topic;
+  if (!SUPPORTED_TOPICS.has(topic)) {
     return unavailableResult(
       calculation,
       replayStatus,
-      "当前八字结果层只闭合整体旺衰、格局、取用分歧与阶段路线；尚未安装指定人生领域的规则，因此不把泛化十神写成该领域答案。",
+      "当前八字主题表只闭合人生整体、事业学习、财富资源和长期关系；其他领域不借相邻十神拼答案。",
       {
         conclusion: "当前八字规则不能可靠回答这个指定领域。",
-        basis: ["指定领域主题路由未安装"],
+        basis: ["指定领域不在封闭主题表内"],
         change_conditions: ["改选人生整体来查看已闭合的八字结构，或改用已支持该主题的紫微/西洋路线。"],
       },
     );
@@ -1236,7 +1435,7 @@ export function adjudicateBazi(calculation, options = {}) {
     return unavailableResult(calculation, replayStatus, "出生时辰未知时，不创建完整旺衰、格局或用神裁决。");
   }
   const natal = readNatalFacts(calculation);
-  if (!natal || !TEN_GODS.has(natal.commandGod)) {
+  if (!natal || !TEN_GODS.has(natal.monthMainQiGod) || !natal.monthQiCandidates.length) {
     return unavailableResult(calculation, replayStatus, "月令本气、十神或四柱事实不完整，无法建立候选。 ");
   }
   const strength = adjudicateStrength(natal);
@@ -1245,10 +1444,11 @@ export function adjudicateBazi(calculation, options = {}) {
   const conflicts = lensConflicts(views);
   const phase = phaseLayers(natal, strength, pattern, calculation);
   const synthesis = ordinarySynthesis(strength, pattern, views, conflicts, phase);
-  return deepFreeze({
+  const overviewResult = {
     schema_version: "bazi-adjudication-v0.5",
     system: "bazi",
     status: "completed",
+    topic: "overview",
     conclusion: synthesis.conclusion,
     plain_language: synthesis.plain_language,
     basis: synthesis.basis,
@@ -1285,6 +1485,47 @@ export function adjudicateBazi(calculation, options = {}) {
     audit: {
       calculation_replay_status: replayStatus,
       ignored_untrusted_option_keys: ["rule_inputs", "periods"].filter((key) => Object.hasOwn(options, key)),
+    },
+  };
+  if (topic === "overview") return deepFreeze(overviewResult);
+
+  const topicReading = adjudicateBaziTopic(calculation, topic);
+  if (!topicReading) {
+    throw new FortuneTellerError("BAZI_ADJUDICATION_TOPIC_INTERNAL", `registered BaZi topic did not resolve: ${topic}`);
+  }
+  const topicBasis = unique([
+    ...(topicReading.inspected_fact_ids || []),
+    ...(topicReading.axes || []).flatMap((axis) => axis.evidence.map((item) => item.fact_id)),
+    topicReading.day_branch?.fact_id,
+    ...(topicReading.branch_interactions || []).flatMap((item) => item.fact_ids || [item.fact_id]),
+    ...(topicReading.spouse_star_context?.evidence || []).map((item) => item.fact_id),
+    ...(topicReading.phase_activation?.inspected_fact_ids || []),
+  ]);
+  return deepFreeze({
+    ...overviewResult,
+    topic,
+    conclusion: topicReading.conclusion,
+    plain_language: topicReading.plain_language,
+    basis: topicBasis,
+    change_conditions: unique([
+      "出生资料、时区或日界口径改变时，必须重算整条主题路线。",
+      "藏干只保留为背景候选；没有透出或已登记作用链时，不升级成前台结论。",
+      "大运或流年只强调原局已有主题轴；若原局未见对应轴，只记录岁运单独出现，不据此命名具体事件。",
+    ]),
+    reality_checks: topicReading.reality_checks,
+    natal_overview: {
+      conclusion: synthesis.conclusion,
+      plain_language: synthesis.plain_language,
+    },
+    lenses: { ...overviewResult.lenses, topic: topicReading },
+    phase: { ...phase, topic_activation: topicReading.phase_activation },
+    rulepack: {
+      ...overviewResult.rulepack,
+      topic: topicReading.rulepack,
+    },
+    safeguards: {
+      ...overviewResult.safeguards,
+      ...topicReading.safeguards,
     },
   });
 }

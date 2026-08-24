@@ -1,4 +1,4 @@
-# Architecture — 0.5.0
+# Architecture — 0.6.0
 
 ## Design boundary
 
@@ -31,10 +31,12 @@ No engine failure falls back to language-model calculation. No adjudicator may r
 | `src/core/calculation-verifier.mjs` | Replays birth-chart engines or structurally recomputes Tarot/I Ching/Meihua facts |
 | `src/core/adjudicate.mjs` | Generic dispatch to exactly one of six result-first adjudicators |
 | `src/core/*-adjudicator.mjs` | Per-system closed reasoning, refusal boundary, plain-language result and change conditions |
+| `src/core/bazi-topic-adjudicator.mjs` | Three replay-verified BaZi topic views; separates visible/hidden, co-presence/closure, natal/phase, and day-branch/spouse-star context |
+| `src/core/ziwei-pattern-evidence.mjs` | Supplemental known-time evaluation of pinned named-pattern predicates and refusal boundaries; no vote, score, or event |
 | `src/data/*-interpretation-rulepack.mjs` | Versioned bounded meaning axes; project-authored paraphrases, never unrestricted event corpora |
 | `src/data/bazi-climate-rulepack.mjs` | 120 Day-Stem × solar-month base climate-priority entries with source locators and explicit exception boundary |
-| `src/data/source-registry.mjs` | 15 narrow implementation/historical source records with scope and limitations |
-| `src/data/rule-registry.mjs` | 36 machine-readable applicability rules, fact groups, source bundles and epistemic ceilings |
+| `src/data/source-registry.mjs` | 16 narrow implementation/historical source records with scope and limitations |
+| `src/data/rule-registry.mjs` | 38 machine-readable applicability rules, fact groups, source bundles and epistemic ceilings |
 | `src/data/interpretation-profile-registry.mjs` | Six frozen system profiles and review labels |
 | `src/core/meaning-layer.mjs` | Closed Zi Wei `R-ZW-007/008/009` meaning bindings and canonical prose |
 | `src/core/reading-validator.mjs` | Calculation binding, rule/source applicability, typed technical assertions, shared-question multi-system contract and safety checks |
@@ -52,13 +54,13 @@ Dispatch uses `calculation.system`; unsupported or tampered calculations fail cl
 
 ### BaZi
 
-The engine emits pillars, season/month-command candidates, located root evidence, visible force evidence, relationships, and optional luck-cycle facts. The adjudicator keeps strength hypotheses and 格局、扶抑、调候、通关、病药 separate.
+The engine emits pillars, season/month-command candidates, located root evidence, visible force evidence, relationships, and optional luck-cycle facts. The adjudicator keeps strength hypotheses and 格局、扶抑、调候、通关、病药 separate. The topic layer then offers only career/study, wealth/resources, and long-term relationships: axis co-presence is not causal closure, a period cannot create an absent natal axis, and relationship phases read exact relations to the day branch before optional spouse-star context.
 
 The climate route performs one exact lookup in a 10×12 source-mention screening table and checks mentioned stems as visible, hidden or absent. Array order is not priority. Missing solar-term segments and unclosed roles/conditions keep the lens unresolved; entry-specific outcomes are not installed. Passage opens only for a replayable visible control pair and fixed generating mediator, without claiming efficacy. Every registered formation/damage/rescue route is evaluated for natal, natal+decadal, and natal+decadal+yearly inputs; the natal state never changes. Pair components of three-branch punishment are distinct from a complete punishment.
 
 ### Zi Wei
 
-The readable wrapper calls the existing closed meaning layer. It binds one supported topic to its primary palace and complete 三方四正, then uses natal or a complete natal→decadal→yearly phase path. It refuses unknown-time candidate selection and unsupported `family_social` synthesis. The separate generic candidate evaluator remains developer-facing and is not a named-pattern corpus.
+The readable wrapper calls the closed meaning layer. It binds one supported topic to its primary palace and complete 三方四正, then uses natal or a complete natal→decadal→yearly phase path. A focus palace uses either its own replayed major-star axes or exact opposite-palace names as context only; the two representations cannot mix. The known-time result also carries a supplemental ledger of 55 fixed Mingyu-derived pattern predicates and 32 refusals. That ledger cannot rewrite the topic conclusion, vote, score, or generate an event. Unknown-time candidate selection and unsupported `family_social` synthesis remain refused.
 
 ### Western natal astrology
 

@@ -1,4 +1,4 @@
-# Meihua Yishu Two-Number Preview (`meihua`) — 0.5.0
+# Meihua Yishu Two-Number Preview (`meihua`) — 0.6.0
 
 This route implements one narrow, deterministic two-number convention with body/use, mutual hexagram and before/after Five-Element relation. It remains a preview: it is not a general Meihua engine and does not supply seasonal strength, external omens or timing.
 

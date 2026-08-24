@@ -565,13 +565,21 @@ function validateTopicUnitRule(claim, at, rule, calculation, factIds, errors) {
     if (outside.length) errors.push(`${at} cites ${outside.length} fact(s) outside the selected ${label}`);
   };
   if (rule.required_topic_unit_kind === "natal") {
+    const primaryContextIds = typeof unit.primary_major_star_context_fact_id === "string"
+      ? [unit.primary_major_star_context_fact_id] : [];
     const allowed = [
       claim.topic_unit_id,
       unit.primary_palace_id,
       unit.relation_fact_id,
       ...(unit.component_palace_ids || []),
+      ...primaryContextIds,
     ];
-    requireRefs([unit.primary_palace_id, unit.relation_fact_id, ...(unit.component_palace_ids || [])], "all natal topic and three-directions/four-alignments facts");
+    requireRefs([
+      unit.primary_palace_id,
+      unit.relation_fact_id,
+      ...(unit.component_palace_ids || []),
+      ...primaryContextIds,
+    ], "all natal topic, three-directions/four-alignments, and exact empty-palace context facts");
     rejectRefsOutside(allowed, "natal topic unit");
   } else if (rule.required_topic_unit_kind === "natal_with_mutagen") {
     requireRefs([unit.primary_palace_id], "the topic palace fact");
@@ -607,10 +615,13 @@ function validateTopicUnitRule(claim, at, rule, calculation, factIds, errors) {
     const natalUnit = factObjectById(calculation, unit.natal_topic_unit_id)?.value;
     const natalComponents = Array.isArray(natalUnit?.component_palace_ids)
       ? natalUnit.component_palace_ids : [];
+    const natalContextIds = typeof natalUnit?.primary_major_star_context_fact_id === "string"
+      ? [natalUnit.primary_major_star_context_fact_id] : [];
     requireRefs([
       unit.natal_topic_unit_id,
       natalUnit?.relation_fact_id,
       ...natalComponents,
+      ...natalContextIds,
       unit.target_fact_id,
       unit.phase_validity_fact_id,
       unit.decadal_star_palace_id,
@@ -625,6 +636,7 @@ function validateTopicUnitRule(claim, at, rule, calculation, factIds, errors) {
       unit.natal_topic_unit_id,
       natalUnit?.relation_fact_id,
       ...natalComponents,
+      ...natalContextIds,
       unit.target_fact_id,
       unit.phase_validity_fact_id,
       unit.decadal_period_id,
@@ -639,6 +651,7 @@ function validateTopicUnitRule(claim, at, rule, calculation, factIds, errors) {
     const natalPalaceIds = new Set(natalComponents);
     const phaseSemanticOutside = (claim.semantic_bindings || []).filter((binding) => {
       if (binding?.kind === "star_in_palace") return !natalPalaceIds.has(binding.fact_id);
+      if (binding?.kind === "opposite_major_star_context") return !natalContextIds.includes(binding.fact_id);
       if (binding?.kind === "period_star_in_slot") {
         const allowed = binding.scope === "decadal"
           ? unit.decadal_component_star_palace_ids
@@ -694,6 +707,35 @@ function validateZiweiSemanticBindings(claim, at, calculation, factIds, errors) 
         && matchedStar
         && (!Object.hasOwn(binding, "brightness") || matchedStar.brightness === binding.brightness);
       if (!matches) errors.push(`${bindingAt} does not match an actual star-in-palace fact`);
+      else verified.push(binding);
+      return;
+    }
+    if (binding.kind === "opposite_major_star_context") {
+      const allowed = new Set([
+        "kind", "fact_id", "star", "target_palace",
+        "source_palace_fact_id", "source_palace", "borrowed_for",
+      ]);
+      if (Object.keys(binding).some((key) => !allowed.has(key))) {
+        errors.push(`${bindingAt} contains unknown fields`);
+      }
+      const contextStar = Array.isArray(resolved.value?.major_stars)
+        ? resolved.value.major_stars.find((star) => star?.name === binding.star) : null;
+      const matches = pathMatchesPrefix(resolved.path, "/facts/structure/empty_palace_contexts")
+        && resolved.value?.status === "context_available"
+        && resolved.value?.target_palace === binding.target_palace
+        && resolved.value?.source_palace_id === binding.source_palace_fact_id
+        && resolved.value?.source_palace === binding.source_palace
+        && binding.borrowed_for === "context_only"
+        && stableJson(resolved.value?.borrowed_attributes) === '["name"]'
+        && Array.isArray(resolved.value?.forbidden_transfer)
+        && resolved.value.forbidden_transfer.includes("brightness")
+        && resolved.value.forbidden_transfer.includes("mutagen")
+        && contextStar?.source_palace_id === resolved.value.source_palace_id
+        && contextStar?.source_palace === resolved.value.source_palace
+        && contextStar?.borrowed_for === "context_only"
+        && !Object.hasOwn(contextStar, "brightness")
+        && !Object.hasOwn(contextStar, "mutagen");
+      if (!matches) errors.push(`${bindingAt} does not match an exact opposite-palace context fact`);
       else verified.push(binding);
       return;
     }
@@ -780,6 +822,7 @@ function validateZiweiSemanticBindings(claim, at, calculation, factIds, errors) 
           binding.star === star
           && (
             (binding.kind === "star_in_palace" && binding.palace === palace)
+            || (binding.kind === "opposite_major_star_context" && binding.source_palace === palace)
             || (binding.kind === "mutagen_in_palace" && binding.palace === palace)
             || (binding.kind === "period_transformation" && binding.natal_palace === palace)
           ))) {

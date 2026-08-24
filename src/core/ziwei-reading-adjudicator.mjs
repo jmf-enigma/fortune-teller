@@ -5,10 +5,12 @@ import {
   canonicalZiweiSemanticBindings,
   deriveZiweiMeaningBinding,
 } from "./meaning-layer.mjs";
+import { resultFacingZiweiPatternEvidence } from "./ziwei-pattern-evidence.mjs";
 
 const TOPICS = new Set([
   "overview", "career_study", "wealth_resources", "relationships", "family_social", "wellbeing_rhythm",
 ]);
+const PATTERN_DETAILS = new Set(["none", "compact", "audit"]);
 
 function deepFreeze(value) {
   if (value && typeof value === "object" && !Object.isFrozen(value)) {
@@ -54,6 +56,7 @@ function natalClaim(calculation, topic) {
       unit.primary_palace_id,
       unit.relation_fact_id,
       ...(unit.component_palace_ids || []),
+      ...(unit.primary_major_star_context_fact_id ? [unit.primary_major_star_context_fact_id] : []),
     ]),
     assessment: { mode: "current_reflection" },
   };
@@ -76,6 +79,7 @@ function phaseClaim(calculation, topic) {
       natal.primary_palace_id,
       natal.relation_fact_id,
       ...(natal.component_palace_ids || []),
+      ...(natal.primary_major_star_context_fact_id ? [natal.primary_major_star_context_fact_id] : []),
       unit.target_fact_id,
       unit.phase_validity_fact_id,
       unit.decadal_star_palace_id,
@@ -89,7 +93,8 @@ function phaseClaim(calculation, topic) {
   };
 }
 
-function unavailable(calculation, replayStatus, reason, changeConditions = null) {
+function unavailable(calculation, replayStatus, reason, changeConditions = null, patternDetail = "compact") {
+  const namedPatternEvidence = resultFacingZiweiPatternEvidence(calculation, { detail: patternDetail });
   return deepFreeze({
     schema_version: "ziwei-reading-adjudication-v0.5",
     system: "ziwei",
@@ -101,9 +106,11 @@ function unavailable(calculation, replayStatus, reason, changeConditions = null)
     change_conditions: changeConditions || ["补齐可重放的出生时刻和目标日期后，重新从主题宫与三方四正开始。"],
     reality_checks: ["先核对出生记录；不要用经历倒推一个更顺耳的时辰。"],
     unresolved: ["主题深读"],
+    ...(namedPatternEvidence ? { named_pattern_evidence: namedPatternEvidence } : {}),
     safeguards: {
       score_used: false,
       named_event_prediction_used: false,
+      opposite_context_used: false,
       predictive_validity: "not_established",
     },
     audit: { calculation_replay_status: replayStatus, calculation_mode: calculation.facts?.mode },
@@ -118,7 +125,14 @@ function unavailable(calculation, replayStatus, reason, changeConditions = null)
  */
 export function adjudicateZiweiReading(calculation, options = {}) {
   const replayStatus = ensureZiwei(calculation);
-  const topic = options.topic || "overview";
+  const topic = options.topic === undefined ? "overview" : options.topic;
+  const patternDetail = options.pattern_detail === undefined ? "compact" : options.pattern_detail;
+  if (!PATTERN_DETAILS.has(patternDetail)) {
+    throw new FortuneTellerError(
+      "ZIWEI_READING_PATTERN_DETAIL_INVALID",
+      `unsupported Zi Wei pattern detail: ${String(patternDetail)}`,
+    );
+  }
   if (!TOPICS.has(topic)) {
     throw new FortuneTellerError(
       "ZIWEI_READING_ADJUDICATION_TOPIC_INVALID",
@@ -131,10 +145,11 @@ export function adjudicateZiweiReading(calculation, options = {}) {
       replayStatus,
       "家庭与广义人际需要区分田宅、父母、兄弟、交友等不同宫位；当前封闭主题表尚未安装这一合并路线，因此不拿关系宫或命宫替代。",
       ["改选当前已闭合的事业学业、财富资源、长期关系或身心节奏主题；家庭与广义人际需等待多宫合并路线安装后重新计算。"],
+      patternDetail,
     );
   }
   if (calculation.facts?.mode !== "known-time") {
-    return unavailable(calculation, replayStatus, "出生时刻未知时，不从候选盘中挑一张生成三方四正或阶段结论。");
+    return unavailable(calculation, replayStatus, "出生时刻未知时，不从候选盘中挑一张生成三方四正或阶段结论。", null, patternDetail);
   }
 
   const attempts = [];
@@ -150,6 +165,9 @@ export function adjudicateZiweiReading(calculation, options = {}) {
     if (!derivation.ok) continue;
     const narrative = canonicalZiweiNarrative(derivation.binding, calculation);
     const semantics = canonicalZiweiSemanticBindings(derivation.binding, calculation);
+    const oppositeContextUsed = derivation.binding.palace_axis_groups.some(
+      (group) => (group.context_only_major_star_axes || []).length > 0,
+    );
     return deepFreeze({
       schema_version: "ziwei-reading-adjudication-v0.5",
       system: "ziwei",
@@ -172,10 +190,16 @@ export function adjudicateZiweiReading(calculation, options = {}) {
       unresolved: attempt.layer === "phase" ? [] : [
         ...(calculation.facts?.periods ? ["阶段路线未满足全部闭合条件，已回退本命主题"] : ["未提供目标日期，不判断大限流年阶段"]),
       ],
+      ...(patternDetail === "none" ? {} : {
+        named_pattern_evidence: resultFacingZiweiPatternEvidence(calculation, { detail: patternDetail }),
+      }),
       safeguards: {
         score_used: false,
         named_event_prediction_used: false,
-        borrowed_star_used: false,
+        opposite_context_used: oppositeContextUsed,
+        opposite_context_policy: oppositeContextUsed
+          ? "exact_opposite_major_star_names_context_only_without_brightness_or_mutagen"
+          : "not_used",
         predictive_validity: "not_established",
       },
       audit: {
@@ -185,5 +209,5 @@ export function adjudicateZiweiReading(calculation, options = {}) {
       },
     });
   }
-  return unavailable(calculation, replayStatus, "当前主题缺少完整且机器绑定的主宫、三方、对宫或阶段条件。 ");
+  return unavailable(calculation, replayStatus, "当前主题缺少完整且机器绑定的主宫、三方、对宫或阶段条件。 ", null, patternDetail);
 }

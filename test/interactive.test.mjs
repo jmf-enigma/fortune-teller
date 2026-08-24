@@ -185,7 +185,7 @@ test("BaZi life-overview path collects luck inputs and presents adjudication bef
 
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stderr, "");
-  assert.match(result.transcript, /大运顺逆参数：男/u);
+  assert.match(result.transcript, /传统二元参数：男（大运顺逆；关系专题仅作流派性补充）/u);
   assert.match(result.transcript, /先说结论：/u);
   assert.match(result.transcript, /当前阶段：/u);
   assert.match(result.transcript, /当前大运：丙戌/u);
