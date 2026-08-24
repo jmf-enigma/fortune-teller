@@ -1,127 +1,109 @@
-# Tarot (`tarot`)
+# Tarot (`tarot`) — 0.5.0
 
-Use this reference only after the live method registry confirms that `tarot` is available. The engine records a user-supplied or local draw from a 78-card Rider–Waite–Smith naming profile and attaches short local keyword prompts. It does not forecast events or choose cards through model intuition.
+The Tarot route freezes one focused question, one registered spread and one 78-card Rider–Waite–Smith naming-profile draw. The model explains that frozen draw; it never selects cards, redraws until favourable, or treats a pattern count as a vote.
 
 ## Actual support
 
-The engine currently supports:
+- question text up to 1,000 characters;
+- `one`, `three`, `situation-action-outcome`, `decision`, and `celtic-cross` spreads with fixed positions and groups;
+- 78 stable card IDs and Chinese/English titles;
+- upright/reversed orientation when enabled;
+- user-supplied cards, secure local random draw, or user-supplied replay seed;
+- full structural card metadata: major/minor arcana, number, suit, Chinese suit label, rank, rank order and court status;
+- spread provenance and one fact per declared position;
+- composition totals, suit/rank distributions, major-card positions and adjacent transitions;
+- result-first synthesis that preserves every position and ends with a controllable action.
 
-- a focused question of at most 1,000 characters;
-- these exact spreads and positions:
-  - `one`: focus;
-  - `three`: past, present, future;
-  - `situation-action-outcome`;
-  - `decision`: option A, option B, decision lens;
-  - `celtic-cross`: ten declared positions;
-- 78 card IDs with English and Chinese titles, plus concise English local keyword summaries;
-- upright and reversed orientation when `profile.reversals=true`;
-- user-supplied physical/manual cards, requiring exactly one non-duplicated card per position;
-- local secure random draw when no seed or cards are supplied;
-- deterministic seeded draw when the user supplies a replay seed;
-- an RNG mode, algorithm description, and seed commitment when available;
-- a distinct fact ID for every drawn card and position.
+No artwork, copyrighted modern guidebook, arbitrary deck or custom spread array is bundled.
 
-The current profile is:
+## Result-first route
 
-```text
-deck: rider-waite-smith-names
-reversals: true | false
+```js
+import { calculate, adjudicateTarot, adjudicate } from "../../src/index.mjs";
+
+const calculation = calculate("tarot", {
+  question: "未来四周我该怎样推进这次合作？",
+  spread: "situation-action-outcome",
+});
+
+const result = adjudicateTarot(calculation);
+// or adjudicate(calculation)
 ```
 
-The language model must never choose the card outcome. It may only explain the frozen draw returned by the engine.
+The adjudicator checks a complete structural replay before interpreting. For every card it binds:
 
-## Not currently supported
+```text
+declared position and function
+  -> exact card and orientation
+  -> exact registered card-orientation axis
+  -> suit + rank only as non-overriding helpers for Minor Arcana
+  -> position-specific role question
+```
 
-Do not imply support for:
+Only after every position is bound does it add composition, repeated suits/ranks and adjacent transitions.
 
-- card images, scans, Rider–Waite–Smith artwork, or copyrighted guidebook text;
-- Marseille, Thoth, oracle decks, Lenormand, custom decks, duplicate-card decks, or multi-deck draws;
-- arbitrary custom position arrays outside the registered spreads;
-- timing algorithms, yes/no certainty, spirit communication, psychic revelation, or prediction accuracy;
-- discovering another person's thoughts, fidelity, guilt, health, location, or intentions;
-- empirical decision quality or a validated probability estimate;
-- a verified bibliography for each keyword string.
+## Spread-specific conclusion
 
-## Reading the result envelope
+- `one`: one focus, not a yes/no oracle;
+- `three`: background → present → conditional continuation if current behaviour remains;
+- `situation-action-outcome`: situation → most controllable action → conditional outcome;
+- `decision`: requirements of option A, requirements of option B, then a decision criterion; it explicitly does **not** pick A or B;
+- `celtic-cross`: present/challenge, supporting groups, self-position and a conditional outcome, not ten disconnected keywords.
 
-Read:
+“Future” and “outcome” are role labels, not factual forecasts.
 
-- `facts.mode`: `user-supplied` or `local-draw`;
-- `facts.cards[]`: `fact_id`, position, card ID/title, Chinese title, orientation, keyword reference, and keyword status;
-- `input.question`, `input.spread`, and `input.cards_supplied`;
-- `profile.reversals`;
-- `meta.rng`: draw mode, algorithm, seed commitment, and replay metadata when present;
-- `meta.deck_size`;
-- `meta.card_keyword_references[]`: project-authored reflective prompts keyed by `card_id` and orientation; these are deliberately outside calculation facts;
-- `warnings`: keyword prompts are not validated predictions.
+## Composition without voting
 
-Each `meta.card_keyword_references[].prompt` is a short local project summary. It is not a quotation or a complete card meaning. Preserve the matching fact card's assigned spread position when explaining it, and do not relabel the prompt itself as a `calculation_fact`.
+The engine records:
 
-## Numbered rule templates
+- major/minor count and major positions;
+- upright/reversed count;
+- suit counts;
+- rank counts;
+- adjacent arcana, orientation and suit relations.
 
-### R-TR-001 — Position scopes the prompt
+The adjudicator may call a repeated suit a domain emphasis or a repeated rank a repeated development stage. It may not say that two cards “vote yes,” that a majority predicts success, or that more Major Arcana means a bigger destined event. All-upright is not all favourable; all-reversed is not all bad.
 
-- `type`: traditional
-- `source_status`: engine_documented
-- `requires`: a card `fact_id`, its `position`, and the selected spread
-- `rule`: Discuss the card only through the question posed by its registered position. Position labels structure reflection; they do not establish a timeline as fact.
-- `allowed`: “行动位可以提示你检查哪些可控行动。”
-- `forbidden`: “结果位证明这件事一定会发生。”
+## Orientation boundary
 
-### R-TR-002 — Orientation selects the local keyword branch
+Upright means a more direct expression inside the local axis, not automatic luck. Reversed means blocked, internalized, delayed or excessive expression, not punishment or inevitable failure. When reversals are disabled, no reversal meaning may be added.
 
-- `type`: traditional, profile-specific
-- `source_status`: verified
-- `source_ids`: `SRC-TR-WAITE-WIKISOURCE`
-- `requires`: the fact card's `orientation`, the same-card prompt in `meta.card_keyword_references`, and `profile.reversals`
-- `rule`: When reversals are enabled, use the returned upright/reversed keyword branch exactly. When disabled, do not invent reversal meaning.
-- `allowed`: treat the keyword as one possible reflective lens.
-- `forbidden`: treat reversal as bad luck, punishment, diagnosis, or inevitable failure.
+## Frozen question and provenance
 
-### R-TR-003 — Multi-card synthesis must preserve every position
+`facts.mode` distinguishes user-supplied and local draw. The calculation also records whether randomness was secure or seeded. Provenance describes how the cards were selected; it does not prove psychic selection or accuracy.
 
-- `type`: traditional interpretive template
-- `source_status`: engine_documented
-- `requires`: two or more card fact IDs from one frozen draw
-- `rule`: Compare themes while preserving position, orientation, and contradictory prompts. A synthesis is a model interpretation, not a calculated fact.
-- `allowed`: identify a tension between two prompts and ask which better matches observable circumstances.
-- `forbidden`: discard an inconvenient card or rewrite positions to create a smoother prophecy.
+Same-question follow-ups reuse the draw. A materially new question requires an explicit new reading. User dissatisfaction alone is never a reason to redraw.
 
-### R-TR-004 — Draw provenance precedes interpretation
+## Numbered rules
 
-- `type`: audit guard
-- `source_status`: engine_documented
-- `requires`: `facts.mode` and `meta.rng`
-- `rule`: State whether cards were user-supplied, secure-random, or seeded. A commitment can verify a retained seed but does not prove supernatural selection.
-- `allowed`: replay a seeded draw only when the user retains or supplies the seed.
-- `forbidden`: expose/store a private seed unnecessarily, claim model intuition selected the cards, or redraw until a preferred answer appears.
+### R-TR-001 — position before card
 
-## Source status and tradition differences
+Every card must be read through its registered position. A true card fact in the wrong role is not supporting evidence.
 
-- `SRC-TR-WAITE-WIKISOURCE` provides checked historical provenance for Rider–Waite card identity and bounded upright/reversed vocabulary under R-TR-002. It does not prescribe this project's spreads, validate outcomes, or make project-authored prompts quotations from Waite.
-- Deck names follow the declared Rider–Waite–Smith naming profile. Images and original guidebook passages are not included.
-- Keyword strings are local, concise interpretive references and have `engine_documented` status. They must not be represented as quotations from A. E. Waite, Pamela Colman Smith, a modern author, or a named school.
-- R-TR-001, R-TR-003, and R-TR-004 are project-authored or audit rules and carry no external source IDs.
-- Reversal use, spread positions, elemental correspondences, timing, and card combinations vary among readers. Only `reversals` and the registered spreads are implemented here.
-- Do not copy modern copyrighted card descriptions or web readings. Write a short original paraphrase tied to the returned keyword and evidence card.
-- Traditional provenance does not establish predictive validity.
+### R-TR-002 — orientation selects the bounded branch
 
-## Evidence/audit example — not the ordinary answer
+Use the returned upright/reversed branch as a reflective lens and preserve the declared reversal profile.
 
-> **抽取事实**：如果冻结结果中 `F-TR-001.position=action`，则牌名、方向和关键词均须从同一张事实记录读取。
->
-> **反思性解释**：可以把该关键词改写成一个问题：“在我能控制的行动里，哪一步需要更多准备？”这不是未来事件的保证。
->
-> **抽取来源**：本次为本地安全随机；这说明抽取机制，不代表超自然准确性。
+### R-TR-003 — multi-card synthesis without votes
 
-## Prohibited overreach
+Preserve every position and contradiction. Composition, repetition and adjacency can describe structure only; none creates a score, winner or accuracy boost.
 
-Never:
+### R-TR-004 — draw provenance is visible
 
-- use tarot to diagnose illness, determine pregnancy, predict death, identify a criminal, or direct a legal/financial action;
-- claim certainty about another person's fidelity, thoughts, sexuality, motives, or consent;
-- redraw because the first result is unwelcome unless the user deliberately starts a new, separately labeled reading;
-- describe a seeded or secure-random draw as psychic selection;
-- turn “future” or “outcome” position labels into factual forecasts;
-- quote or closely imitate copyrighted guidebook prose;
-- fabricate a card source, artist statement, historical attribution, or accuracy rate.
+Keep user-supplied, secure-random and seeded modes distinct. Replay is an integrity feature, not supernatural evidence.
+
+## Source boundary
+
+`SRC-TR-WAITE-WIKISOURCE` supplies historical provenance for card identity and bounded orientation vocabulary. It does not prescribe these spreads, validate outcomes, or make project-authored axes quotations from Waite. Modern copyrighted interpretations and artwork are not copied.
+
+## Explicit refusals
+
+Never use this route to:
+
+- choose a winner in a decision spread;
+- guarantee a future event, date, probability or yes/no answer;
+- reveal another person's private thoughts, fidelity, guilt, sexuality, consent or location;
+- diagnose illness or pregnancy, predict death/crime, or direct a legal/financial action;
+- turn repeated cards, suits, ranks or orientation into a vote;
+- redraw until the answer is welcome;
+- claim that another system's agreement validates the Tarot result.

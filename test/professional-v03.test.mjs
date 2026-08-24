@@ -1013,7 +1013,7 @@ test("calculation envelopes reject a self-rehashed unknown engine version", () =
   calculation.engine_version = "999.0.0";
   calculation.facts_hash = calculateFactsHash(calculation);
   calculation.reproducibility_hash = calculateReproducibilityHash(calculation);
-  assert.deepEqual(verifyCalculationEnvelope(calculation), ["engine_version must be 0.4.0"]);
+  assert.deepEqual(verifyCalculationEnvelope(calculation), ["engine_version must be 0.5.0"]);
   assert.throws(
     () => bindReadingToCalculations({ ...makeIChingReading(), calculation }),
     (error) => error.code === "INVALID_CALCULATION_ENVELOPE" && /engine_version/u.test(error.message),

@@ -2,7 +2,7 @@
 
 ## Supported version
 
-Security fixes are applied to the latest `0.4.x` release. Pre-release builds are supported only until the corresponding stable version is published.
+Security fixes are applied to the latest `0.5.x` release. Pre-release builds are supported only until the corresponding stable version is published.
 
 ## Reporting a vulnerability
 

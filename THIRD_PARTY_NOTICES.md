@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-This file covers every production and test-only package resolved by `package-lock.json` for version 0.4.0. Versions are exact. No code, prompts, data tables, translations, or knowledge assets from the competitor repositories in `docs/COMPETITOR_AUDIT.md` are included.
+This file covers every production and test-only package resolved by `package-lock.json` for version 0.5.0. Versions are exact. No code, prompts, data tables, translations, or knowledge assets from the competitor repositories in `docs/COMPETITOR_AUDIT.md` are included.
 
 ## Dependency inventory
 
@@ -52,7 +52,7 @@ When redistributing JSBI source or object form, preserve the package's license a
 
 ## Linked source-registry records
 
-Version 0.4.0 contains 14 machine-readable source **records**. These records store bibliographic or implementation metadata, a URL, a deliberately narrow supported scope, and limitations. They do not vendor the linked pages, copy their prose, or turn them into production dependencies.
+Version 0.5.0 contains 15 machine-readable source **records**. These records store bibliographic or implementation metadata, a URL, a deliberately narrow supported scope, and limitations. They do not vendor the linked pages, copy their prose, or turn them into production dependencies.
 
 | Registry ID | Linked work or implementation | Relationship to this project |
 |---|---|---|
@@ -60,6 +60,7 @@ Version 0.4.0 contains 14 machine-readable source **records**. These records sto
 | `SRC-BZ-SANMING-WIKISOURCE` | [《三命通會》Wikisource transcription](https://zh.wikisource.org/wiki/%E4%B8%89%E5%91%BD%E9%80%9A%E6%9C%83) | Historical provenance for bounded traditional terminology; no passage is bundled |
 | `SRC-BZ-ZIPING-ZHENQUAN-NLC` | [《子平真诠》National Library scan](https://upload.wikimedia.org/wikipedia/commons/f/fe/NLC416-11jh010455-35296_%E5%AD%90%E5%B9%B3%E7%9C%9F%E8%A9%AE.pdf) | Chapter-level method provenance for bounded formation, damage, paired rescue, and whole-decade analysis; no passage is bundled |
 | `SRC-BZ-DITIAN-SUI-WIKISOURCE` | [《滴天髓》Wikisource transcription](https://zh.wikisource.org/zh-hant/%E6%BB%B4%E5%A4%A9%E9%AB%93) | Historical method provenance for relational strength, body/use, month-command context, and natal/luck/year hierarchy; no passage is bundled |
+| `SRC-BZ-QIONGTONG-WIKISOURCE` | [《穷通宝鉴》Wikisource transcription](https://zh.wikisource.org/zh-hans/%E7%A9%B7%E9%80%9A%E5%AE%9D%E9%89%B4) | Entry-level provenance for the independently transcribed 120-entry source-mention screening index; array position is not priority and no passage is bundled |
 | `SRC-ZW-IZTRO-2.6.0` | [`iztro` v2.6.0](https://github.com/SylarLong/iztro/tree/v2.6.0) | Pinned implementation provenance for chart fields; the installed package is separately covered above |
 | `SRC-ZW-ZIWEI-QUANSHU` | [`iztro` historical-text guide for 《紫微斗數全書》](https://docs.iztro.com/learn/ancientBook) | Historical-reference metadata and an explicit caution about exaggerated or inconsistent material; no guide or source-text content is bundled |
 | `SRC-ZW-IZTRO-HOROSCOPE-GUIDE` | [`iztro` Zi Wei horoscope guide](https://docs.iztro.com/learn/horoscope) | Method-order metadata for bounded natal–decadal–yearly phase synthesis; the local reading map is an original paraphrase and no guide prose is bundled |
@@ -69,7 +70,7 @@ Version 0.4.0 contains 14 machine-readable source **records**. These records sto
 | `SRC-WA-TETRABIBLOS-PG70850` | [Ptolemy's *Tetrabiblos*, Project Gutenberg ebook 70850](https://www.gutenberg.org/ebooks/70850) | Historical provenance for limited zodiacal and aspect terminology; no ebook or passage is bundled |
 | `SRC-TR-WAITE-WIKISOURCE` | [A. E. Waite, *The Pictorial Key to the Tarot*, Wikisource](https://en.wikisource.org/wiki/The_Pictorial_Key_to_the_Tarot) | Historical provenance for card identity and orientation vocabulary; project prompts are independently authored, not quotations |
 | `SRC-YJ-ZHOUYI-WIKISOURCE` | [《周易》Wikisource transcription](https://zh.wikisource.org/wiki/%E5%91%A8%E6%98%93) | Historical provenance for hexagram identities and bottom-to-top six-line structure; no translation or passage is bundled |
-| `SRC-MH-MEIHUA-WIKISOURCE` | [《梅花易數》Wikisource transcription](https://zh.wikisource.org/wiki/%E6%A2%85%E8%8A%B1%E6%98%93%E6%95%B8) | Historical provenance for one narrow two-number convention; no source-text content is bundled |
+| `SRC-MH-MEIHUA-WIKISOURCE` | [《梅花易數》Wikisource transcription](https://zh.wikisource.org/wiki/%E6%A2%85%E8%8A%B1%E6%98%93%E6%95%B8) | Historical method provenance for the bounded two-number, body/use, mutual-hexagram, and directional Five-Element route; no source-text content is bundled |
 
 The registry's `verified` label means only that the project checked the identity, URL, and declared narrow scope of a record. It does not verify a traditional prediction, certify a school as authoritative, or establish empirical predictive validity. Users who open a linked work are responsible for that host's current terms and any reuse beyond linking or factual metadata.
 
@@ -77,6 +78,6 @@ The registry's `verified` label means only that the project checked the identity
 
 - The Tarot names and compact keywords in this project are independently authored labels and short prompts; no modern guidebook text is bundled.
 - The King Wen line-pattern mapping is an implementation table used for calculation. No copyrighted translation of the hexagram or line texts is bundled.
-- The 31 machine-readable rules and method references contain conservative, independently written workflow constraints; they do not reproduce linked source prose or competitor knowledge bases.
+- The 36 machine-readable rules and method references contain conservative, independently written workflow constraints; they do not reproduce linked source prose or competitor knowledge bases.
 - The compact Zi Wei life-area, major-star, transformation, and phase prompts are project-authored bounded summaries. They are not quotations or a copied modern knowledge base.
 - Linked historical sources document terminology or traditional provenance only. Pinned engine records document implementation provenance only. Neither establishes the predictive validity of any traditional system.

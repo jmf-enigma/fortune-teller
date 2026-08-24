@@ -127,7 +127,7 @@ Record line order and moving lines. A current timestamp is metadata, not permiss
 
 ### Meihua preview
 
-Use only after an explicit preview warning. Collect two user-provided positive integers and, optionally, an explicit moving line. Time-based casting is not implemented. Never invent a time rule after seeing an inconvenient result.
+Use only after an explicit preview warning. Collect two user-provided positive integers; the fixed profile derives the moving line and rejects any override. Time-based casting is not implemented. Never invent a time rule after seeing an inconvenient result.
 
 ## 5. Privacy disclosure
 

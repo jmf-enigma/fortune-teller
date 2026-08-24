@@ -1,6 +1,6 @@
 import { contentHash } from "./hash.mjs";
 
-export const ENGINE_VERSION = "0.4.0";
+export const ENGINE_VERSION = "0.5.0";
 export const CALCULATION_SYSTEMS = Object.freeze(["bazi", "ziwei", "western", "tarot", "iching", "meihua"]);
 const CALCULATION_SYSTEM_SET = new Set(CALCULATION_SYSTEMS);
 const RESULT_KEYS = new Set([

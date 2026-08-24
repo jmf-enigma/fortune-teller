@@ -11,7 +11,7 @@ const output = join(dist, "fortune-teller-skill.zip");
 const checksumOutput = join(dist, "SHA256SUMS");
 const releaseManifestPath = join(root, "release-files.json");
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
-const expectedReleaseFileCount = 99;
+const expectedReleaseFileCount = 118;
 const expectedControlledRoots = [
   ".github", "agents", "assets", "docs", "references", "schemas", "scripts", "src", "test",
 ];

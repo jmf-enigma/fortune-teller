@@ -67,7 +67,7 @@ export const METHODS = deepFreeze([
     status: "stable-utc+08-civil-calendar-reference",
     quality: quality(
       "profile_specific",
-      "sourced_traditional_rule",
+      "project_authored_bounded_rules_with_source_anchors",
       "release-tested pinned wrapper with UTC+08:00 offset fail-closed",
     ),
     engine: "lunar-typescript@1.8.6 + late-Zi consistency wrapper",
@@ -103,7 +103,7 @@ export const METHODS = deepFreeze([
     status: "qualified-birthplace-civil-calendar-day",
     quality: quality(
       "profile_specific",
-      "sourced_traditional_rule",
+      "project_authored_bounded_rules_with_source_anchors",
       "release-tested pinned wrapper with qualified birthplace-civil overseas calendar-day convention",
     ),
     engine: "iztro@2.6.0",
@@ -134,7 +134,7 @@ export const METHODS = deepFreeze([
     status: "stable-whole-sign",
     quality: quality(
       "profile_specific",
-      "sourced_traditional_rule",
+      "project_authored_bounded_rules_with_source_anchors",
       "release-tested pinned astronomy wrapper with whole-sign profile and multi-window motion audit",
     ),
     engine: "astronomy-engine@2.1.19",
@@ -159,7 +159,7 @@ export const METHODS = deepFreeze([
     status: "stable",
     quality: quality(
       "wrapper_conformant",
-      "sourced_traditional_rule",
+      "project_authored_bounded_rules_with_source_anchors",
       "release-tested local draw with replayable or user-supplied provenance",
     ),
     engine: "local SHA-256 replayable random stream",
@@ -206,7 +206,7 @@ export const METHODS = deepFreeze([
     status: "stable",
     quality: quality(
       "wrapper_conformant",
-      "sourced_traditional_rule",
+      "project_authored_bounded_rules_with_source_anchors",
       "release-tested local cast with replayable or user-supplied provenance",
     ),
     engine: "local SHA-256 replayable three-coin casting",
@@ -232,8 +232,8 @@ export const METHODS = deepFreeze([
     status: "preview",
     quality: quality(
       "profile_specific",
-      "fact_only",
-      "preview-only deterministic two-number profile",
+      "project_authored_bounded_rules_with_source_anchors",
+      "release-tested deterministic two-number profile with body/use, mutual hexagram, and bounded Five-Element adjudication",
     ),
     engine: "local deterministic two-number casting",
     usage: calculatorUsage("meihua"),
@@ -246,11 +246,10 @@ export const METHODS = deepFreeze([
         question: { type: "string" },
         first_number: { type: "integer", minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
         second_number: { type: "integer", minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
-        moving_line: { type: "integer", minimum: 1, maximum: 6 },
       },
     },
     profiles: listProfiles("meihua"),
-    limitations: ["no time casting", "no body/use analysis", "no timing claims"],
+    limitations: ["one fixed two-number profile only", "no time/object/omen casting", "no seasonal strength without occurrence-time facts", "no timing claims"],
   },
   {
     id: "liuyao",

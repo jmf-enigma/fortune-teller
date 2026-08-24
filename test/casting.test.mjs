@@ -4,6 +4,7 @@ import { calculate } from "../src/index.mjs";
 import { hexagramFromLines } from "../src/data/iching.mjs";
 import { TAROT_DECK } from "../src/data/tarot.mjs";
 import { createRandomSource, randomInt } from "../src/core/random.mjs";
+import { calculateMeihua } from "../src/engines/meihua.mjs";
 
 test("Tarot deck contains 78 unique stable card IDs", () => {
   assert.equal(TAROT_DECK.length, 78);
@@ -87,10 +88,14 @@ test("three-coin replay records 6×3 coins and flips only changing lines", () =>
 });
 
 test("Meihua two-number convention is explicit and deterministic", () => {
-  const result = calculate("meihua", { first_number: 1, second_number: 1, moving_line: 1 });
+  const result = calculate("meihua", { first_number: 1, second_number: 1 });
   assert.equal(result.facts.primary.king_wen_number, 1);
-  assert.equal(result.facts.transformed.king_wen_number, 44);
-  assert.match(result.warnings.join("\n"), /preview/i);
+  assert.equal(result.facts.transformed.king_wen_number, 13);
+  assert.match(result.warnings.join("\n"), /bounded/i);
+  assert.throws(
+    () => calculateMeihua({ first_number: 1, second_number: 1, moving_line: 6 }),
+    (error) => error.code === "MEIHUA_MOVING_LINE_OVERRIDE_UNSUPPORTED",
+  );
 });
 
 test("Meihua default moving-line fixtures preserve modulo conventions", () => {

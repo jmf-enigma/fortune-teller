@@ -32,7 +32,14 @@ export {
   validateClaimSemantics,
 } from "./core/claim-semantics.mjs";
 export { verifyCalculationFacts } from "./core/calculation-verifier.mjs";
+export { adjudicate } from "./core/adjudicate.mjs";
 export { adjudicateBazi } from "./core/bazi-adjudicator.mjs";
+export { adjudicateZiweiReading } from "./core/ziwei-reading-adjudicator.mjs";
+export { adjudicateWestern } from "./core/western-adjudicator.mjs";
+export { adjudicateTarot } from "./core/tarot-adjudicator.mjs";
+export { adjudicateIChing } from "./core/iching-adjudicator.mjs";
+export { adjudicateMeihua } from "./core/meihua-adjudicator.mjs";
+export { recommendMethods, METHOD_ROUTER_META } from "./core/method-router.mjs";
 export {
   adjudicateZiweiEmptyPalace,
   adjudicateZiweiPattern,
@@ -55,6 +62,15 @@ export {
   BAZI_MONTH_COMMAND_PATTERN_RULES,
   BAZI_VIEW_DEFINITIONS,
 } from "./data/bazi-adjudication-rulepack.mjs";
+export {
+  BAZI_CLIMATE_RULEPACK_META,
+  BAZI_CLIMATE_RULES,
+  getBaziClimateRule,
+} from "./data/bazi-climate-rulepack.mjs";
+export { WESTERN_INTERPRETATION_META } from "./data/western-interpretation-rulepack.mjs";
+export { TAROT_INTERPRETATION_META } from "./data/tarot-interpretation-rulepack.mjs";
+export { ICHING_INTERPRETATION_META } from "./data/iching-interpretation-rulepack.mjs";
+export { MEIHUA_INTERPRETATION_META } from "./data/meihua-interpretation-rulepack.mjs";
 export {
   ZIWEI_ADJUDICATION_PROFILES,
   ZIWEI_ADJUDICATION_STATES,

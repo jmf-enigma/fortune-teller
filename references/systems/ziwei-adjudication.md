@@ -1,6 +1,49 @@
-# 紫微专业裁决层 v0.4
+# 紫微专业裁决与可读结果层 v0.5
 
-这份说明对应 `src/core/ziwei-adjudicator.mjs` 与 `src/data/ziwei-adjudication-rulepack.mjs`。它位于排盘事实和最终文字之间：排盘负责回答“星、宫、四化和时期事实是什么”，裁决层只回答“某一套已登记规则的条件是否齐全、受损、破格或得救”。它不证明传统术数有经验预测效度，也不允许把格局名称改写成必然事件。
+这份说明区分两个不能混用的接口：
+
+- `src/core/ziwei-reading-adjudicator.mjs` 是普通用户的结果优先入口。它复用既有 `R-ZW-007/008/009` 封闭意义层，输出一条可读主题结论，并在资料不足时明确拒绝或回退；
+- `src/core/ziwei-adjudicator.mjs` 与 `src/data/ziwei-adjudication-rulepack.mjs` 是开发者面对的候选条件裁决器，只检查三条固定结构前提，不是命名格局库，也不进入普通结果渲染。
+
+两者都不证明传统术数有经验预测效度，也不允许把格局或阶段名称改写成必然事件。
+
+## 0. 普通用户入口：`adjudicateZiweiReading`
+
+```js
+import { calculate, adjudicateZiweiReading, adjudicate } from "../../src/index.mjs";
+
+const calculation = calculate("ziwei", {
+  date: "2000-08-16",
+  time: "04:00",
+  timezone: "Asia/Shanghai",
+  chart_sex: "male",
+  target_date: "2026-08-24",
+});
+
+const result = adjudicateZiweiReading(calculation, { topic: "career_study" });
+// 或 adjudicate(calculation, { topic: "career_study" })
+```
+
+固定路线是：
+
+```text
+重放排盘
+  -> 选择一个已支持主题
+  -> 绑定主宫 + 完整三方四正
+  -> 优先尝试完整本命—大限—流年阶段路线
+  -> 阶段条件不足时透明回退本命主题
+  -> 结论、白话、改判条件、现实核对
+```
+
+精确拒绝边界：
+
+- 未知出生时刻：返回 `unavailable`，绝不从候选盘中挑一张；
+- `family_social`：返回 `unavailable`，因为当前封闭主题表没有把田宅、父母、兄弟、交友合并成一条路线；不能拿命宫或夫妻宫替代；
+- 不在登记主题表中的 topic：直接拒绝输入；
+- 缺完整主宫、关系事实、四个三方四正宫位或阶段必要事实：不从模型记忆补齐；阶段可回退本命，本命也不闭合则不可用；
+- `phase: "natal"`：显式只读本命，不把已有目标日期偷偷带入结论。
+
+普通结果保留 `layer`，所以用户能看见本轮是 `phase` 还是 `natal`。`conclusion` 和 `plain_language` 由既有 canonical meaning layer 生成；包装器不能另写一套更顺耳的紫微解释。
 
 ## 1. 为什么需要裁决层
 
@@ -11,7 +54,7 @@
 3. 说明什么新资料会导致改判；
 4. 把术语依据翻成普通人能核对的现实问题。
 
-因此 v0.4 不增加吉凶分数。它增加的是可复核的条件裁决。
+因此 v0.5 不增加吉凶分数。它增加的是可复核的条件裁决，以及把既有封闭主题层安全地呈现给普通用户。
 
 ## 2. 六种状态
 
@@ -122,20 +165,21 @@ kind、status、路径或完整 fact 集合任一不符都会拒绝。一个真�
 
 ## 7. 结果呈现顺序
 
-一个普通用户首先看到：
+普通 `adjudicateZiweiReading` 先显示：
 
-1. `conclusion_zh`：成立、受损、破格、解救或未决；
-2. `plain_language_zh`：不依赖术语也能读懂的解释；
-3. `technical_basis`：流派、命理条件和精确 `fact_id`；
-4. `change_conditions_zh`：什么资料会导致改判；
-5. `reality_checks_zh`：用户可用连续现实记录核对的问题；
-6. `boundary_zh`：不命名或保证具体事件。
+1. `conclusion`：封闭主题或阶段结论；
+2. `plain_language`：不依赖术语的说明；
+3. `change_conditions`：哪些资料/闭合条件会导致回退或改判；
+4. `reality_checks`：连续、可反驳的现实核对；
+5. 需要时再展开 `lenses` 和 `basis` 中的宫位、四化、阶段及 exact fact IDs。
 
-哈希、底层校验细节和开发诊断不应盖过结果；但技术依据仍保留在结构化字段中，供复核或申诉时展开。
+开发者候选裁决器仍返回 `conclusion_zh`、`plain_language_zh`、`technical_basis`、`change_conditions_zh`、`reality_checks_zh` 和 `boundary_zh`。两个 schema 不能混写。哈希和底层校验不应盖过结果。
 
 ## 8. 当前专业边界
 
 - 该层保留通用状态词汇，但公开入口只接受三条不可变、可重放的结构候选；它不是传统命名格局全集。
+- 普通可读包装只复用五个既有主题和 `R-ZW-007/008/009`；不会把开发者候选状态机包装成更多“专业格局”。
+- 未知时辰、家庭广义人际合并主题、缺完整三方四正或缺阶段必要事实都有固定拒绝/回退路线；不得由模型选择候选盘、替宫或补事实。
 - “准确”在这里首先指排盘事实绑定正确、规则条件不漏、反例能推翻结论、改判路径透明；它不等于已证明现实预测准确。
 - 自动测试覆盖任意候选、错 evidence kind/path、假 ref/hash、同一 fact 跨层复用、缺结构、跨主题、流派隔离和空宫借星撤销等正反例。
 - 在声称某个命名格局已获支持前，还需要把该流派的原始或授权资料转成不可变 candidate 规则，安装精确 predicate resolver，并由熟悉该流派的人复核条件表；调用方对象不能替代这一步。

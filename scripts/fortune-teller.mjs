@@ -5,7 +5,9 @@ import { createInterface } from "node:readline/promises";
 import { asFortuneTellerError, FortuneTellerError } from "../src/core/errors.mjs";
 
 let calculate;
+let adjudicate;
 let adjudicateBazi;
+let recommendMethods;
 let METHODS;
 let validateReading;
 let bindReadingToCalculations;
@@ -23,7 +25,7 @@ let civilDayBounds;
 
 async function ensureFortuneTellerLoaded() {
   if (
-    calculate && adjudicateBazi && METHODS && validateReading && bindReadingToCalculations
+    calculate && adjudicate && adjudicateBazi && recommendMethods && METHODS && validateReading && bindReadingToCalculations
     && freezeBlindCheck && scoreBlindCheck && verifyBlindCheckReading && verifyBlindCheckRecord
     && RULES && SOURCES && INTERPRETATION_PROFILES && SOURCE_VERIFICATION_NOTE
     && normalizeBirthInput && resolveCalculationTime && civilDayBounds
@@ -35,7 +37,9 @@ async function ensureFortuneTellerLoaded() {
     ]);
     ({
       calculate,
+      adjudicate,
       adjudicateBazi,
+      recommendMethods,
       METHODS,
       validateReading,
       bindReadingToCalculations,
@@ -90,7 +94,9 @@ function validateCommandArgs(command, args) {
   const allowedByCommand = new Map([
     ["methods", new Set(["_", "json", "output", "compact", "pretty", "help"])],
     ["sources", new Set(["_", "system", "output", "compact", "pretty", "help"])],
+    ["route", new Set(["_", "input", "json", "output", "compact", "pretty", "help"])],
     ["calculate", new Set(["_", "system", "input", "json", "profile", "output", "compact", "pretty", "help"])],
+    ["adjudicate", new Set(["_", "input", "json", "output", "compact", "pretty", "help"])],
     ["adjudicate-bazi", new Set(["_", "input", "json", "output", "compact", "pretty", "help"])],
     ["validate-reading", new Set(["_", "input", "json", "output", "compact", "pretty", "help"])],
     ["bind-reading", new Set(["_", "input", "json", "output", "compact", "pretty", "help"])],
@@ -213,7 +219,9 @@ function printHelp() {
   stdout.write(`Commands:\n`);
   stdout.write(`  methods\n`);
   stdout.write(`  sources [--system <id>]\n`);
+  stdout.write(`  route --input <goal-and-data-file|-> [--output <new-file>]\n`);
   stdout.write(`  calculate [--system <id>] --input <file|-> [--profile <file>] [--output <new-file>]\n`);
+  stdout.write(`  adjudicate --input <calculation-file|-> [--output <new-file>]\n`);
   stdout.write(`  adjudicate-bazi --input <calculation-file|-> [--output <new-file>]\n`);
   stdout.write(`  validate-reading --input <file|->\n`);
   stdout.write(`  bind-reading --input <file|->\n`);
@@ -223,7 +231,7 @@ function printHelp() {
   stdout.write(`  score-check --record <file> --reading <file> --adjudications <file> [--output <new-file>]\n`);
   stdout.write(`  interactive\n`);
   stdout.write(`\nThe three blind-check commands also accept one composite --input file; use --json='{...}' for a small inline request.\n`);
-  stdout.write(`For calculate, adjudicate-bazi, validate-reading, or bind-reading, use --json='{...}' instead of --input for a small inline request.\n`);
+  stdout.write(`For route, calculate, adjudicate, adjudicate-bazi, validate-reading, or bind-reading, use --json='{...}' instead of --input for a small inline request.\n`);
   stdout.write(`calculate also accepts system inside a request envelope, so --system is optional in that form.\n`);
 }
 
@@ -449,13 +457,18 @@ function ordinaryReadingPresentationIssues(payload, renderedText) {
 
 function renderReadingText(reading) {
   const sections = [];
+  const readingSystems = Array.isArray(reading.system) ? reading.system : [reading.system];
+  const multiSystem = readingSystems.length > 1;
   sections.push(compactText(reading.title) || "你的解读");
 
   const userFocus = compactText(reading.user_focus);
   if (userFocus) sections.push(`这次重点看：${userFocus}`);
 
   const summary = compactText(reading.summary);
-  if (summary) sections.push(`先说结论\n${readableSentenceBlock(summary)}`);
+  if (summary && !multiSystem) sections.push(`先说结论\n${readableSentenceBlock(summary)}`);
+  if (multiSystem) {
+    sections.push("综合说明\n各方法分别呈现，不合并投票，也不选胜者；相同之处只作为需要现实核对的共同主题。 ");
+  }
 
   const timelineRows = [];
   for (const claim of reading.claims) {
@@ -463,46 +476,70 @@ function renderReadingText(reading) {
     const window = claim?.assessment?.window;
     if (window?.kind !== "bounded" || !window.start || !window.end) continue;
     const label = READING_TOPIC_LABELS[claim.topic] || "所问主题";
+    const systemLabel = multiSystem ? `${SYSTEM_LABELS[claim.system] || claim.system}｜` : "";
     const target = phase?.requested_date ? `，目标日 ${phase.requested_date}` : "";
-    const row = `- ${label}：本命结构 → ${window.start} 至 ${window.end} 的阶段重点${target} → 区间结束后重新看下一阶段`;
+    const row = `- ${systemLabel}${label}：本命结构 → ${window.start} 至 ${window.end} 的阶段重点${target} → 区间结束后重新看下一阶段`;
     if (!timelineRows.includes(row)) timelineRows.push(row);
   }
   if (timelineRows.length) sections.push(`阶段时间轴\n${timelineRows.join("\n")}`);
 
-  const claimsByTopic = new Map();
-  reading.claims.forEach((claim, index) => {
-    const topic = claim.topic || "untagged";
-    if (!claimsByTopic.has(topic)) claimsByTopic.set(topic, []);
-    claimsByTopic.get(topic).push({ claim, index });
-  });
-  for (const topic of READING_TOPIC_ORDER) {
-    const claims = claimsByTopic.get(topic);
-    if (!claims?.length) continue;
-    const cards = [];
-    for (const { claim, index } of claims) {
-      const isSummaryClaim = index === 0 && compactText(claim.statement).normalize("NFKC") === summary.normalize("NFKC");
-      const lines = [];
-      if (!isSummaryClaim) lines.push(`结论：${compactText(claim.statement)}`);
-      const reasoning = compactText(claim.reasoning_summary);
-      if (reasoning) lines.push(`白话解读：\n${readableSentenceBlock(reasoning)}`);
-      const technicalSummary = compactText(claim.technical_summary);
-      if (technicalSummary) lines.push(`盘面依据（术语）：\n${readableClauseBlock(technicalSummary)}`);
-      if (Array.isArray(claim.alternative_readings)) {
-        const alternatives = claim.alternative_readings.map(compactText).filter(Boolean);
-        if (alternatives.length) lines.push(`什么情况要改判：\n${alternatives.map((item) => `- ${item}`).join("\n")}`);
-      }
-      const reflection = compactText(claim.practical_reflection);
-      if (reflection) lines.push(`现实提醒：${reflection}`);
-      if (lines.length) cards.push(lines.join("\n"));
+  const renderTopicGroups = (systemClaims, system = null) => {
+    const claimsByTopic = new Map();
+    systemClaims.forEach(({ claim, index }) => {
+      const topic = claim.topic || "untagged";
+      if (!claimsByTopic.has(topic)) claimsByTopic.set(topic, []);
+      claimsByTopic.get(topic).push({ claim, index });
+    });
+    const systemSections = [];
+    if (system) {
+      const first = systemClaims[0]?.claim;
+      if (first) systemSections.push(`先说结论\n${readableSentenceBlock(compactText(first.statement))}`);
     }
-    if (cards.length) sections.push(`${READING_TOPIC_LABELS[topic] || "解读重点"}\n${cards.join("\n\n")}`);
+    for (const topic of READING_TOPIC_ORDER) {
+      const topicClaims = claimsByTopic.get(topic);
+      if (!topicClaims?.length) continue;
+      const cards = [];
+      for (const { claim, index } of topicClaims) {
+        const isSummaryClaim = !multiSystem
+          && index === 0
+          && compactText(claim.statement).normalize("NFKC") === summary.normalize("NFKC");
+        const isSystemLead = multiSystem && claim === systemClaims[0]?.claim;
+        const lines = [];
+        if (!isSummaryClaim && !isSystemLead) lines.push(`结论：${compactText(claim.statement)}`);
+        const reasoning = compactText(claim.reasoning_summary);
+        if (reasoning) lines.push(`白话解读：\n${readableSentenceBlock(reasoning)}`);
+        const technicalSummary = compactText(claim.technical_summary);
+        if (technicalSummary) lines.push(`盘面依据（术语）：\n${readableClauseBlock(technicalSummary)}`);
+        if (Array.isArray(claim.alternative_readings)) {
+          const alternatives = claim.alternative_readings.map(compactText).filter(Boolean);
+          if (alternatives.length) lines.push(`什么情况要改判：\n${alternatives.map((item) => `- ${item}`).join("\n")}`);
+        }
+        const reflection = compactText(claim.practical_reflection);
+        if (reflection) lines.push(`现实提醒：${reflection}`);
+        if (lines.length) cards.push(lines.join("\n"));
+      }
+      if (cards.length) systemSections.push(`${READING_TOPIC_LABELS[topic] || "解读重点"}\n${cards.join("\n\n")}`);
+    }
+    return systemSections;
+  };
+  if (multiSystem) {
+    for (const system of readingSystems) {
+      const systemClaims = reading.claims
+        .map((claim, index) => ({ claim, index }))
+        .filter(({ claim }) => claim.system === system);
+      const systemSections = renderTopicGroups(systemClaims, system);
+      if (systemSections.length) sections.push(`${SYSTEM_LABELS[system] || system}\n${systemSections.join("\n\n")}`);
+    }
+  } else {
+    for (const block of renderTopicGroups(reading.claims.map((claim, index) => ({ claim, index })))) sections.push(block);
   }
 
   const realityChecks = [];
   if (reading.level === "audit") {
     for (const claim of reading.claims) {
       if (claim?.epistemic_status !== "interpretation" || !Array.isArray(claim?.assessment?.criteria)) continue;
-      const label = READING_TOPIC_LABELS[claim.topic] || "这项判断";
+      const topicLabel = READING_TOPIC_LABELS[claim.topic] || "这项判断";
+      const label = multiSystem ? `${SYSTEM_LABELS[claim.system] || claim.system}｜${topicLabel}` : topicLabel;
       for (const criterion of claim.assessment.criteria) {
         const observable = compactText(criterion?.observable);
         if (!observable) continue;
@@ -526,7 +563,10 @@ function renderReadingText(reading) {
   const nextSteps = reading.next_steps
     .map((step) => {
       if (typeof step === "string") return compactText(step);
-      return step?.available === true ? compactText(step.label) : "";
+      if (step?.available !== true) return "";
+      const label = compactText(step.label);
+      return multiSystem && step.target_system
+        ? `${SYSTEM_LABELS[step.target_system] || step.target_system}｜${label}` : label;
     })
     .filter(Boolean);
   if (nextSteps.length) {
@@ -822,21 +862,14 @@ async function collectIching(rl) {
 async function collectMeihua(rl) {
   const question = await ask(rl, "问题（可留空）：", { allowEmpty: true });
   stdout.write(
-    "预览功能说明：目前只实现固定的两数起卦，不含时间起卦、体用分析或应期。继续输入第一个数字即表示接受这个范围；输入 q 可取消。\n",
+    "固定两数口径说明：会计算体用、互卦和五行作用方向；不含时间起卦、季节旺衰或精准应期。继续输入第一个数字即表示接受这个范围；输入 q 可取消。\n",
   );
   const firstNumber = await askValidated(rl, "第一个正整数：", positiveIntegerMessage, { transform: Number });
   const secondNumber = await askValidated(rl, "第二个正整数：", positiveIntegerMessage, { transform: Number });
-  const movingLine = await askValidated(
-    rl,
-    "动爻 1–6（留空则按两数规则计算）：",
-    (value) => positiveIntegerMessage(value, 6),
-    { allowEmpty: true, transform: Number },
-  );
   return {
     ...(question ? { question } : {}),
     first_number: firstNumber,
     second_number: secondNumber,
-    ...(movingLine ? { moving_line: movingLine } : {}),
   };
 }
 
@@ -852,9 +885,25 @@ async function collectInput(rl, route) {
   return collectMeihua(rl);
 }
 
-async function chooseBirthSystem(rl) {
+async function chooseBirthSystem(rl, domain = null) {
+  if (domain === "family_social") {
+    stdout.write("当前“家庭与人际”只有西洋本命盘安装了可闭合的主题宫路线；紫微需要分开田宅、父母、兄弟、交友等宫，八字也尚未安装指定领域路由。\n");
+    return askMenu(rl, "请选择出生盘方式（默认 1）：", [
+      { keys: ["1", "西占", "western"], value: "western" },
+    ], "western");
+  }
+  if (domain) {
+    stdout.write("适合这个重点领域的方式：\n");
+    stdout.write("  1. 紫微斗数（主题宫、三方四正；时辰明确时可加看阶段）\n");
+    stdout.write("  2. 西洋本命盘（主题宫、宫主星与相位；需时刻和经纬度）\n");
+    stdout.write("八字当前只闭合整体格局与阶段路线，不会把泛化十神套成这个领域的答案。\n");
+    return askMenu(rl, "请选择出生盘方式（默认 1）：", [
+      { keys: ["1", "紫微", "ziwei"], value: "ziwei" },
+      { keys: ["2", "西占", "western"], value: "western" },
+    ], "ziwei");
+  }
   stdout.write("适合出生资料的方式：\n");
-  stdout.write("  1. 紫微斗数（推荐；时刻明确时可加看指定日期的大限与流年）\n");
+  stdout.write("  1. 紫微斗数（宫位主题；时刻明确时可加看指定日期的大限与流年）\n");
   stdout.write("  2. 四柱八字（看旺衰竞争假设、格局成败救应及大运流年引动）\n");
   stdout.write("  3. 西洋本命盘（看本命结构；当前不算行运）\n");
   return askMenu(rl, "请选择出生盘方式（默认 1）：", [
@@ -867,7 +916,7 @@ async function chooseBirthSystem(rl) {
 async function chooseExplicitSystem(rl) {
   stdout.write("可用方法：\n");
   stdout.write("  1. 四柱八字  2. 紫微斗数  3. 西洋本命盘\n");
-  stdout.write("  4. 塔罗  5. 周易三钱  6. 梅花两数（预览）\n");
+  stdout.write("  4. 塔罗  5. 周易三钱  6. 梅花两数（固定两数口径）\n");
   return askMenu(rl, "请选择具体方法：", [
     { keys: ["1", "八字", "bazi"], value: "bazi" },
     { keys: ["2", "紫微", "ziwei"], value: "ziwei" },
@@ -903,13 +952,14 @@ async function chooseGoalAndSystem(rl) {
       { keys: ["4"], value: "family_social" },
       { keys: ["5"], value: "wellbeing_rhythm" },
     ]);
-    return { goal, domain, focus: DOMAIN_LABELS[domain], system: await chooseBirthSystem(rl) };
+    return { goal, domain, focus: DOMAIN_LABELS[domain], system: await chooseBirthSystem(rl, domain) };
   }
   if (goal === "current_question") {
-    stdout.write("适合当前问题的方式：1 塔罗（推荐，适合局面与选择）  2 周易三钱（当前只给卦象结构）\n");
+    stdout.write("适合当前问题的方式：1 塔罗（拆局面与行动）  2 周易三钱（看主卦、动爻与变化结构）  3 梅花两数（已有两个数时）\n");
     const system = await askMenu(rl, "请选择问事方式（默认 1）：", [
       { keys: ["1", "塔罗", "tarot"], value: "tarot" },
       { keys: ["2", "周易", "iching"], value: "iching" },
+      { keys: ["3", "梅花", "meihua"], value: "meihua" },
     ], "tarot");
     return { goal, focus: GOAL_LABELS[goal], system };
   }
@@ -1011,7 +1061,7 @@ function confirmationRows(state) {
     ...(input.question ? [["问题", input.question]] : []),
     ["第一个数", String(input.first_number)],
     ["第二个数", String(input.second_number)],
-    ["动爻", input.moving_line ? `第 ${input.moving_line} 爻` : "按两数规则计算"],
+    ["动爻", "按两数规则自动计算"],
   ];
 }
 
@@ -1158,22 +1208,29 @@ async function editQuestionMethod(rl, state) {
     }
     return;
   }
-  stdout.write("要修改哪一项？\n  1. 问题\n  2. 第一个数\n  3. 第二个数\n  4. 动爻\n");
+  stdout.write("要修改哪一项？\n  1. 问题（会用新数字重新起卦）\n  2. 第一个数\n  3. 第二个数\n");
   const field = await askMenu(rl, "请选择：", [
     { keys: ["1"], value: "question" }, { keys: ["2"], value: "first" },
-    { keys: ["3"], value: "second" }, { keys: ["4"], value: "moving" },
+    { keys: ["3"], value: "second" },
   ]);
   if (field === "question") {
+    const proceed = await confirmFrozenOutcomeReplacement(rl, "meihua", "换问题");
+    if (!proceed) return;
     const question = await ask(rl, "新的问题（可留空）：", { allowEmpty: true });
     if (question) state.input.question = question;
     else delete state.input.question;
+    state.input.first_number = await askValidated(rl, "新问题的第一个正整数：", positiveIntegerMessage, { transform: Number });
+    state.input.second_number = await askValidated(rl, "新问题的第二个正整数：", positiveIntegerMessage, { transform: Number });
+    stdout.write("已明确开始新问题并采用新数字；旧卦不会混入。\n");
+    return { invalidatesPreviousReading: true };
   }
-  if (field === "first") state.input.first_number = await askValidated(rl, "新的第一个正整数：", positiveIntegerMessage, { transform: Number });
-  if (field === "second") state.input.second_number = await askValidated(rl, "新的第二个正整数：", positiveIntegerMessage, { transform: Number });
-  if (field === "moving") {
-    const moving = await askValidated(rl, "新的动爻 1–6（留空恢复自动计算）：", (value) => positiveIntegerMessage(value, 6), { allowEmpty: true, transform: Number });
-    if (moving) state.input.moving_line = moving;
-    else delete state.input.moving_line;
+  if (field === "first" || field === "second") {
+    const proceed = await confirmFrozenOutcomeReplacement(rl, "meihua", "修改起卦数字");
+    if (!proceed) return;
+    if (field === "first") state.input.first_number = await askValidated(rl, "新的第一个正整数：", positiveIntegerMessage, { transform: Number });
+    else state.input.second_number = await askValidated(rl, "新的第二个正整数：", positiveIntegerMessage, { transform: Number });
+    stdout.write("已确认重新起卦；旧卦会保留到新结果生成，随后旧解读作废。\n");
+    return { invalidatesPreviousReading: true };
   }
 }
 
@@ -1223,8 +1280,8 @@ function translateWarning(warning) {
   if (warning.startsWith("Latitude/longitude were not supplied")) return "未提供经纬度，因此省略上升点、中天和宫位。";
   if (warning.startsWith("Card keywords are")) return "牌义关键词仅用于传统反思，不是经过验证的预测。";
   if (warning.startsWith("Hexagram interpretation is")) return "卦象解释属于传统反思方法，不是经过验证的预测。";
-  if (warning.startsWith("Meihua support is preview-only")) return "梅花两数目前是预览功能，只实现一种明确的两数规则。";
-  if (warning.startsWith("No time-based casting")) return "当前不含时间起卦、体用分析或预测应期。";
+  if (warning.startsWith("Meihua support is bounded")) return "梅花两数采用一种固定、可复算的起卦口径。";
+  if (warning.startsWith("No time-based casting")) return "当前不含时间起卦、季节旺衰或精准应期。";
   if (warning.startsWith("LATE_ZI_UPSTREAM_MISMATCH")) return "晚子时边界已按所选日界重新统一时柱天干，避免混用两套口径。";
   if (warning.startsWith("CALENDAR_DAY_PROFILE_QUALIFIED")) return "当前紫微口径按出生地民用日换算；在 UTC+08:00 以外，其他流派可能采用不同的中国历法参考日。";
   if (warning.startsWith("Apparent solar time uses")) return "视太阳时采用有文档说明的近似均时差修正。";
@@ -1257,7 +1314,7 @@ function resultSummaryLines(result) {
       const lines = [`四柱：${facts.pillars.map((item) => `${PILLAR_LABELS_ZH[item.pillar]} ${item.stem_branch}`).join(" ｜ ")}`];
       const target = facts.luck_cycles?.target;
       if (target) {
-        lines.unshift(`指定日期：${target.requested_date}`);
+        lines.unshift(`指定日期：${target.date || target.requested_date}`);
         const active = facts.luck_cycles.decadal?.find((item) => item.fact_id === target.active_decadal_fact_id);
         lines.push(active
           ? `当前大运：${active.stem_branch}（${active.start_local.slice(0, 10)} 起，至 ${active.end_local_exclusive.slice(0, 10)} 前）`
@@ -1309,10 +1366,11 @@ function resultSummaryLines(result) {
   ];
 }
 
-function safeBaziAdjudication(result) {
-  if (result.system !== "bazi" || typeof adjudicateBazi !== "function") return null;
+function safeProfessionalAdjudication(result, state = {}) {
+  if (typeof adjudicate !== "function") return null;
   try {
-    return adjudicateBazi(result);
+    const topic = state.domain || "overview";
+    return adjudicate(result, { topic });
   } catch {
     return null;
   }
@@ -1321,25 +1379,25 @@ function safeBaziAdjudication(result) {
 function homeWarnings(result) {
   const prefixes = [
     "CALENDAR_DAY_PROFILE_QUALIFIED", "No birth time was supplied", "Latitude is too close",
-    "Latitude/longitude were not supplied", "Meihua support is preview-only", "No time-based casting",
+    "Latitude/longitude were not supplied", "Meihua support is bounded", "No time-based casting",
   ];
   return result.warnings.filter((warning) => prefixes.some((prefix) => warning.startsWith(prefix)));
 }
 
 function showResultHome(result, state) {
-  const baziProfessional = safeBaziAdjudication(result);
+  const professional = safeProfessionalAdjudication(result, state);
   stdout.write("\n＝＝＝＝ 排盘 / 抽取完成 ＝＝＝＝\n");
   stdout.write(`你想看：${state.focus}\n`);
   stdout.write(`使用：${SYSTEM_LABELS[result.system]}\n`);
-  if (baziProfessional) {
+  if (professional) {
     stdout.write("\n先说结论：\n");
-    stdout.write(`${baziProfessional.conclusion}\n`);
-    stdout.write(`${baziProfessional.plain_language}\n`);
-    if (baziProfessional.phase?.decadal?.status === "available" || baziProfessional.phase?.yearly?.status === "available") {
+    stdout.write(`${professional.conclusion}\n`);
+    stdout.write(`${professional.plain_language}\n`);
+    if (professional.phase?.decadal?.status === "available" || professional.phase?.yearly?.status === "available") {
       stdout.write("\n当前阶段：\n");
-      if (baziProfessional.phase.decadal?.conclusion) stdout.write(`- ${baziProfessional.phase.decadal.conclusion}\n`);
-      if (baziProfessional.phase.yearly?.conclusion) stdout.write(`- ${baziProfessional.phase.yearly.conclusion}\n`);
-      if (baziProfessional.phase.joint_activation?.conclusion) stdout.write(`- ${baziProfessional.phase.joint_activation.conclusion}\n`);
+      if (professional.phase.decadal?.conclusion) stdout.write(`- ${professional.phase.decadal.conclusion}\n`);
+      if (professional.phase.yearly?.conclusion) stdout.write(`- ${professional.phase.yearly.conclusion}\n`);
+      if (professional.phase.joint_activation?.conclusion) stdout.write(`- ${professional.phase.joint_activation.conclusion}\n`);
     }
     stdout.write("\n盘面起点：\n");
   }
@@ -1357,7 +1415,7 @@ function formatCounts(counts) {
   return Object.entries(counts || {}).map(([label, count]) => `${label}${count}`).join("、") || "无";
 }
 
-function showDetails(result) {
+function showDetails(result, state = {}) {
   const facts = result.facts;
   stdout.write("\n—— 盘面 / 牌面重点 ——\n");
   if (result.system === "bazi" && facts.pillars) {
@@ -1373,13 +1431,15 @@ function showDetails(result) {
         stdout.write(`明示结构关系：${structure.relationships.map((item) => `${item.pillars.map((pillar) => PILLAR_LABELS_ZH[pillar]).join("-")} ${item.values.join("")}（${RELATIONSHIP_LABELS_ZH[item.relationship] || "结构关系"}）`).join("；")}\n`);
       }
     }
-    const professional = safeBaziAdjudication(result);
+    const professional = safeProfessionalAdjudication(result, state);
     if (professional?.status === "completed") {
       stdout.write("\n—— 专业裁决 ——\n");
       stdout.write(`旺衰：${professional.lenses.strength.conclusion}\n`);
       stdout.write(`格局：${professional.lenses.pattern.conclusion}\n`);
       const activeViews = professional.lenses.useful_god_views.filter((view) => view.state !== "未决");
-      if (activeViews.length) stdout.write(`已成立的取用视角：${activeViews.map((view) => `${view.lens}（${view.conclusion}）`).join("；")}\n`);
+      if (activeViews.length) stdout.write(`在各自前提内成立的取用视角：${activeViews.map((view) => `${view.lens}（${view.conclusion}）`).join("；")}\n`);
+      const climate = professional.lenses.useful_god_views.find((view) => view.lens === "调候");
+      if (climate?.screening_completed) stdout.write(`调候筛查（未决）：${climate.conclusion}\n`);
       if (professional.lenses.conflicts.length) stdout.write(`流派分歧：${professional.lenses.conflicts.map((item) => item.explanation).join("；")}\n`);
       stdout.write(`改判边界：${professional.lenses.pattern.hypothesis.change_conditions.join("；")}\n`);
     }
@@ -1513,7 +1573,7 @@ async function showWhy(rl, result) {
   }
 }
 
-async function resultMenu(rl, result) {
+async function resultMenu(rl, result, state) {
   while (true) {
     stdout.write("\n接下来：1 看盘面 / 牌面重点  2 为什么这样看  3 修改资料或问题  4 新建一轮  5 结束\n");
     const action = await askMenu(rl, "请选择（默认 5）：", [
@@ -1524,7 +1584,7 @@ async function resultMenu(rl, result) {
       { keys: ["5"], value: "exit" },
     ], "exit");
     if (["edit", "new", "exit"].includes(action)) return action;
-    if (action === "details") showDetails(result);
+    if (action === "details") showDetails(result, state);
     if (action === "why") await showWhy(rl, result);
   }
 }
@@ -1630,7 +1690,7 @@ async function interactive() {
       }
       while (result) {
         showResultHome(result, state);
-        const action = await resultMenu(rl, result);
+        const action = await resultMenu(rl, result, state);
         if (action === "exit") {
           stdout.write("已结束。本次资料未由程序写入文件。\n");
           return;
@@ -1690,7 +1750,7 @@ async function main() {
   validateCommandArgs(command, args);
   if (args.help) return printHelp();
   if ([
-    "methods", "sources", "interactive", "calculate", "adjudicate-bazi", "bind-reading", "validate-reading", "render-reading",
+    "methods", "sources", "route", "interactive", "calculate", "adjudicate", "adjudicate-bazi", "bind-reading", "validate-reading", "render-reading",
     "freeze-check", "verify-check", "score-check",
   ].includes(command)) {
     await ensureFortuneTellerLoaded();
@@ -1712,6 +1772,13 @@ async function main() {
         ? INTERPRETATION_PROFILES.filter((profile) => profile.system === args.system)
         : INTERPRETATION_PROFILES,
     }, args);
+  }
+  if (command === "route") {
+    const payload = await readJson(args.input, args.json);
+    if (!isPlainJsonObject(payload)) {
+      throw new FortuneTellerError("METHOD_ROUTER_INPUT_INVALID", "route input must be one goal-and-data JSON object");
+    }
+    return emit(recommendMethods(payload), args);
   }
   if (command === "interactive") return interactive();
   if (command === "calculate") {
@@ -1775,6 +1842,23 @@ async function main() {
       return emit(adjudicateBazi(payload.calculation, payload.options || {}), args);
     }
     return emit(adjudicateBazi(payload), args);
+  }
+  if (command === "adjudicate") {
+    const payload = await readJson(args.input, args.json);
+    if (!isPlainJsonObject(payload)) {
+      throw new FortuneTellerError("ADJUDICATION_INPUT_INVALID", "adjudicate input must be one calculation object or {calculation, options}");
+    }
+    if (Object.hasOwn(payload, "calculation") || Object.hasOwn(payload, "options")) {
+      const unknown = Object.keys(payload).filter((key) => !["calculation", "options"].includes(key));
+      if (unknown.length || !isPlainJsonObject(payload.calculation)) {
+        throw new FortuneTellerError("ADJUDICATION_INPUT_INVALID", "the wrapper must contain calculation and optional options only");
+      }
+      if (Object.hasOwn(payload, "options") && !isPlainJsonObject(payload.options)) {
+        throw new FortuneTellerError("ADJUDICATION_INPUT_INVALID", "adjudication options must be a JSON object");
+      }
+      return emit(adjudicate(payload.calculation, payload.options || {}), args);
+    }
+    return emit(adjudicate(payload), args);
   }
   if (command === "validate-reading") {
     const payload = await readJson(args.input, args.json);

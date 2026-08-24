@@ -40,6 +40,14 @@ If the CLI returns `DEPENDENCY_LOAD_FAILED`, explain that the local archive does
 
 Treat the returned `usage`, `inputSchema`, `profiles`, status, and required fields as authoritative for capability discovery and structural request shape. Runtime validation remains the final authority for semantic and cross-field acceptance. Do not hard-code a stale request shape when the registry says otherwise.
 
+For an ambiguous goal, pass only the goal and already available data to the deterministic router before asking for more fields:
+
+```bash
+node scripts/fortune-teller.mjs route --json '{"goal":"current_question","question_kind":"decision_action","available_data":{"focused_question":true}}' --pretty
+```
+
+Use its missing-data impact and selection cues to explain the options. Its ordering is question/data fit, never an accuracy ranking.
+
 Before a sourced traditional claim or any `deep`/`audit` reading, inspect the live rule and source scope for the selected system:
 
 ```bash
@@ -86,7 +94,7 @@ Route from the goal:
 
 - Birth-based overview or one life domain: offer a supported birth-chart method. Explain that natal structure can describe traditional life themes but cannot by itself name future events or years.
 - Life stages or a named target date: offer Zi Wei or BaZi only when the live schema exposes `target_date` and an exact birth time is available. Zi Wei `R-ZW-009` reads natal baseline → decadal environment → yearly trigger through its complete bounded topic route. BaZi calculates exact luck onset, the active full decade, the LiChun-based year pillar, and named natal/decadal/year interactions, then runs the separate mechanical adjudicator. For BaZi, ask for the explicit traditional binary direction parameter; never infer it from name, appearance, or identity. Neither route may name a promotion, admission, resignation, marriage, breakup, illness, windfall, move, or other concrete event.
-- A current situation or decision: prefer Tarot; offer I Ching only within its currently sourced structural scope. Freeze one clear question before drawing or casting.
+- A current situation or decision: use the question-and-data-fit router rather than ranking traditions by supposed accuracy. Prefer Tarot for an open or decision/action question, I Ching for a change-structure question, and bounded Meihua only when the user deliberately supplies the fixed two-number input. Freeze one clear question before drawing or casting.
 - Compatibility: this release has no dedicated compatibility engine. Do not market two separate natal readings as a compatibility calculation.
 - Auspicious-date selection or exact event timing: unsupported. Do not repurpose natal, Tarot, or a target-date phase view as electional calculation.
 - Explicit method: respect it if supported. Do not silently substitute another system.
@@ -124,6 +132,14 @@ node scripts/fortune-teller.mjs calculate --input /absolute/path/to/request.loca
 
 Use a temporary or user-approved local request file; do not commit real birth data. Retain the structured result envelope. Treat it as chart facts, not proof of an interpretation.
 
+After calculation, send the frozen envelope through the six-system result-first dispatcher:
+
+```bash
+node scripts/fortune-teller.mjs adjudicate --input /absolute/path/to/calculation.local.json --pretty
+```
+
+The dispatcher replays the calculation and applies only the registered bounded layer for its system. Start from its `conclusion` and `plain_language`; do not replace an unavailable result with model intuition. `adjudicate-bazi` remains a backward-compatible BaZi-only alias.
+
 - Preserve the returned schema and engine versions, method, profile, normalized input, warnings, sensitivity output, randomness record, audit fields, `facts_hash`, and `reproducibility_hash` internally. First prefer an engine replay or structural recomputation when checking a result. Hashes are only backstage checks for accidental changes and equality of serialized records; they do not make a reading more accurate, authenticate which engine produced it, or prove provenance. Compare `facts_hash` only as a secondary internal signal when replaying a fresh random result; wider metadata can make the full-envelope hash differ.
 - Let `bind-reading` derive `reading.warning_acknowledgements`; when material warnings exist it must equal their code set exactly, with no omission, extra code, duplicate, or prose substitute, and the field is omitted when that set is empty. For `CALENDAR_DAY_PROFILE_QUALIFIED`, keep bound claims `qualified` and `profile_specific`; the binder generates the canonical overseas civil-day sentence in `uncertainty_summary`.
 - Do not modify calculated values to make the narrative coherent.
@@ -132,27 +148,41 @@ Use a temporary or user-approved local request file; do not commit real birth da
 - For tarot or casting, use the local secure random source, an explicit replay seed, or user-supplied physical results. Never let the language model choose the outcome and describe it as random.
 - Freeze the user's question before a Tarot draw or I Ching cast. Reuse the same frozen result for follow-ups about that question. A materially new question requires explicit confirmation and a new draw/cast; dislike or disbelief is never a reason to redraw.
 - If execution fails, report the error category in plain language and offer correction or a reduced mode. Do not expose private raw input in diagnostic text unless the user asks for it.
-- For a known-time BaZi result, run `adjudicate-bazi` before writing any strength, pattern, useful-god, disease/remedy, or phase-activation conclusion. Preserve its exact state and route closure. A period Ten God is only a candidate input to a compound route; never promote it to formation, breakage, or rescue without rerunning the whole route.
-- For Zi Wei `overview`, `career_study`, `wealth_resources`, `relationships`, or `wellbeing_rhythm`, use the emitted `topic_units` instead of assembling a topic from memory. A topic synthesis retains its primary palace and complete three-directions/four-alignments set. With `target_date`, use the matching `phase_topic_unit`; it supplies the topic focus while the closed route separately derives complete `[0,+4,+8,+6]` dynamic four-palace sets for both decadal and yearly layers. Do not call another topic's palace or period fact supporting evidence.
+- For a known-time BaZi result, use the registered adjudicator before writing any strength, pattern, useful-god, climate, passage, disease/remedy, or phase conclusion. Preserve its exact state and route closure.
+- For Zi Wei `overview`, `career_study`, `wealth_resources`, `relationships`, or `wellbeing_rhythm`, use the result-first Zi Wei wrapper and its emitted topic unit instead of assembling a topic from memory. A topic synthesis retains its primary palace and complete three-directions/four-alignments set. With `target_date`, use the matching phase topic unit. Do not call another topic's palace or period fact supporting evidence. `family_social` is not silently substituted with another topic.
+- For Western astrology, use topic house → traditional ruler as primary plus every occupant as a co-significator → planetary function/sign expression → classical condition → relevant luminary/aspect chain. Never choose one occupant by an arbitrary planet ranking. Without a reliable birth time and coordinates, do not supply angles, houses, a chart ruler, or a house-derived topic conclusion.
+- For Tarot, preserve the chosen spread and its position roles. A decision spread compares the structure and trade-offs; it does not count favorable cards, announce an A/B winner, infer another person's private mind, or promise an outcome.
+- For I Ching, preserve the explicit changing-line selection protocol returned by the adjudicator. Use its primary/changed trigrams and line-structure prompts, but never invent or paraphrase a classical judgment or line text that the package has not registered.
+- For Meihua, stay inside the fixed two-number profile: body/use, mutual hexagram, the Five-Element relation before and after change, and the moving-line stage. Without occurrence-time facts, do not add seasonal strength or timing.
 
 ### Closed BaZi adjudicator
 
-For a replay-verified known-time BaZi calculation, run:
+For a replay-verified known-time BaZi calculation, prefer the generic command (the legacy alias is equivalent for this system):
 
 ```bash
-node scripts/fortune-teller.mjs adjudicate-bazi --input /absolute/path/to/calculation.local.json --pretty
+node scripts/fortune-teller.mjs adjudicate --input /absolute/path/to/calculation.local.json --pretty
 ```
 
 This result is a separate mechanical adjudication envelope. Use it in this order: `conclusion` → `plain_language` → current phase when available → only then technical basis, change conditions, and reality checks.
 
 - `lenses.strength` always tests strong and weak hypotheses separately. Do not replace an unresolved competition with an element score, hidden-stem weight, or “missing element” shortcut.
-- `lenses.pattern` begins with a month-command candidate. Transparency alone never means formation. Report `成立`, `受损`, `破格`, or `救应` only exactly as returned. A `screening_only` damage or rescue route stays provisional and cannot upgrade the disease/remedy lens.
+- `lenses.pattern` begins with the calculated month-command candidate and uses the returned main/middle/residual located roots and visible-force evidence. Transparency or a root alone never means formation. Report `成立`, `受损`, `破格`, or `救应` only exactly as returned. A `screening_only` damage or rescue route stays provisional and cannot upgrade the disease/remedy lens.
 - Keep 格局取用、扶抑、调候、通关、病药 independent. If they disagree, explain the prerequisites causing the difference; do not vote, average, or select a universal element.
-- Treat natal as the frozen baseline, the complete decade as environment, and the year as trigger. The compatibility field `joint_activation` currently reports only registered three-layer structural linkage; it does not rerun the natal formation/damage/rescue route and therefore must never be described as a completed pattern activation. Generic stem control or repetition alone is not enough, and no linkage names an event.
-- Exact luck-cycle or LiChun boundary dates stay unavailable. Do not select the more convenient side.
+- The climate lens looks up one of 120 day-stem × solar-month source scopes and screens where source-mentioned stems occur in the chart. Array position is not priority. Missing solar-term segments, unclosed roles, combinations, obstructions, and exceptions keep the lens unresolved; stem presence is not a useful-god, wealth, rank, health, or event judgment.
+- The passage lens opens only when the registered conflict pair is visible and the specified mediator is present. It reports structural availability, not whether mediation succeeds in life.
+- Treat natal as the frozen baseline, the complete decade as environment, and the year as trigger. When period facts are resolved, the engine reruns the registered strength and formation/damage/rescue routes after adding the decadal pillar and then the yearly pillar, and reports the actual route-state transition. A period Ten God remains only a candidate input until that complete route rerun closes. Generic stem control or repetition is not enough, and no transition names an event.
+- The engine calculates its pinned luck-onset and LiChun boundaries, but a target civil date that cannot be assigned wholly to one side stays unresolved. Do not select the more convenient side or imply that another school's boundary was tested.
 - The general reading registry exposes `R-BZ-005/006` as protective, unresolved-only rules until a dedicated typed adjudication binding exists. Do not create a free-form `traditional_rule` or `interpretation` claim with these IDs. Present the mechanical adjudication directly, or keep an unsupported general reading claim `unresolved`.
 
 Read [references/systems/bazi-professional.md](references/systems/bazi-professional.md) before a deep BaZi reading. It lists the machine-closed routes and the important unfinished routes. Do not fill those gaps from memory.
+
+### Other system result boundaries
+
+- **Western:** preserve the adjudicator's selected topic house, occupant/ruler choice, Sun/Moon and chart-ruler context, classical dignity/debility condition, and applying/separating/exact/uncertain aspect phase. Whole-sign houses require a reliable time and coordinates. An unknown-time result is a planet-range result, not a disguised noon chart.
+- **Tarot:** read the spread as a relation among registered positions, card identities, orientations, suits/ranks/arcana, and adjacent structure. A decision spread may show support, tension, or a practical comparison step, but never a mechanical winner. Do not redraw because the user dislikes the first result.
+- **I Ching:** follow the returned selection protocol for zero, one, two-to-five, or all changing lines. Structural centrality, correctness, correspondence, primary/changed trigrams, and process prompts are available; unbundled hexagram judgments and 384 line texts are not.
+- **Meihua:** use only the deterministic two-number cast, body/use assignment, mutual hexagram, moving-line stage, and Five-Element relation before/after the change. Time/object/omen casting, seasonal strength without occurrence time, and timing remain unavailable.
+- **Zi Wei:** the result-first wrapper accepts only the five closed topics above, prefers the target-date phase route when present, and otherwise uses the natal route. Unknown time, an unregistered topic, or an incomplete closed route returns unavailable; never select a candidate chart or borrow another topic's palace.
 
 ### Closed Zi Wei meaning layer
 
@@ -210,6 +240,8 @@ For a focused current question, use this order:
 6. **一个现实、具体、可逆的下一步**.
 
 Do not keyword-dump. A Tarot multi-card reading must connect at least two position-card facts as a support, tension, sequence, or turn. A Zi Wei phase reading must combine the complete four-palace fourteen-major-star axes with emitted exact-topic-slot decadal/yearly facts, the complete eligible phase-transformation set, and the fully bracketed profile-derived interval before passing the closed `R-ZW-009` meaning route; a period label or one star cannot support even a bounded salience claim, and the completed route still cannot support four-palace phase convergence, a complete Zi Wei judgment, or an event claim.
+
+For Tarot decisions, explain what each position changes in the choice and give one reversible comparison step; do not announce which option “wins.” For I Ching, distinguish the primary situation, selected change stage, and changed tendency without supplying unregistered classical text. For Meihua, explain body/use and the relation before/after change without adding an auspicious date or response time. For Western readings, translate the exact topic chain into ordinary language and omit house-based claims when the required birth data is absent.
 
 Keep the normal continuation menu human-facing, for example “深挖事业 / 深挖财富 / 深挖感情 / 看阶段 / 为什么这样看 / 修改资料 / 结束”. Put profile comparison, warning codes, hashes, source IDs, and raw JSON inside “依据与核对（高级）”, not beside the life topics.
 
@@ -285,6 +317,11 @@ Before presenting a reading, verify:
 - no time-dependent claim escaped the missing-time gate;
 - every material interpretation has traceable facts and an honest source status;
 - every exact technical assertion across all six shipped systems is mechanically rendered from a matching typed binding, and the unrestricted narrative is explicitly treated as not machine-proved;
+- the generic adjudicator replayed the calculation and no unavailable system result was replaced with model intuition;
+- every BaZi target-period statement preserves the frozen natal baseline and the returned decadal/yearly route re-adjudication; climate remains a 120-entry base route and passage remains a structural screen, not an event claim;
+- every Western house-derived statement has the required reliable time and coordinates and follows the returned topic-house/ruler/luminary/aspect/condition chain;
+- every Tarot decision keeps the declared spread and has no winner or card vote; every I Ching reading follows the returned changing-line selection without invented classical text; every Meihua reading stays inside the fixed two-number body/use/mutual/five-element route without season or timing;
+- every Zi Wei ordinary result uses the registered wrapper and no unknown-time candidate or substitute topic palace was selected;
 - every interpretation is bound to the exact calculation and cited fact values, uses a registered interpretation rule pack, and states observable support and counterevidence;
 - every cited rule is applicable to the calculation mode, profile, fact type, and claim scope;
 - every Zi Wei topic or phase claim uses one emitted topic unit, keeps all required same-topic components, and matches every named star, palace, or transformation relation to a semantic binding;

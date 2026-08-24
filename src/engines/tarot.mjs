@@ -15,6 +15,104 @@ const SPREADS = {
   ],
 };
 
+const SPREAD_PROVENANCE = Object.freeze({
+  one: "project_authored_reflective_layout",
+  three: "project_authored_reflective_layout",
+  "situation-action-outcome": "project_authored_reflective_layout",
+  decision: "project_authored_reflective_layout",
+  "celtic-cross": "waite_celtic_cross_adapted_for_reflection",
+});
+
+const COURT_RANKS = new Set(["page", "knight", "queen", "king"]);
+
+function cardStructure(card) {
+  return {
+    arcana: card.arcana,
+    number: card.arcana === "major" ? card.number : null,
+    suit: card.suit ?? null,
+    suit_zh: card.suit_zh ?? null,
+    rank: card.rank ?? null,
+    rank_order: card.rank == null
+      ? null
+      : ["ace", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "page", "knight", "queen", "king"].indexOf(card.rank) + 1,
+    court: card.rank == null ? false : COURT_RANKS.has(card.rank),
+  };
+}
+
+function countBy(values, keys) {
+  const counts = Object.fromEntries(keys.map((key) => [key, 0]));
+  for (const value of values) {
+    if (value != null && Object.hasOwn(counts, value)) counts[value] += 1;
+  }
+  return counts;
+}
+
+function deriveSpreadFacts(spread, positions, cards) {
+  return {
+    fact_id: "F-TR-SPREAD-001",
+    spread_id: spread,
+    provenance: SPREAD_PROVENANCE[spread],
+    card_order: "declared_position_order",
+    positions: positions.map((position, index) => ({
+      fact_id: `F-TR-POS-${String(index + 1).padStart(3, "0")}`,
+      order: index + 1,
+      position,
+      card_fact_ref: cards[index].fact_id,
+    })),
+  };
+}
+
+function deriveStructuralFacts(cards) {
+  const majorCards = cards.filter((card) => card.arcana === "major");
+  const minorCards = cards.filter((card) => card.arcana === "minor");
+  const courtCards = cards.filter((card) => card.court);
+  const reversedCards = cards.filter((card) => card.orientation === "reversed");
+  return {
+    composition: {
+      fact_id: "F-TR-STRUCT-001",
+      card_count: cards.length,
+      major_arcana_count: majorCards.length,
+      minor_arcana_count: minorCards.length,
+      court_card_count: courtCards.length,
+      upright_count: cards.length - reversedCards.length,
+      reversed_count: reversedCards.length,
+      major_positions: majorCards.map((card) => card.position),
+      court_positions: courtCards.map((card) => card.position),
+      reversed_positions: reversedCards.map((card) => card.position),
+    },
+    suit_distribution: {
+      fact_id: "F-TR-STRUCT-002",
+      counts: countBy(minorCards.map((card) => card.suit), ["wands", "cups", "swords", "pentacles"]),
+      denominator: minorCards.length,
+      major_arcana_excluded: true,
+    },
+    rank_distribution: {
+      fact_id: "F-TR-STRUCT-003",
+      counts: countBy(minorCards.map((card) => card.rank), [
+        "ace", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+        "page", "knight", "queen", "king",
+      ]),
+      denominator: minorCards.length,
+      major_arcana_excluded: true,
+    },
+    adjacent_links: cards.slice(0, -1).map((card, index) => {
+      const next = cards[index + 1];
+      return {
+        fact_id: `F-TR-LINK-${String(index + 1).padStart(3, "0")}`,
+        from_card_fact_ref: card.fact_id,
+        to_card_fact_ref: next.fact_id,
+        from_position: card.position,
+        to_position: next.position,
+        arcana_relation: card.arcana === next.arcana ? "same_arcana" : "arcana_shift",
+        orientation_relation: card.orientation === next.orientation ? "same_orientation" : "orientation_shift",
+        suit_relation: card.suit == null || next.suit == null
+          ? "major_arcana_involved"
+          : card.suit === next.suit ? "same_suit" : "different_suits",
+      };
+    }),
+  };
+}
+
 function questionText(value) {
   if (typeof value !== "string" || !value.trim()) {
     throw new FortuneTellerError("MISSING_QUESTION", "tarot requires a focused question or reflection prompt");
@@ -88,7 +186,10 @@ export function calculateTarot(rawInput, profileOverride = {}) {
     title: card.title,
     title_zh: card.title_zh,
     orientation,
+    ...cardStructure(card),
   }));
+  const spreadFacts = deriveSpreadFacts(spread, positions, cards);
+  const structuralFacts = deriveStructuralFacts(cards);
   const keywordReferences = selected.map(({ card, orientation }) => ({
     card_id: card.id,
     orientation,
@@ -100,7 +201,12 @@ export function calculateTarot(rawInput, profileOverride = {}) {
     system: "tarot",
     profile,
     input: { question, spread, cards_supplied: rawInput.cards != null, replay_seed_revealed: rngMeta.replay_seed !== null },
-    facts: { mode: rawInput.cards != null ? "user-supplied" : "local-draw", cards },
+    facts: {
+      mode: rawInput.cards != null ? "user-supplied" : "local-draw",
+      cards,
+      spread: spreadFacts,
+      structure: structuralFacts,
+    },
     warnings: ["Card keywords are traditional interpretive prompts, not validated predictions."],
     meta: {
       rng: rngMeta,

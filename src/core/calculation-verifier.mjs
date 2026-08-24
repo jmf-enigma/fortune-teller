@@ -70,17 +70,26 @@ function meihuaInput(calculation) {
   return {
     first_number: source.first_number,
     second_number: source.second_number,
-    ...(source.moving_line_supplied === true
-      ? { moving_line: calculation.facts?.moving_line?.position_from_bottom }
-      : {}),
     ...(typeof source.question === "string" ? { question: source.question } : {}),
   };
 }
 
 function projectTarotCards(cards) {
-  return cards?.map(({ fact_id, position, card_id, title, title_zh, orientation }) => ({
+  return cards?.map(({
     fact_id, position, card_id, title, title_zh, orientation,
+    arcana, number, suit, suit_zh, rank, rank_order, court,
+  }) => ({
+    fact_id, position, card_id, title, title_zh, orientation,
+    arcana, number, suit, suit_zh, rank, rank_order, court,
   }));
+}
+
+function projectTarotFacts(facts) {
+  return {
+    cards: projectTarotCards(facts?.cards),
+    spread: facts?.spread,
+    structure: facts?.structure,
+  };
 }
 
 function projectIChingFacts(facts) {
@@ -91,6 +100,7 @@ function projectIChingFacts(facts) {
     changing_lines: facts?.changing_lines,
     primary: facts?.primary,
     transformed: facts?.transformed,
+    structure: facts?.structure,
   };
 }
 
@@ -149,8 +159,8 @@ export function verifyCalculationFacts(calculation) {
           }
         : prepared.input;
       const replay = calculator(replayInput, replayProfile(calculation));
-      if (stableJson(projectTarotCards(replay.facts.cards)) !== stableJson(projectTarotCards(calculation.facts?.cards))) {
-        errors.push("Tarot cards, positions, titles, or orientations are not self-consistent");
+      if (stableJson(projectTarotFacts(replay.facts)) !== stableJson(projectTarotFacts(calculation.facts))) {
+        errors.push("Tarot cards, positions, metadata, spread, or structural facts are not self-consistent");
       }
       return { status: prepared.status, errors };
     }

@@ -8,13 +8,18 @@ import {
   BAZI_MONTH_COMMAND_PATTERN_RULES,
   BAZI_VIEW_DEFINITIONS,
 } from "../data/bazi-adjudication-rulepack.mjs";
+import {
+  BAZI_CLIMATE_RULEPACK_META,
+  getBaziClimateRule,
+} from "../data/bazi-climate-rulepack.mjs";
 
 const SUPPORT_GODS = new Set(["比肩", "劫财", "正印", "偏印"]);
 const PRESSURE_GODS = new Set(["食神", "伤官", "正财", "偏财", "正官", "七杀"]);
 const STEMS = new Set(["甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸"]);
 const BRANCHES = new Set(["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"]);
 const TEN_GODS = new Set([...SUPPORT_GODS, ...PRESSURE_GODS]);
-const PILLAR_ZH = Object.freeze({ year: "年", month: "月", day: "日", time: "时" });
+const PILLAR_ZH = Object.freeze({ year: "年", month: "月", day: "日", time: "时", decadal: "大运", yearly: "流年" });
+const ROOT_POSITION_ZH = Object.freeze({ main: "本气", middle: "中气", residual: "余气" });
 const TEN_GOD_THEME = Object.freeze({
   比肩: "自主推进、同辈协作与资源分配",
   劫财: "竞争、合作边界与共同资源",
@@ -39,11 +44,15 @@ const INTERACTION_LABELS = Object.freeze({
   branch_harm: "地支相害",
   branch_break: "地支相破",
   branch_punishment: "地支相刑",
+  branch_full_three_punishment: "地支三刑齐全",
   layer_natal_pillar_repetition: "运年与原局伏吟",
   decadal_yearly_repetition: "岁运并临",
   heavenly_control_earthly_clash: "天克地冲",
   active_layer_completes_three_harmony: "运年补成三合",
   active_layer_completes_three_meeting: "运年补成三会",
+  active_layer_completes_three_punishment: "运年补成三刑",
+  branch_full_three_harmony: "地支三合齐全",
+  branch_full_three_meeting: "地支三会齐全",
 });
 const TEN_GOD_GROUPS = Object.freeze(Object.fromEntries(
   Object.entries(BAZI_DIRECTION_ONTOLOGY)
@@ -54,8 +63,19 @@ const STEM_ELEMENTS = Object.freeze({
   甲: "木", 乙: "木", 丙: "火", 丁: "火", 戊: "土",
   己: "土", 庚: "金", 辛: "金", 壬: "水", 癸: "水",
 });
+const CONTROL_MEDIATORS = Object.freeze({
+  "木-土": "火",
+  "土-水": "金",
+  "水-火": "木",
+  "火-金": "土",
+  "金-木": "水",
+});
 const MONTH_PATTERN_DAMAGE_RELATIONS = new Set([
-  "branch_clash", "branch_punishment", "branch_harm", "branch_break",
+  "branch_clash", "branch_punishment", "branch_full_three_punishment", "branch_harm", "branch_break",
+]);
+const ROOT_USABILITY_CAUTION_RELATIONS = new Set([
+  "branch_clash", "branch_punishment", "branch_full_three_punishment", "branch_harm", "branch_break",
+  "active_layer_completes_three_punishment",
 ]);
 const JOINT_ACTIVATION_RELATIONS = new Set([
   "stem_five_combination", "stem_clash",
@@ -63,6 +83,7 @@ const JOINT_ACTIVATION_RELATIONS = new Set([
   "branch_harm", "branch_break", "branch_punishment",
   "layer_natal_pillar_repetition", "decadal_yearly_repetition", "heavenly_control_earthly_clash",
   "active_layer_completes_three_harmony", "active_layer_completes_three_meeting",
+  "active_layer_completes_three_punishment",
 ]);
 
 function deepFreeze(value) {
@@ -96,14 +117,15 @@ function ensureReplayVerifiedBazi(calculation) {
   return replay.status;
 }
 
-function unavailableResult(calculation, replayStatus, reason) {
+function unavailableResult(calculation, replayStatus, reason, options = {}) {
   return deepFreeze({
-    schema_version: "bazi-adjudication-v0.4",
+    schema_version: "bazi-adjudication-v0.5",
+    system: "bazi",
     status: "unavailable",
-    conclusion: "当前资料不足，暂不进入专业裁决。",
+    conclusion: options.conclusion || "当前资料不足，暂不进入专业裁决。",
     plain_language: reason,
-    basis: [calculation.facts?.mode === "unknown-time-sensitivity" ? "出生时辰尚未确定" : "四柱事实不完整"],
-    change_conditions: ["补齐并重新计算可重放的四柱事实后，再从头进行裁决。"],
+    basis: options.basis || [calculation.facts?.mode === "unknown-time-sensitivity" ? "出生时辰尚未确定" : "四柱事实不完整"],
+    change_conditions: options.change_conditions || ["补齐并重新计算可重放的四柱事实后，再从头进行裁决。"],
     reality_checks: ["先核对出生资料、时区和日界口径，不用人生经历反推一个方便的时辰。"],
     rulepack: BAZI_ADJUDICATION_RULEPACK_META,
     audit: { calculation_replay_status: replayStatus, score_used: false, event_prediction_used: false },
@@ -119,10 +141,24 @@ function readNatalFacts(calculation) {
   if (!month || !day || !Array.isArray(month.hidden_stems) || !Array.isArray(month.ten_gods_hidden_stems)) return null;
   const visiblePillars = pillars.filter((pillar) => pillar.pillar !== "day");
   const visibleGods = visiblePillars.map((pillar) => pillar.ten_god_stem).filter((god) => TEN_GODS.has(god));
-  const rootPillars = pillars.filter((pillar) => (
-    Array.isArray(pillar.ten_gods_hidden_stems)
-    && pillar.ten_gods_hidden_stems.some((god) => god === "比肩" || god === "劫财")
-  ));
+  const structuralRoots = calculation.facts?.structure?.root_evidence;
+  const rootRecords = Array.isArray(structuralRoots)
+    ? structuralRoots.map((record) => ({ ...record }))
+    : pillars.flatMap((pillar) => (pillar.ten_gods_hidden_stems || []).flatMap((god, index) => (
+      god === "比肩" || god === "劫财"
+        ? [{
+            fact_id: pillar.fact_id,
+            source_pillar_id: pillar.fact_id,
+            pillar: pillar.pillar,
+            earthly_branch: pillar.earthly_branch,
+            hidden_stem: pillar.hidden_stems[index],
+            hidden_position: ["main", "middle", "residual"][index] || `position-${index + 1}`,
+            relation: god === "比肩" ? "same_stem_root" : "same_element_peer_root",
+            ten_god: god,
+          }]
+        : []
+    )));
+  const rootPillars = pillars.filter((pillar) => rootRecords.some((record) => record.source_pillar_id === pillar.fact_id));
   const relationships = calculation.facts?.structure?.relationships || [];
   return {
     pillars,
@@ -137,6 +173,9 @@ function readNatalFacts(calculation) {
     visibleSupport: visiblePillars.filter((pillar) => SUPPORT_GODS.has(pillar.ten_god_stem)),
     visiblePressure: visiblePillars.filter((pillar) => PRESSURE_GODS.has(pillar.ten_god_stem)),
     rootPillars,
+    rootRecords,
+    seasonalContext: calculation.facts?.structure?.seasonal_context || null,
+    monthCommand: calculation.facts?.structure?.month_command || null,
     relationships,
     monthRelationshipCautions: relationships.filter((relation) => relation.pillars?.includes("month")),
   };
@@ -156,7 +195,19 @@ function makeHypothesis({ id, label, state, supportingEvidence, contraryEvidence
 function adjudicateStrength(natal) {
   const monthSupports = SUPPORT_GODS.has(natal.commandGod);
   const monthPressures = PRESSURE_GODS.has(natal.commandGod);
-  const rooted = natal.rootPillars.length > 0;
+  const rooted = natal.rootRecords.length > 0;
+  const mainRoots = natal.rootRecords.filter((root) => root.hidden_position === "main");
+  const secondaryRoots = natal.rootRecords.filter((root) => root.hidden_position !== "main");
+  const rootCautions = natal.rootRecords.map((root) => ({
+    root,
+    interactions: natal.relationships.filter((relation) => (
+      ROOT_USABILITY_CAUTION_RELATIONS.has(relation.relationship)
+      && [...(relation.pillar_ids || []), ...(relation.layer_fact_ids || [])].includes(root.source_pillar_id)
+    )),
+  })).filter((item) => item.interactions.length);
+  const cautionedRootIds = new Set(rootCautions.map((item) => item.root.fact_id));
+  const rootsWithoutRegisteredCaution = natal.rootRecords.filter((root) => !cautionedRootIds.has(root.fact_id));
+  const rootClosedForStrong = rootsWithoutRegisteredCaution.length > 0;
   const visiblySupported = natal.visibleSupport.length > 0;
   const visiblyPressured = natal.visiblePressure.length > 0;
 
@@ -164,8 +215,18 @@ function adjudicateStrength(natal) {
   const strongContrary = [];
   if (monthSupports) strongSupport.push(factEvidence(natal.month.fact_id, `月令本气与日主构成${natal.commandGod}，支持日主一侧。`));
   else if (monthPressures) strongContrary.push(factEvidence(natal.month.fact_id, `月令本气为${natal.commandGod}，不直接支持日主。`, "contrary"));
-  for (const pillar of natal.rootPillars) {
-    strongSupport.push(factEvidence(pillar.fact_id, `${PILLAR_ZH[pillar.pillar]}支藏有比劫关系，构成一个明确根位。`));
+  for (const root of natal.rootRecords) {
+    strongSupport.push(factEvidence(
+      root.fact_id,
+      `${PILLAR_ZH[root.pillar] || root.pillar}支${root.earthly_branch}的${ROOT_POSITION_ZH[root.hidden_position] || root.hidden_position}藏${root.hidden_stem}（${root.ten_god}），构成${root.relation === "same_stem_root" ? "同干根" : "同五行异阴阳根"}；这里只记位置，不折算分数。`,
+    ));
+  }
+  for (const item of rootCautions) {
+    strongContrary.push(factEvidence(
+      item.interactions[0].fact_id,
+      `${PILLAR_ZH[item.root.pillar] || item.root.pillar}支的根位同时受到${interactionSummary(item.interactions).join("、")}；当前只确认冲突存在，未证明根气仍可完整使用，因此不能仅凭此根把偏强判为成立。`,
+      "contrary",
+    ));
   }
   for (const pillar of natal.visibleSupport) {
     strongSupport.push(factEvidence(pillar.fact_id, `${PILLAR_ZH[pillar.pillar]}干${pillar.ten_god_stem}透出，形成可见生扶。`));
@@ -175,7 +236,7 @@ function adjudicateStrength(natal) {
   }
 
   let strongState = BAZI_ADJUDICATION_STATES.unresolved;
-  if (monthSupports && rooted && visiblySupported && !visiblyPressured) strongState = BAZI_ADJUDICATION_STATES.established;
+  if (monthSupports && rootClosedForStrong && visiblySupported && !visiblyPressured) strongState = BAZI_ADJUDICATION_STATES.established;
   else if ((monthSupports || rooted) && visiblyPressured) strongState = BAZI_ADJUDICATION_STATES.damaged;
 
   const weakSupport = [];
@@ -186,8 +247,12 @@ function adjudicateStrength(natal) {
   for (const pillar of natal.visiblePressure) {
     weakSupport.push(factEvidence(pillar.fact_id, `${PILLAR_ZH[pillar.pillar]}干${pillar.ten_god_stem}透出，增加日主承载要求。`));
   }
-  for (const pillar of natal.rootPillars) {
-    weakContrary.push(factEvidence(pillar.fact_id, `${PILLAR_ZH[pillar.pillar]}支存在比劫根位，反对无根式弱势判断。`, "contrary"));
+  for (const root of natal.rootRecords) {
+    weakContrary.push(factEvidence(
+      root.fact_id,
+      `${PILLAR_ZH[root.pillar] || root.pillar}支存在${ROOT_POSITION_ZH[root.hidden_position] || root.hidden_position}${root.ten_god}根位，反对无根式弱势判断。`,
+      "contrary",
+    ));
   }
   for (const pillar of natal.visibleSupport) {
     weakContrary.push(factEvidence(pillar.fact_id, `${PILLAR_ZH[pillar.pillar]}干${pillar.ten_god_stem}透出，提供可见生扶。`, "contrary"));
@@ -227,6 +292,24 @@ function adjudicateStrength(natal) {
   return {
     lens: "旺衰",
     source: BAZI_VIEW_DEFINITIONS.strength,
+    evidence_dimensions: {
+      month_command_side: monthSupports ? "support" : monthPressures ? "pressure" : "other",
+      root_locations: {
+        main: mainRoots.map((root) => root.fact_id),
+        secondary_or_residual: secondaryRoots.map((root) => root.fact_id),
+        exact_same_stem: natal.rootRecords.filter((root) => root.relation === "same_stem_root").map((root) => root.fact_id),
+        same_element_peer: natal.rootRecords.filter((root) => root.relation === "same_element_peer_root").map((root) => root.fact_id),
+      },
+      visible_support: natal.visibleSupport.map((pillar) => pillar.fact_id),
+      visible_pressure: natal.visiblePressure.map((pillar) => pillar.fact_id),
+      root_usability_cautions: rootCautions.map((item) => ({
+        root_fact_id: item.root.fact_id,
+        root_position: item.root.hidden_position,
+        interaction_fact_ids: item.interactions.map((relation) => relation.fact_id),
+        status: "unresolved_under_registered_branch_interaction",
+      })),
+      weighting: "none",
+    },
     hypotheses: [strong, weak],
     selected_hypothesis_id: selected,
     conclusion: selected === strong.hypothesis_id
@@ -292,7 +375,11 @@ function evaluatePatternPredicate(predicate, natal, strength) {
     };
   }
   if (kind === "month" && value === "刑冲破害") {
-    const relations = natal.monthRelationshipCautions.filter((relation) => MONTH_PATTERN_DAMAGE_RELATIONS.has(relation.relationship));
+    const relations = natal.monthRelationshipCautions.filter((relation) => (
+      MONTH_PATTERN_DAMAGE_RELATIONS.has(relation.relationship)
+      && !(relation.relationship === "branch_punishment"
+        && relation.configuration_status === "pair_component_of_three_branch_punishment")
+    ));
     return {
       matched: relations.length > 0,
       fact_ids: relations.map((relation) => relation.fact_id),
@@ -461,6 +548,138 @@ function directionView(view) {
   };
 }
 
+function stemLocations(natal, targetStem) {
+  const visible = natal.visiblePillars.filter((pillar) => pillar.heavenly_stem === targetStem);
+  const hidden = natal.pillars.flatMap((pillar) => (pillar.hidden_stems || []).flatMap((stem, index) => (
+    stem === targetStem
+      ? [{ pillar, index, position: ["main", "middle", "residual"][index] || `position-${index + 1}` }]
+      : []
+  )));
+  return { visible, hidden };
+}
+
+function adjudicateClimate(natal) {
+  const rule = getBaziClimateRule(natal.day.heavenly_stem, natal.month.earthly_branch);
+  if (!rule) {
+    return {
+      lens: "调候",
+      state: BAZI_ADJUDICATION_STATES.unresolved,
+      proposed_directions: [],
+      conclusion: "本次日干与月令没有命中已校勘的基础调候单元，调候保持未决。",
+      source: BAZI_VIEW_DEFINITIONS.climate,
+    };
+  }
+  const candidates = rule.mentioned_stems.map((stem) => {
+    const locations = stemLocations(natal, stem);
+    const availability = locations.visible.length
+      ? "visible" : locations.hidden.length ? "hidden_only" : "absent";
+    const role = rule.stem_roles.find((item) => item.stem === stem);
+    return {
+      stem,
+      roles: [...(role?.roles || ["source_mentioned_role_unresolved"])],
+      ...(role?.condition ? { condition: role.condition } : {}),
+      availability,
+      fact_ids: unique([
+        ...locations.visible.map((item) => item.fact_id),
+        ...locations.hidden.map((item) => item.pillar.fact_id),
+      ]),
+      locations: [
+        ...locations.visible.map((pillar) => `${PILLAR_ZH[pillar.pillar] || pillar.pillar}干`),
+        ...locations.hidden.map((item) => `${PILLAR_ZH[item.pillar.pillar] || item.pillar.pillar}支${ROOT_POSITION_ZH[item.position] || item.position}`),
+      ],
+    };
+  });
+  const present = candidates.filter((candidate) => candidate.availability !== "absent");
+  const availabilityStatus = present.length
+    ? `原文提及的${present.map((item) => `${item.stem}${item.availability === "visible" ? "已透" : "仅见于藏干"}`).join("、")}`
+    : `原文提及的${candidates.map((item) => item.stem).join("、")}在当前盘面均未见`;
+  const routeStatus = rule.applicability.status === "requires_solar_term_segment"
+    ? "solar_term_segment_unresolved"
+    : rule.applicability.status === "conditional_roles_not_adjudicated"
+      ? "conditional_roles_unresolved"
+      : present.length
+        ? "source_mentions_located" : "source_mentions_absent";
+  const boundaryText = routeStatus === "solar_term_segment_unresolved"
+    ? `${rule.applicability.note}因此不能选择原文分路。`
+    : routeStatus === "conditional_roles_unresolved"
+      ? "这些干在原文中可能分别是主用、并用、佐用、条件救应、自带或反忌；条件角色尚未闭合，不能排成固定先后。"
+      : "本规则只完成来源提及与盘内位置筛查，尚未逐条闭合角色、组合、阻碍和例外。";
+  return {
+    lens: "调候",
+    state: BAZI_ADJUDICATION_STATES.unresolved,
+    route_status: routeStatus,
+    screening_completed: true,
+    proposed_directions: [],
+    candidate_directions: [...rule.mentioned_stems],
+    conclusion: `${natal.day.heavenly_stem}日、${natal.month.earthly_branch}月命中《穷通宝鉴》来源索引；${availabilityStatus}。${boundaryText}调候保持未决，不把“出现”写成用神有效，更不推出古籍中的身份或结果断语。`,
+    candidates,
+    source: {
+      ...BAZI_VIEW_DEFINITIONS.climate,
+      rule_id: rule.id,
+      source_id: rule.source_id,
+      source_locator: rule.source_locator,
+      source_granularity: rule.source_granularity,
+      coverage: rule.coverage,
+      applicability: rule.applicability,
+      rulepack: BAZI_CLIMATE_RULEPACK_META,
+    },
+  };
+}
+
+function elementLocations(natal, element) {
+  const visible = natal.visiblePillars.filter((pillar) => STEM_ELEMENTS[pillar.heavenly_stem] === element);
+  const hidden = natal.pillars.flatMap((pillar) => (pillar.hidden_stems || []).flatMap((stem) => (
+    STEM_ELEMENTS[stem] === element ? [pillar] : []
+  )));
+  return { visible, hidden };
+}
+
+function adjudicatePassage(natal) {
+  const visibleElements = unique(natal.visiblePillars.map((pillar) => STEM_ELEMENTS[pillar.heavenly_stem]));
+  const routes = Object.entries(CONTROL_MEDIATORS).flatMap(([pair, mediator]) => {
+    const [controller, controlled] = pair.split("-");
+    if (!visibleElements.includes(controller) || !visibleElements.includes(controlled)) return [];
+    const controllerFacts = elementLocations(natal, controller);
+    const controlledFacts = elementLocations(natal, controlled);
+    const mediatorFacts = elementLocations(natal, mediator);
+    const mediatorStatus = mediatorFacts.visible.length
+      ? "visible" : mediatorFacts.hidden.length ? "hidden_only" : "absent";
+    return [{
+      controller,
+      controlled,
+      mediator,
+      mediator_status: mediatorStatus,
+      fact_ids: unique([
+        ...controllerFacts.visible.map((pillar) => pillar.fact_id),
+        ...controlledFacts.visible.map((pillar) => pillar.fact_id),
+        ...mediatorFacts.visible.map((pillar) => pillar.fact_id),
+        ...mediatorFacts.hidden.map((pillar) => pillar.fact_id),
+      ]),
+    }];
+  });
+  if (!routes.length) {
+    return {
+      lens: "通关",
+      state: BAZI_ADJUDICATION_STATES.unresolved,
+      proposed_directions: [],
+      routes: [],
+      conclusion: "非日主三干没有同时形成一组可直接核对的五行相制两端，因此不强行提出通关方向。",
+      source: BAZI_VIEW_DEFINITIONS.passage,
+    };
+  }
+  const viable = routes.filter((route) => route.mediator_status !== "absent");
+  return {
+    lens: "通关",
+    state: viable.length ? BAZI_ADJUDICATION_STATES.established : BAZI_ADJUDICATION_STATES.unresolved,
+    proposed_directions: unique(routes.map((route) => route.mediator)),
+    routes,
+    conclusion: viable.length
+      ? `${viable.map((route) => `${route.controller}制${route.controlled}之间以${route.mediator}作中介（${route.mediator_status === "visible" ? "透干" : "仅藏支"}）`).join("；")}。这里只确认“对立两端—中介”结构可见，不判断中介是否足以扭转全局。`
+      : `${routes.map((route) => `${route.controller}制${route.controlled}需${route.mediator}衔接`).join("；")}，但中介在当前四柱未见，通关路线保持未决。`,
+    source: BAZI_VIEW_DEFINITIONS.passage,
+  };
+}
+
 function usefulGodViews(strength, pattern, natal) {
   const patternDirections = patternDirection(pattern, natal);
   const patternView = {
@@ -487,20 +706,8 @@ function usefulGodViews(strength, pattern, natal) {
       : "旺衰尚未收敛，扶抑取用保持未决。",
     source: BAZI_VIEW_DEFINITIONS.support_balance,
   };
-  const climateView = {
-    lens: "调候",
-    state: BAZI_ADJUDICATION_STATES.unresolved,
-    proposed_directions: [],
-    conclusion: "调候规则尚未作为可重放计算事实安装；外部自报来源状态不参与裁决，因此调候保持未决。",
-    source: BAZI_VIEW_DEFINITIONS.climate,
-  };
-  const passageView = {
-    lens: "通关",
-    state: BAZI_ADJUDICATION_STATES.unresolved,
-    proposed_directions: [],
-    conclusion: "通关规则尚未作为可重放计算事实安装；外部自报对立力量与中介不参与裁决，因此通关保持未决。",
-    source: BAZI_VIEW_DEFINITIONS.passage,
-  };
+  const climateView = adjudicateClimate(natal);
+  const passageView = adjudicatePassage(natal);
   const closedDamageRoutes = pattern.route_adjudication.active_damage_routes.filter((route) => route.closure === "closed");
   const screeningDamageRoutes = pattern.route_adjudication.active_damage_routes.filter((route) => route.closure !== "closed");
   const closedDamageIds = new Set(closedDamageRoutes.map((route) => route.id));
@@ -608,7 +815,24 @@ function periodPatternEffect(value, patternRule) {
 }
 
 function interactionSummary(interactions) {
-  return unique(interactions.map((item) => INTERACTION_LABELS[item.relationship] || item.relationship));
+  return unique(interactions.map(interactionLabel));
+}
+
+function interactionLabel(item) {
+  const completion = {
+    active_layer_completes_three_harmony: "补成三合",
+    active_layer_completes_three_meeting: "补成三会",
+    active_layer_completes_three_punishment: "补成三刑",
+  }[item.relationship];
+  if (!completion) return INTERACTION_LABELS[item.relationship] || item.relationship;
+  const layers = new Set(item.layers || []);
+  const prefix = layers.has("decadal") && layers.has("yearly")
+    ? "岁运"
+    : layers.has("decadal")
+      ? "大运"
+      : layers.has("yearly")
+        ? "流年" : "时间层";
+  return `${prefix}${completion}`;
 }
 
 function normalizePeriodStage(value, role, patternRule = null, interactions = []) {
@@ -664,7 +888,7 @@ function normalizePeriodStage(value, role, patternRule = null, interactions = []
     interactions: relevantInteractions.map((item) => ({
       fact_id: item.fact_id,
       relationship: item.relationship,
-      label: INTERACTION_LABELS[item.relationship] || item.relationship,
+      label: interactionLabel(item),
       layer_fact_ids: [...item.layer_fact_ids],
     })),
     pattern_effect: patternEffect,
@@ -683,6 +907,7 @@ function resolvedPeriodsFromCalculation(calculation) {
       periods: {},
       source: "calculation.facts.luck_cycles_unavailable",
       interactions: [],
+      decadalInteractions: [],
     };
   }
   const targetBasis = [luck.fact_id, target.fact_id];
@@ -713,7 +938,144 @@ function resolvedPeriodsFromCalculation(calculation) {
     periods: { decadal, yearly },
     source: "calculation.facts.luck_cycles",
     interactions: Array.isArray(target.interactions) ? target.interactions : [],
+    decadalInteractions: Array.isArray(target.decadal_interactions) ? target.decadal_interactions : [],
   };
+}
+
+function periodAsPillar(value, pillar) {
+  return {
+    fact_id: value.fact_id,
+    pillar,
+    stem_branch: value.stem_branch,
+    heavenly_stem: value.heavenly_stem,
+    earthly_branch: value.earthly_branch,
+    ten_god_stem: value.ten_god_stem,
+    hidden_stems: [...(value.hidden_stems || [])],
+    ten_gods_hidden_stems: [...(value.ten_gods_hidden_stems || [])],
+  };
+}
+
+function natalWithPeriodLayers(natal, layerValues, interactions) {
+  const extraPillars = layerValues.map(({ value, pillar }) => periodAsPillar(value, pillar));
+  const pillars = [...natal.pillars, ...extraPillars];
+  const visiblePillars = [...natal.visiblePillars, ...extraPillars];
+  const extraRoots = extraPillars.flatMap((pillar) => pillar.ten_gods_hidden_stems.flatMap((god, index) => (
+    god === "比肩" || god === "劫财"
+      ? [{
+          fact_id: pillar.fact_id,
+          source_pillar_id: pillar.fact_id,
+          pillar: pillar.pillar,
+          earthly_branch: pillar.earthly_branch,
+          hidden_stem: pillar.hidden_stems[index],
+          hidden_position: ["main", "middle", "residual"][index] || `position-${index + 1}`,
+          relation: god === "比肩" ? "same_stem_root" : "same_element_peer_root",
+          ten_god: god,
+        }]
+      : []
+  )));
+  const combinedRelationships = [...natal.relationships, ...interactions];
+  return {
+    ...natal,
+    pillars,
+    visiblePillars,
+    visibleGods: visiblePillars.map((pillar) => pillar.ten_god_stem).filter((god) => TEN_GODS.has(god)),
+    visibleSupport: visiblePillars.filter((pillar) => SUPPORT_GODS.has(pillar.ten_god_stem)),
+    visiblePressure: visiblePillars.filter((pillar) => PRESSURE_GODS.has(pillar.ten_god_stem)),
+    rootPillars: pillars.filter((pillar) => [...natal.rootRecords, ...extraRoots].some((root) => root.source_pillar_id === pillar.fact_id)),
+    rootRecords: [...natal.rootRecords, ...extraRoots],
+    relationships: combinedRelationships,
+    monthRelationshipCautions: combinedRelationships.filter((relation) => (
+      relation.pillars?.includes("month")
+      || relation.layer_fact_ids?.includes(natal.month.fact_id)
+    )),
+  };
+}
+
+function patternSnapshot(pattern, strength) {
+  return {
+    strength_selected_hypothesis_id: strength.selected_hypothesis_id,
+    pattern_label: pattern.hypothesis.label,
+    pattern_state: pattern.hypothesis.state,
+    formation_route_ids: pattern.formation.matched_routes.map((route) => route.id),
+    damage_route_ids: pattern.route_adjudication.active_damage_routes.map((route) => route.id),
+    rescue_route_ids: pattern.route_adjudication.active_rescue_routes.map((route) => route.id),
+    basis: unique([
+      pattern.command?.fact_id,
+      ...pattern.transparent_fact_ids,
+      ...pattern.formation.matched_routes.flatMap((route) => route.fact_ids),
+      ...pattern.route_adjudication.active_damage_routes.flatMap((route) => route.fact_ids),
+      ...pattern.route_adjudication.active_rescue_routes.flatMap((route) => route.fact_ids),
+    ]),
+  };
+}
+
+function snapshotTransition(from, to, layerFactId) {
+  const difference = (next, prior) => next.filter((value) => !prior.includes(value));
+  return {
+    from_state: from.pattern_state,
+    to_state: to.pattern_state,
+    changed: from.pattern_state !== to.pattern_state
+      || ["formation_route_ids", "damage_route_ids", "rescue_route_ids"]
+        .some((key) => JSON.stringify(from[key]) !== JSON.stringify(to[key])),
+    opened_formation_routes: difference(to.formation_route_ids, from.formation_route_ids),
+    opened_damage_routes: difference(to.damage_route_ids, from.damage_route_ids),
+    opened_rescue_routes: difference(to.rescue_route_ids, from.rescue_route_ids),
+    closed_formation_routes: difference(from.formation_route_ids, to.formation_route_ids),
+    closed_damage_routes: difference(from.damage_route_ids, to.damage_route_ids),
+    closed_rescue_routes: difference(from.rescue_route_ids, to.rescue_route_ids),
+    layer_fact_id: layerFactId,
+    interpretation_limit: "a route-state transition is a traditional structural re-adjudication, not a named event or probability",
+  };
+}
+
+function readjudicatePeriodLayers(natal, natalStrength, natalPattern, resolved, decadal, yearly) {
+  const natalSnapshot = patternSnapshot(natalPattern, natalStrength);
+  const result = {
+    policy: "natal frozen; add unique decadal; then add unique yearly; rerun strength and every registered pattern predicate at each layer",
+    natal: natalSnapshot,
+    decadal: { status: "unavailable" },
+    yearly: { status: "unavailable" },
+  };
+  if (decadal.status !== "available") return result;
+  const decadalNatal = natalWithPeriodLayers(
+    natal,
+    [{ value: resolved.periods.decadal, pillar: "decadal" }],
+    resolved.decadalInteractions,
+  );
+  const decadalStrength = adjudicateStrength(decadalNatal);
+  const decadalPattern = adjudicatePattern(decadalNatal, decadalStrength);
+  const decadalSnapshot = patternSnapshot(decadalPattern, decadalStrength);
+  result.decadal = {
+    status: "re_adjudicated",
+    layer_fact_id: resolved.periods.decadal.fact_id,
+    snapshot: decadalSnapshot,
+    transition: snapshotTransition(natalSnapshot, decadalSnapshot, resolved.periods.decadal.fact_id),
+    conclusion: decadalSnapshot.pattern_state === natalSnapshot.pattern_state
+      ? `加入大运后，${natalPattern.hypothesis.label}仍为${decadalSnapshot.pattern_state}；路线条件已完整重跑，不是只看大运天干。`
+      : `加入大运后，${natalPattern.hypothesis.label}由${natalSnapshot.pattern_state}转为${decadalSnapshot.pattern_state}；只表示登记路线的条件变化。`,
+  };
+  if (yearly.status !== "available") return result;
+  const yearlyNatal = natalWithPeriodLayers(
+    natal,
+    [
+      { value: resolved.periods.decadal, pillar: "decadal" },
+      { value: resolved.periods.yearly, pillar: "yearly" },
+    ],
+    resolved.interactions,
+  );
+  const yearlyStrength = adjudicateStrength(yearlyNatal);
+  const yearlyPattern = adjudicatePattern(yearlyNatal, yearlyStrength);
+  const yearlySnapshot = patternSnapshot(yearlyPattern, yearlyStrength);
+  result.yearly = {
+    status: "re_adjudicated",
+    layer_fact_id: resolved.periods.yearly.fact_id,
+    snapshot: yearlySnapshot,
+    transition: snapshotTransition(decadalSnapshot, yearlySnapshot, resolved.periods.yearly.fact_id),
+    conclusion: yearlySnapshot.pattern_state === decadalSnapshot.pattern_state
+      ? `再加入流年后，${natalPattern.hypothesis.label}仍为${yearlySnapshot.pattern_state}；流年没有被单独拿来命名事件。`
+      : `再加入流年后，${natalPattern.hypothesis.label}由${decadalSnapshot.pattern_state}转为${yearlySnapshot.pattern_state}；这只是当年登记条件的结构迁移。`,
+  };
+  return result;
 }
 
 function jointPeriodActivation(decadal, yearly, interactions) {
@@ -763,11 +1125,22 @@ function jointPeriodActivation(decadal, yearly, interactions) {
   };
 }
 
-function phaseLayers(pattern, calculation) {
+function phaseLayers(natal, strength, pattern, calculation) {
   const resolved = resolvedPeriodsFromCalculation(calculation);
   const patternRule = BAZI_MONTH_COMMAND_PATTERN_RULES[pattern.command?.ten_god];
-  const decadal = normalizePeriodStage(resolved.periods.decadal, "environment", patternRule, resolved.interactions);
+  const decadal = normalizePeriodStage(resolved.periods.decadal, "environment", patternRule, resolved.decadalInteractions);
   const yearly = normalizePeriodStage(resolved.periods.yearly, "trigger", patternRule, resolved.interactions);
+  const reAdjudication = readjudicatePeriodLayers(natal, strength, pattern, resolved, decadal, yearly);
+  const joint = jointPeriodActivation(decadal, yearly, resolved.interactions);
+  if (reAdjudication.yearly.status === "re_adjudicated") {
+    joint.adjudication_level = "registered_route_re_adjudication";
+    joint.route_transition = reAdjudication.yearly.transition;
+    joint.conclusion = reAdjudication.yearly.conclusion;
+  } else if (reAdjudication.decadal.status === "re_adjudicated") {
+    joint.adjudication_level = "decadal_route_re_adjudication_only";
+    joint.route_transition = reAdjudication.decadal.transition;
+    joint.conclusion = `${reAdjudication.decadal.conclusion} 流年未能唯一确定，所以停止在大运层。`;
+  }
   return {
     natal: {
       role: "baseline",
@@ -782,7 +1155,8 @@ function phaseLayers(pattern, calculation) {
     },
     decadal,
     yearly,
-    joint_activation: jointPeriodActivation(decadal, yearly, resolved.interactions),
+    re_adjudication: reAdjudication,
+    joint_activation: joint,
     source: resolved.source,
     hierarchy: "原局是基线；大运只改变环境；流年只标记触发。后层不得反写前层。",
   };
@@ -845,6 +1219,19 @@ function ordinarySynthesis(strength, pattern, views, conflicts, phase) {
  */
 export function adjudicateBazi(calculation, options = {}) {
   const replayStatus = ensureReplayVerifiedBazi(calculation);
+  const topic = options.topic || "overview";
+  if (topic !== "overview") {
+    return unavailableResult(
+      calculation,
+      replayStatus,
+      "当前八字结果层只闭合整体旺衰、格局、取用分歧与阶段路线；尚未安装指定人生领域的规则，因此不把泛化十神写成该领域答案。",
+      {
+        conclusion: "当前八字规则不能可靠回答这个指定领域。",
+        basis: ["指定领域主题路由未安装"],
+        change_conditions: ["改选人生整体来查看已闭合的八字结构，或改用已支持该主题的紫微/西洋路线。"],
+      },
+    );
+  }
   if (calculation.facts?.mode !== "known-time") {
     return unavailableResult(calculation, replayStatus, "出生时辰未知时，不创建完整旺衰、格局或用神裁决。");
   }
@@ -856,10 +1243,11 @@ export function adjudicateBazi(calculation, options = {}) {
   const pattern = adjudicatePattern(natal, strength);
   const views = usefulGodViews(strength, pattern, natal);
   const conflicts = lensConflicts(views);
-  const phase = phaseLayers(pattern, calculation);
+  const phase = phaseLayers(natal, strength, pattern, calculation);
   const synthesis = ordinarySynthesis(strength, pattern, views, conflicts, phase);
   return deepFreeze({
-    schema_version: "bazi-adjudication-v0.4",
+    schema_version: "bazi-adjudication-v0.5",
+    system: "bazi",
     status: "completed",
     conclusion: synthesis.conclusion,
     plain_language: synthesis.plain_language,

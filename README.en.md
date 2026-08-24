@@ -8,7 +8,7 @@ Fortune Teller is an accuracy-first, result-first Agent Skill for a deliberately
 
 Pinned local programs calculate charts and casts; the conversational model handles intake, explanation, comparison, and audit. The project makes no claim that divination or astrology has scientifically validated predictive power.
 
-Current release: `0.4.0`. Public repository: [jmf-enigma/fortune-teller](https://github.com/jmf-enigma/fortune-teller).
+Current release: `0.5.0`. Public repository: [jmf-enigma/fortune-teller](https://github.com/jmf-enigma/fortune-teller).
 
 ## Results before internal terminology
 
@@ -32,24 +32,29 @@ Past events can be discussed as fit or mismatch, but they cannot be turned into 
 
 | System | Status | Implemented boundary and depth |
 |---|---|---|
-| BaZi | stable with calendar-reference restriction | Gregorian input, IANA zones, midnight/Zi-start day boundaries, and a real-civil-day unknown-time scan. With an exact time and explicit traditional direction parameter, it calculates exact luck onset, 24 decadal intervals, a LiChun-bounded target year, and named natal/decadal/year relations. Its mechanical adjudicator keeps competing strength hypotheses, requires registered compound formation/damage/paired-rescue routes, and separates pattern, support/control, climate, passage, and disease/remedy lenses. Unclosed weight, position, control, or transformation conditions remain screening-only. It proceeds **only when every admitted birth instant has an actual UTC offset of `+08:00`**; other offsets fail closed and must not be hand-converted |
-| Zi Wei Dou Shu | qualified | Pinned `iztro` default and Zhongzhou profiles, twelve palaces, three-directions-and-four-alignments indices, and transformation locations. Five topics have machine-bound complete four-palace units. Only `R-ZW-007/008/009` enter the closed meaning layer. `R-ZW-007/009` read fourteen-major-star same-palace combinations, brightness, the six benefics, six pressure stars, Lucun, and Tianma; the fixed result rule pack registers 24 major-star pairs, 14 natal context modifiers, and 11 period-star modifiers. `R-ZW-008` includes every natal transformation in the topic. `R-ZW-009` reads natal baseline → decadal environment → yearly trigger; decadal and yearly each cover four dynamic slots `[0,+4,+8,+6]` and all registered period-star conditions, while phase transformations remain limited to the selected topic's dynamic slot. It therefore does not claim four-palace phase-transformation convergence or a complete Zi Wei judgment. Unknown time never synthesizes one chart and disables the phase view |
-| Western natal astrology | stable-whole-sign | Tropical planets, Ascendant/MC, whole-sign houses, five aspects, unweighted element/modality counts, and tight-aspect summaries. Motion direction is accepted only when forward/backward `6/12/24`-hour windows agree; otherwise it is uncertain. Angles and houses are omitted without birth time |
-| Tarot | stable | Local 78-card names and original short prompts, five spreads, secure random, replay seed, and manual cards |
-| I Ching | stable | Per-coin transcript, six bottom-up lines, 64-hexagram King Wen mapping, changing hexagram, and replay seed |
-| Meihua two-number | preview | Deterministic two-number cast and explicit moving line; no body/use, five-element, or timing engine |
+| BaZi | stable with calendar-reference restriction | In addition to Four Pillars, Ten Gods, and named relations, it calculates the month-command candidate, main/middle/residual located roots, and visible-force evidence. Adjudication keeps strength competition, formation/damage/rescue, support/control, climate, passage, and disease/remedy separate. Climate uses a 10 day-stem × 12 solar-month source-mention screening index; array position is not priority, and unresolved solar-term segments and conditional roles never become a useful-god verdict. For a target date, registered strength and formation/damage/rescue routes are rerun after adding the decadal pillar and then the yearly pillar. Exact luck onset, 24 decadal intervals, and LiChun year boundaries are calculated; boundary days remain unresolved. It proceeds **only when every admitted birth instant has an actual UTC offset of `+08:00`**; other offsets fail closed and must not be hand-converted |
+| Zi Wei Dou Shu | qualified | Pinned `iztro` default and Zhongzhou profiles, twelve palaces, three-directions-and-four-alignments, transformations, and five closed topics. The result-first wrapper uses the exact natal topic route or natal → decadal → yearly phase route for overview, career/study, wealth/resources, long-term relationships, and wellbeing rhythm. It retains the complete focus/trines/opposite set, major-star pairs and brightness, six benefics, six pressure stars, Lucun, Tianma, and eligible topic transformations. Unknown time never selects a candidate chart, and an unregistered family/social topic is not silently replaced with another palace. This still does not implement flow-month/day/hour timing, concrete events, or complete Zi Wei judgment |
+| Western natal astrology | stable-whole-sign | Tropical planets, Ascendant/MC, whole-sign houses, five aspects, audited motion, applying/separating/exact/uncertain aspect phase, classical domicile/detriment/exaltation/fall, angular/succedent/cadent condition, and chart ruler. A topic follows house → traditional ruler as primary plus every occupant as a co-significator → planetary function/sign expression → condition → relevant luminary/aspect chain. Missing reliable time or coordinates closes angles, houses, chart ruler, and house-derived topics instead of inserting a noon chart |
+| Tarot | stable | 78 cards, five spreads, secure random/replay/manual input, plus major/minor, suit, number/court, spread-position, and adjacency structure. Decision spreads explain support, tension, and trade-offs; they do not count favorable cards, announce an A/B winner, or promise an outcome |
+| I Ching | stable | Per-coin transcript, six bottom-up lines, 64-hexagram mapping, changing hexagram, and an explicit line-selection protocol for zero, one, two-to-five, or all changing lines. It reads inner/outer trigram processes and line centrality/correctness/correspondence, but never invents unregistered classical judgments or line text |
+| Meihua two-number | preview | One deterministic two-number profile that derives, rather than accepts an override for, the moving line, then computes body/use, mutual hexagram, moving-line stage, and the Five-Element relation before and after change. It does not support time/object/omen casting, seasonal strength without occurrence-time facts, or timing claims |
 | Liu Yao, Qi Men, Vedic | planned | Registered but intentionally fail closed because no engine is shipped |
 
 “Stable” is an engineering status within the declared scope. “Qualified” means that a material profile condition must remain visible. Neither status asserts predictive validity. See [docs/SCOPE.md](docs/SCOPE.md) for the complete boundary.
 
 ## Professional depth
 
-Release `0.4.0` concentrates professional depth on whether a conclusion is actually supported by this exact chart:
+Release `0.5.0` extends one result-first discipline—calculate, close the reasoning route, then explain plainly—to all six implemented systems:
 
-- [14 source records](src/data/source-registry.mjs) cover pinned implementations, limited historical terminology, chapter-anchored BaZi formation/rescue and luck-method provenance, and bounded Zi Wei palace, transformation, and phase guidance;
-- [31 machine-readable rules](src/data/rule-registry.mjs) declare system, claim scope, minimum fact references, source bundles, and permitted epistemic states;
-- BaZi no longer promotes a transparent month-command stem directly to a completed pattern. A registered compound formation route is required; only a closed damage route can produce failure, and only its matching closed rescue can produce rescue. The adjudicator is replayable through `adjudicateBazi`/`adjudicate-bazi`; general-reading rules `R-BZ-005/006` remain unresolved-only until a dedicated typed binding can independently reconstruct the result;
-- BaZi target dates are read in natal → complete decadal interval → LiChun-bounded year order. A period Ten God is only a candidate route input, and generic three-layer structural linkage is not promoted into a completed pattern activation or life event;
+- [15 source records](src/data/source-registry.mjs) cover pinned implementations, limited historical terminology, chapter-anchored BaZi formation/rescue, luck, and climate provenance, and bounded Zi Wei palace, transformation, and phase guidance;
+- [36 machine-readable rules](src/data/rule-registry.mjs) declare system, claim scope, minimum fact references, source bundles, and permitted epistemic states;
+- the generic `adjudicate` dispatcher replay-checks any of the six calculation envelopes and invokes only that system's bounded result layer. The method router ranks by question/data fit, never by a claim that one tradition is inherently more accurate;
+- BaZi does not promote one transparent month-command stem, root, or Ten God into a pattern. It preserves located roots and visible force, requires a registered compound formation route, and allows failure/rescue only through a closed damage/matching-rescue route;
+- its 120-entry climate table is explicitly a base routing index rather than a complete exception corpus, and passage opens only when the registered conflict pair and mediator are present. Neither route turns stem presence into wealth, rank, health, or an event;
+- BaZi target dates are processed as frozen natal → complete decadal interval → LiChun-bounded year. When resolved, the engine reruns the same strength and formation/damage/rescue routes after each added pillar and reports route-state transitions; a period Ten God alone is not an activation or life event. `adjudicate-bazi` remains a compatibility alias for the generic command;
+- Western interpretation uses one exact topic-house/ruler/luminary/aspect/condition chain, including aspect phase. It refuses house-derived judgment when time or coordinates are unavailable;
+- Tarot uses spread roles and card composition/adjacency to explain support, tension, and turns; a decision spread never votes or declares a winner. I Ching follows its explicit changing-line selection protocol and does not supply unregistered classical text. Meihua stays inside the fixed two-number body/use, mutual-hexagram, and before/after Five-Element chain, without invented season or timing;
+- the Zi Wei wrapper admits only the five closed topics, prefers the exact target-date phase route when available, and otherwise uses the natal route. Unknown time and incomplete or unregistered routes return unavailable rather than selecting a candidate time or borrowing another topic's palace;
 - each reading is bound to the exact calculation, and each claim is bound to the exact paths and values of its cited facts, so a stale reading or substituted fact fails validation;
 - Zi Wei topic synthesis cites one generated topic unit and its complete four-palace set, including registered same-palace major-star combinations, emitted major-star brightness, six benefics, six pressure stars, Lucun, and Tianma. The bounded result rule pack contains 24 major-star pairs, 14 natal context modifiers, and 11 period-star modifiers; modifiers are conditions, not a score;
 - if and only if a Zi Wei claim uses `R-ZW-007`, `R-ZW-008`, or `R-ZW-009`, a closed registry derives its `meaning_binding` from five topic markers, fourteen registered major-star constructive/overextension axes, and four transformation process lenses. For `R-ZW-007/009`, `fortune-teller/ziwei-meaning-binding/v2` uses `palace_axis_groups` to cover the complete four-palace fourteen-major-star axis set in fixed role/offset order. `bind-reading` mechanically replaces `statement`, `reasoning_summary`, `alternative_readings`, `practical_reflection`, and `assessment`; `validate-reading` independently recomputes them and requires an exact match;
@@ -91,11 +96,11 @@ npm start
 
 `npm start` opens a Chinese guided interface; users do not need to know JSON or profile IDs. It:
 
-1. asks whether the user wants a life overview, one life area, a current question, or a specific method;
+1. asks whether the user wants a life overview, one life area, a current question, or a specific method, then routes by question/data fit rather than a supposed accuracy ranking;
 2. asks only for fields needed by the routed system and validates them with in-place retry;
 3. shows a confirmation screen before start, edit, cancel, or advanced-profile selection;
 4. displays a progress notice before an unknown-time scan;
-5. presents a concise result start and hides input impact and technical records behind “why this follows”;
+5. gives all six implemented systems a conclusion and plain-language result first, with chart/cast basis, input impact, and technical records later;
 6. freezes the result for follow-ups and explicitly confirms a new draw/cast when the user changes questions;
 7. supports edit-and-recalculate, a new session, exit, and `q` from any input prompt;
 8. gives a second privacy warning before printing full audit JSON that may contain birth data or a private question.
@@ -118,6 +123,12 @@ Inspect the exact registered sources and rules for one system when preparing a s
 node scripts/fortune-teller.mjs sources --system bazi --pretty
 ```
 
+If the method is not chosen yet, route by question type and available data. The order describes fit, not which tradition is more accurate:
+
+```bash
+node scripts/fortune-teller.mjs route --json '{"goal":"current_question","question_kind":"decision_action","available_data":{"focused_question":true}}' --pretty
+```
+
 Example request (save it as the git-ignored `request.local.json`):
 
 ```json
@@ -136,7 +147,13 @@ Example request (save it as the git-ignored `request.local.json`):
 node scripts/fortune-teller.mjs calculate --input request.local.json --pretty
 ```
 
-An output path is create-only and never overwrites an existing file. BaZi requests must preserve the birthplace's original civil clock reading; do not hand-convert a birth time to satisfy the `+08:00` restriction.
+Run the system-specific result layer through one command after saving the calculation:
+
+```bash
+node scripts/fortune-teller.mjs adjudicate --input calculation.local.json --pretty
+```
+
+`adjudicate` dispatches BaZi, Zi Wei, Western, Tarot, I Ching, or Meihua from the calculation envelope; `adjudicate-bazi` remains a backward-compatible BaZi-only alias. An output path is create-only and never overwrites an existing file. BaZi requests must preserve the birthplace's original civil clock reading; do not hand-convert a birth time to satisfy the `+08:00` restriction.
 
 After an Agent creates a structured reading, validate it before rendering the ordinary result:
 
@@ -183,7 +200,7 @@ Then invoke `$fortune-teller`. The portable core is `SKILL.md`, relative referen
 
 ## Standard model vs Pro
 
-A standard/general model is sufficient for chart calculation, one-system standard readings, one Zi Wei target-date phase, a Tarot current-question reading, engine-aggregated time sensitivity, and a small set of traceable evidence cards. It can also complete a focused `deep` reading when the interactions are limited and the requested rules and sources are actually covered. Standard mode is complete, not an upgrade teaser.
+A standard/general model is sufficient for local calculation and the generic `adjudicate` result layer across all six implemented systems, one-system standard readings, one Zi Wei target-date phase, a Tarot or I Ching current-question reading, engine-aggregated time sensitivity, and a small set of traceable evidence cards. It can also complete a focused `deep` reading when the interactions are limited and the requested rules and sources are actually covered. Standard mode is complete, not an upgrade teaser.
 
 A Pro model or larger reasoning budget is recommended for long multi-factor synthesis, multi-system or multi-profile conflict audits, exhaustive source-coverage reports, and an adversarial second pass. Both tiers use identical local facts. Pro cannot change a chart, validate a traditional prediction, **or repair a missing rule, source, or specialist calculation module**. See [references/model-tiers.md](references/model-tiers.md).
 
@@ -219,7 +236,7 @@ npm run check
 npm run package:skill
 ```
 
-GitHub Actions runs the checks on Node 20, 22, and 24 and inspects the npm package and Skill archive. The release manifest contains exactly 90 items and the archive must match it exactly. A release archive should also be extracted into a clean temporary directory, reinstall locked dependencies, and pass `npm run check` there.
+GitHub Actions runs the checks on Node 20, 22, and 24 and inspects the npm package and Skill archive. The release manifest pins the exact files for this release and the archive must match it item by item. A release archive should also be extracted into a clean temporary directory, reinstall locked dependencies, and pass `npm run check` there.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/RELEASE_AUDIT.md](docs/RELEASE_AUDIT.md), [CONTRIBUTING.md](CONTRIBUTING.md), and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
@@ -227,7 +244,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/RELEASE_AUDIT.md](docs/R
 
 Fortune Teller does not compete on method count. Within its smaller supported core, it aims to make calendar/time failures explicit, preserve unknown-time sensitivity, replay random casts, standardize envelopes, validate rule applicability, trace narrow sources, require professional depth contracts, and keep the Chinese interaction continuous.
 
-It still lacks the breadth, full historical corpora, chart graphics, MCP/HTTP APIs, external user base, and independent domain-expert review of larger projects. Its BaZi strength result is still a bounded competing-hypothesis screen; complete weight/position/control/transformation adjudication, special patterns, a verified climate table, dynamic compound-route re-adjudication, and life-event mapping remain unavailable. Broader Western house/timing techniques also remain unavailable. Zi Wei currently stops at five bounded natal–decadal–yearly topics; it does not implement flow-month/day/hour timing or guaranteed events. The current interpretation layer has automated fixture and adversarial-case review, not independent practitioner review, and predictive validity remains unestablished. The project therefore does not claim to be universally “best” or more predictively accurate. See [docs/COMPETITOR_AUDIT.md](docs/COMPETITOR_AUDIT.md) and [docs/PROFESSIONAL_COVERAGE.md](docs/PROFESSIONAL_COVERAGE.md).
+It still lacks the breadth, complete historical corpora, chart graphics, MCP/HTTP APIs, external user base, and independent domain-expert review of larger projects. BaZi strength is still a bounded competing-hypothesis screen; complete weight/position/control/transformation adjudication, special patterns, entry-by-entry climate exceptions, and life-event mapping remain unavailable. Western astrology is limited to whole-sign natal topic chains without broader house systems, transits, or progressions. Zi Wei stops at five closed natal–decadal–yearly topics without flow-month/day/hour timing or guaranteed events. Tarot, I Ching, and Meihua also remain inside their registered spread/structure/two-number boundaries. The current interpretation layer has automated fixture and adversarial-case review, not independent BaZi, Zi Wei, astrology, Tarot, or I Ching practitioner review, and predictive validity remains unestablished. The project therefore does not claim to be universally “best” or more predictively accurate. See [docs/COMPETITOR_AUDIT.md](docs/COMPETITOR_AUDIT.md) and [docs/PROFESSIONAL_COVERAGE.md](docs/PROFESSIONAL_COVERAGE.md).
 
 ## License
 

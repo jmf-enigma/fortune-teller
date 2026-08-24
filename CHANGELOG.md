@@ -2,6 +2,39 @@
 
 All notable project changes are documented here.
 
+## 0.5.0 - 2026-08-24
+
+Result-first professional-depth release across all six implemented systems. It strengthens closed reasoning and ordinary-language interaction without adding unsupported methods or claiming predictive validity.
+
+### Added
+
+- A generic replay-verified `adjudicate` API and CLI dispatcher for BaZi, Zi Wei, Western natal astrology, Tarot, I Ching, and bounded two-number Meihua. The existing `adjudicate-bazi` command remains a compatibility alias.
+- A question-and-data-fit method router for life overview, one life domain, and current questions. It reports blocking versus scope-limiting missing data and never presents its ordering as a ranking of predictive accuracy.
+- BaZi month-command context, main/middle/residual located-root evidence, visible-force evidence, additional registered relationship structures, and a 120-entry day-stem × solar-month climate source-mention screening index. Array position is not priority; five audited solar-term-segment entries and unclosed conditional roles stay unresolved, and locators are section-level provenance rather than complete rule closure.
+- BaZi passage screening that requires both sides of a registered visible conflict and the specified mediator. It reports structural availability, not successful real-world mediation.
+- Full BaZi natal → decadal → yearly route re-adjudication. When target-period facts are resolved, the same registered strength and formation/damage/rescue routes rerun after each added pillar and expose route-state transitions without naming an event.
+- A Western result layer whose topic chain is house → traditional ruler as primary plus every occupant as a co-significator → planetary function and sign expression → classical condition → relevant Sun/Moon, chart-ruler, and aspect context. Aspects distinguish applying, separating, exact, and uncertain states; the engine also emits classical domicile/detriment/exaltation/fall and angular/succedent/cadent conditions.
+- A Tarot structural and result layer covering major/minor arcana, suits, ranks and courts, five complete spread-role maps, composition, and adjacency. Decision spreads explain support, tension, and trade-offs without card voting or an A/B winner.
+- An I Ching structural and result layer with explicit selection protocols for zero, one, two-to-five, and all changing lines, plus trigram process, line centrality, correctness, and correspondence. It fails closed instead of inventing unbundled judgments or 384 line texts.
+- A bounded Meihua result layer for one deterministic two-number profile: body/use, mutual hexagram, moving-line stage, and the Five-Element relation before and after change. It does not add time/object/omen casting, seasonal strength without occurrence-time facts, or timing.
+- A result-first Zi Wei wrapper for the five closed topics. It selects the exact natal or target-date phase route, returns unavailable for unknown birth time or an incomplete/unregistered route, and never chooses a candidate time or substitutes another topic palace.
+- Multi-system validation and rendering that keep systems separate, require a claim from every included calculation, require the same frozen question for multiple question-based systems, and prohibit a winner, vote, or global consensus headline.
+
+### Changed
+
+- The Chinese guided interface now gives all six implemented systems a short conclusion and plain-language explanation before technical details. Method choice is framed by the user's question and available data, not by a claim that one tradition is more accurate.
+- BaZi formation/damage/rescue, strength, climate, passage, support/control, and disease/remedy remain independent lenses. A climate reference stem, period Ten God, generic control, or repeated branch cannot be promoted into a completed formation, rescue, or life event.
+- Western charts without a reliable time and coordinates do not receive angles, houses, a chart ruler, or house-derived topic conclusions. Unknown time is not converted to noon.
+- Tarot preserves one frozen question and spread; I Ching preserves the returned changing-line selection; Meihua preserves the fixed two-number convention. Negative feedback never triggers an automatic redraw, recast, or revised input.
+- Zi Wei ordinary results now enter through the closed result wrapper. Unknown time, the unregistered family/social topic, and incomplete topic/phase structures remain explicitly unavailable.
+- The source registry now contains 15 narrow records and the rule registry 36 applicability-constrained rules.
+
+### Evidence boundary
+
+- These changes improve calculation consistency, traditional-rule fidelity, route closure, refusal behavior, and result readability. They do not establish real-world predictive accuracy.
+- No independent BaZi, Zi Wei, astrology, Tarot, I Ching, or Meihua practitioner has certified this release. The current review is automated fixtures, exhaustive finite-state checks where feasible, adversarial cases, and code review.
+- Method breadth and historical corpus depth remain narrower than specialist projects. BaZi still lacks complete weight/position/control/transformation adjudication, special patterns, full climate exceptions, and event mapping; Western remains whole-sign natal only; Zi Wei remains five bounded topics without flow-month/day/hour timing; Tarot, I Ching, and Meihua stay within their declared structural profiles.
+
 ## 0.4.0 - 2026-08-24
 
 Professional-depth release focused on bounded BaZi adjudication, exact luck-cycle structure, specialist-method audit, and fail-closed school-specific candidate handling. The supported method count is unchanged.

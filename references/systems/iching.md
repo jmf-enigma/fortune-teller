@@ -1,121 +1,102 @@
-# I Ching Three-Coin Casting (`iching`)
+# I Ching Three-Coin Casting (`iching`) — 0.5.0
 
-Use this reference only after the live method registry confirms that `iching` is available. The engine records six user-supplied or locally cast lines, derives a primary and transformed hexagram, and returns King Wen number/name metadata. It does not include judgment or line-text interpretation and does not validate forecasting.
+This route records six bottom-up line values, identifies the primary and transformed hexagrams, and applies one transparent project-authored structural selection protocol. It does not bundle the Judgment, Image, Ten Wings, 384 line texts, or a validated forecasting method.
 
 ## Actual support
 
-The engine currently supports:
+- a focused question up to 1,000 characters;
+- six user-supplied values `6/7/8/9` in bottom-to-top order, or a local three-coin cast;
+- secure local randomness or user-supplied replay seed;
+- explicit changing-line positions;
+- primary/transformed lines, upper/lower trigrams, names and King Wen numbers;
+- one frozen selector for zero, one, two-to-five, or all changing lines;
+- line stage, centrality, positional correctness and correspondence;
+- result-first current structure → selected change stages → transformed structure.
 
-- a focused question of at most 1,000 characters;
-- six user-supplied line values in bottom-to-top order;
-- line values `6`, `7`, `8`, and `9` only;
-- local three-coin casting with independent binary coin outcomes;
-- coin values tails `2`, heads `3`, summed for each line;
-- secure-random casting without a seed or deterministic replay casting with a supplied seed;
-- explicit moving-line indices;
-- primary and transformed line patterns;
-- upper/lower trigrams, trigram symbols/images/elements, King Wen number, and hexagram name from the local mapping table;
-- draw provenance, algorithm description, and seed commitment when available.
+The current coin profile is tails `2`, heads `3`, summed independently for each line. Other casting probabilities are not silently substituted.
 
-The current profile is:
+## Result-first use
 
-```text
-coin_values: tails 2, heads 3
-line_order: bottom-up
+```js
+import { calculate, adjudicateIChing, adjudicate } from "../../src/index.mjs";
+
+const calculation = calculate("iching", {
+  question: "未来四周我该如何调整这次合作？",
+});
+
+const result = adjudicateIChing(calculation);
+// or adjudicate(calculation)
 ```
 
-## Not currently supported
+The adjudicator first reconstructs the selector from the six frozen line values. It then explains inner/lower and outer/upper trigram processes, the exact selected stages, and the transformed direction. All wording is a bounded project-authored process prompt, not a quotation from the classic.
 
-Do not imply support for:
+## Frozen changing-line protocol (`R-YJ-005`)
 
-- yarrow-stalk probabilities or any casting method other than the implemented fair three-coin method;
-- hexagram judgments, Image text, line texts, traditional commentaries, translations, or edition-critical variants;
-- nuclear/mutual, opposite, reversed, interlocking, or other derived hexagrams;
-- Na Jia, Six Relatives, Six Spirits, stems/branches, voids, month/day strength, or Liu Yao adjudication;
-- Meihua time/number casting through this method;
-- outcome certainty, event timing, medical/legal/financial conclusions, or empirical prediction;
-- automatic selection of a changing-line interpretation rule when several schools differ.
+The release fixes one transparent protocol so the model cannot pick whichever line gives the smoothest answer:
 
-## Reading the result envelope
+- **0 changing:** read the primary whole only; do not invent a focal line;
+- **1 changing:** use that one stage as the change focus, with both whole-hexagram contexts retained;
+- **2–5 changing:** preserve every changing stage in bottom-up order and leave them parallel/unranked;
+- **all six, all 9:** mark `use_nine`, but do not invent the unbundled 用九 text;
+- **all six, all 6:** mark `use_six`, but do not invent the unbundled 用六 text;
+- **all six, mixed old Yin/Yang:** preserve all six stages, without borrowing 用九/用六 or inventing a main line.
 
-Read:
+This selector is a declared local policy for consistent structural reflection, not a claim that it settles all historical schools.
 
-- `facts.mode`: `user-supplied` or `local-three-coin-cast`;
-- `facts.lines[]`: fact ID, bottom-up position, numeric value, and line type;
-- `facts.changing_lines`: one-based positions from the bottom;
-- `facts.primary`: fact ID, King Wen number/name, upper/lower trigrams, and bottom-up Boolean lines;
-- `facts.transformed`: the same fields after changing each `6` or `9` line;
-- `input.question` and `input.lines_supplied`;
-- `profile.coin_values` and `profile.line_order`;
-- `meta.rng`: source mode, algorithm, commitment, and replay metadata when present;
-- the warning that interpretation is a traditional reflective practice, not a validated forecast.
+## Centrality, position and correspondence
 
-The Boolean line arrays represent Yang as `true` and Yin as `false`. Do not expose this implementation detail as a separate divinatory meaning.
+For each line, the engine records:
 
-## Numbered rule templates
+- whether it is line 2 or 5 (`central`);
+- whether Yang occupies an odd position or Yin an even position (`correct_position`);
+- whether the 1↔4, 2↔5 or 3↔6 counterpart has opposite polarity (`correspondence`).
 
-### R-YJ-001 — Lines are ordered from bottom to top
+These are unscored checks. The adjudicator may use them to ask where a stage is centered, appropriately placed or connected; it may not add them into a fortune score or automatically call a line auspicious/inauspicious.
 
-- `type`: traditional, profile-specific
-- `source_status`: verified
-- `source_ids`: `SRC-YJ-ZHOUYI-WIKISOURCE`
-- `requires`: at least one cited `facts.lines[].fact_id` and `profile.line_order=bottom-up`; a statement about the complete six-line sequence should cite all six
-- `rule`: Position 1 is the bottom line and position 6 is the top line. Preserve this order in any display or explanation.
-- `allowed`: “第 2 爻自下而上计数。”
-- `forbidden`: reverse the list for presentation and then interpret the reversed positions as original facts.
+## Numbered rules
 
-### R-YJ-002 — Six and nine change; seven and eight remain
+### R-YJ-001 — bottom-up line order
 
-- `type`: traditional
-- `source_status`: engine_documented
-- `requires`: at least one cited fact from `facts.lines` and one from `facts.changing_lines`; both mandatory groups are checked
-- `rule`: `6` is old Yin changing to Yang; `9` is old Yang changing to Yin; `7` and `8` remain Yang and Yin respectively in this profile.
-- `allowed`: verify that the transformed Boolean pattern flips exactly the indexed changing lines.
-- `forbidden`: invent a changing line not present in the frozen cast.
+Position 1 is the bottom and position 6 the top. Reversing display order may not reverse interpretation positions.
 
-### R-YJ-003 — Hexagram identity follows the local King Wen mapping
+### R-YJ-002 — only 6 and 9 change
 
-- `type`: traditional, implementation mapping
-- `source_status`: verified
-- `source_ids`: `SRC-YJ-ZHOUYI-WIKISOURCE`
-- `requires`: cited `facts.primary` and `facts.transformed` fact IDs; both mandatory groups are checked
-- `rule`: The first three bottom-up lines form the lower trigram; the last three form the upper trigram; the local table maps that pair to a King Wen number/name.
-- `allowed`: report number, name, trigrams, and line pattern as calculation facts.
-- `forbidden`: quote a judgment or line text that is not bundled and verified.
+`6` changes Yin→Yang; `9` changes Yang→Yin; `7` and `8` remain. The transformed pattern must flip exactly the indexed lines.
 
-### R-YJ-004 — Casting provenance is part of the evidence
+### R-YJ-003 — hexagram identity
 
-- `type`: audit guard
-- `source_status`: engine_documented
-- `requires`: `facts.mode` and `meta.rng`
-- `rule`: State whether the lines were user-supplied, secure-random, or seeded. The RNG mechanism explains reproducibility, not supernatural selection.
-- `allowed`: replay with the retained user seed and compare the complete cast.
-- `forbidden`: let the model choose line values, redraw until favorable, or claim a commitment proves divinatory accuracy.
+The first three bottom-up lines form the lower trigram and the last three the upper trigram; the local table supplies number and name.
 
-## Source status and tradition differences
+### R-YJ-004 — cast provenance
 
-- `SRC-YJ-ZHOUYI-WIKISOURCE` provides checked historical provenance for the sixty-four hexagram identities, names, and bottom-to-top six-line structure used by R-YJ-001 and R-YJ-003. It does not establish this project's random-cast probabilities, changing-line selection policy, or concrete outcomes.
-- Line-value transformation and casting provenance under R-YJ-002 and R-YJ-004 are local implementation/audit rules and carry no external source IDs.
-- The registry does not verify a Ten Wings passage, judgment text, line text, commentary, translation, chapter, page, or unchecked edition claim. Do not fabricate or quote one from model memory.
-- Three-coin, yarrow-stalk, and other casting practices have different probability structures. This engine implements only the declared three-coin profile.
-- Traditions differ on how to prioritize multiple changing lines and how to relate primary and transformed hexagrams. Because no such interpretive selector is implemented, do not silently choose one.
-- Ancient names may be public-domain material, but modern translations and commentary can be copyrighted. Do not reproduce them without a supplied, authorized source.
+Keep user-supplied, secure-random and seeded modes distinct. Replay describes reproducibility, not supernatural selection.
 
-## Evidence/audit example — not the ordinary answer
+### R-YJ-005 — frozen selection and structure
 
-> **起卦事实**：六爻按自下而上记录；实际动爻位置只从 `facts.changing_lines` 读取，并回查相应 `F-YJ-L*` 的数值。`F-YJ-H01` 与 `F-YJ-H02` 分别保存本卦和变卦的卦名、序号与上下卦。
->
-> **解释边界**：当前包没有收录卦辞、爻辞或多动爻取用规则，因此我可以展示结构与提出反思问题，但不会伪造经典原文或给出确定事件预测。
->
-> **反思问题**：问题中哪些部分是现状，哪些部分确实处在变化中？这是一种对照框架，不是预测证据。
+Apply the exact 0/1/2–5/all-changing protocol and preserve centrality, position and correspondence without weighting or main-line invention.
 
-## Prohibited overreach
+## Classic-text refusal
 
-Never:
+The package deliberately records:
 
-- quote or paraphrase a named translation as if it were bundled;
-- turn a hexagram name into a medical, pregnancy, death, crime, legal, investment, or relationship verdict;
-- infer dates, odds, guilt, fidelity, or another person's thoughts;
-- mix I Ching three-coin facts with Liu Yao/Na Jia rules that this engine did not calculate;
-- hide the casting mode or change line order after seeing the result;
-- call agreement with another method cross-validation or empirical confirmation.
+```text
+judgment_texts: not_packaged
+line_texts_384: not_packaged
+special_use_nine_six_texts: not_packaged
+```
+
+Therefore the Agent must not quote, paraphrase as quotation, or attribute a Judgment or line text from model memory. A future text module would need an edition, licensing review, exact mapping, selection policy and fixtures before release.
+
+## Source and school boundary
+
+`SRC-YJ-ZHOUYI-WIKISOURCE` supplies historical provenance for the sixty-four identities, names and bottom-up line structure. It does not establish the project's random probabilities, structural selector, commentary or concrete outcomes. The selector and process prompts are local, independently authored policies.
+
+## Explicit refusals
+
+- no yarrow-stalk substitution, 纳甲, 六亲, 六神, 世应, 空亡 or month/day strength;
+- no medical, pregnancy, death, crime, legal, investment or relationship verdict;
+- no event date, odds, guilt, fidelity or private-mind inference;
+- no redraw because the first answer is unwelcome;
+- no cross-system “agreement” as empirical confirmation.
+
+Same-question follow-ups reuse the frozen cast. A materially new question requires an explicitly new cast.

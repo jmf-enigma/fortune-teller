@@ -1,5 +1,5 @@
 /**
- * BaZi v0.4 professional adjudication rule pack.
+ * BaZi v0.5 professional adjudication rule pack.
  *
  * This pack is deliberately qualitative.  It records competing traditional
  * lenses, their prerequisites, and their defeaters.  It contains no element
@@ -47,9 +47,9 @@ export const BAZI_DIRECTION_ONTOLOGY = deepFreeze({
 });
 
 export const BAZI_ADJUDICATION_RULEPACK_META = deepFreeze({
-  rulepack_id: "bazi-professional-adjudication-v0.4",
+  rulepack_id: "bazi-professional-adjudication-v0.5",
   school_scope: "bounded_ziping_competing_lenses",
-  version: "0.4.0",
+  version: "0.5.0",
   synthesis_policy: "independent_lenses_then_explicit_conflict",
   quantitative_policy: "no_scores_no_weights_no_school_averaging",
   phase_policy: "natal_baseline_then_decadal_environment_then_yearly_trigger",
@@ -83,10 +83,11 @@ export const BAZI_ADJUDICATION_RULEPACK_META = deepFreeze({
       intended_scope: ["strength_and_global_tendency", "root_and_support", "natal_luck_year_hierarchy"],
     },
     {
-      id: "BIB-BZ-QIONGTONG-BAOJIAN",
+      id: "SRC-BZ-QIONGTONG-WIKISOURCE",
       title: "穷通宝鉴",
-      source_status: "bibliographic_anchor_pending_edition_and_entry_verification",
-      intended_scope: ["climate_adjustment_by_day_stem_and_month_branch"],
+      source_status: "primary_transcription_120_entry_source_mention_index_verified",
+      intended_scope: ["climate_source_mentions_and_chart_location_screening"],
+      does_not_support: ["fixed_priority_order_without_entry_conditions", "useful_god_efficacy", "prediction"],
     },
   ],
 });
@@ -127,7 +128,7 @@ export const BAZI_ADJUDICATION_RULES = deepFreeze([
     lens: "useful_god_views",
     summary: "Keep pattern, support/balance, climate, passage, and disease/remedy views independent.",
     source_status: "project_authored_conflict_guard_with_historical_method_anchors",
-    source_refs: ["SRC-BZ-ZIPING-ZHENQUAN-NLC", "SRC-BZ-DITIAN-SUI-WIKISOURCE", "BIB-BZ-QIONGTONG-BAOJIAN"],
+    source_refs: ["SRC-BZ-ZIPING-ZHENQUAN-NLC", "SRC-BZ-DITIAN-SUI-WIKISOURCE", "SRC-BZ-QIONGTONG-WIKISOURCE"],
     prerequisites: ["each lens has its own applicable facts", "unavailable source tables remain unavailable"],
     requires: ["lens-specific conclusion", "lens-specific change condition", "ontology-expanded directions", "conflict only from an explicit exclusion"],
     forbids: ["one universal useful element", "fixed priority across all charts", "averaging different schools"],
@@ -187,11 +188,14 @@ export const BAZI_MONTH_COMMAND_PATTERN_RULES = deepFreeze({
     maintain: ["食神", "印星"], damage: ["财星"], rescue: ["食神", "伤官"],
     formation_routes: [
       { id: "F-KILL-CONTROLLED", label: "有根有助而七杀有制", all: ["strength:can_carry", "visible:食伤"] },
+      { id: "F-KILL-PRINT", label: "杀印相生", all: ["visible:印星"] },
     ],
     damage_routes: [
-      { id: "D-KILL-WEALTH-UNCONTROLLED", label: "七杀逢财而未见制", all: ["visible:财星", "absent:食伤"], closure: "screening_only" },
+      { id: "D-KILL-WEALTH", label: "七杀逢财增杀", all: ["visible:财星"], closure: "closed" },
     ],
-    rescue_routes: [],
+    rescue_routes: [
+      { id: "R-KILL-WEALTH-FOOD", label: "食神制杀以解财增杀", for_damage: "D-KILL-WEALTH", all: ["visible:食神"], closure: "closed" },
+    ],
   },
   正财: {
     ...COMMON_PATTERN_SOURCE,
@@ -202,10 +206,12 @@ export const BAZI_MONTH_COMMAND_PATTERN_RULES = deepFreeze({
       { id: "F-WEALTH-FOOD-STRONG", label: "食伤生财而有根带比", all: ["visible:食伤", "strength:can_carry", "visible:比劫"] },
     ],
     damage_routes: [
-      { id: "D-WEALTH-KILL", label: "财格透七杀", all: ["visible:七杀"], closure: "screening_only" },
+      { id: "D-WEALTH-KILL", label: "财格透七杀", all: ["visible:七杀"], closure: "closed" },
+      { id: "D-WEALTH-ROBBERY", label: "比劫争财", all: ["visible:比劫"], closure: "closed" },
     ],
     rescue_routes: [
-      { id: "R-WEALTH-KILL-FOOD", label: "食神制杀以存财", for_damage: "D-WEALTH-KILL", all: ["visible:食神"], closure: "screening_only" },
+      { id: "R-WEALTH-KILL-FOOD", label: "食神制杀以存财", for_damage: "D-WEALTH-KILL", all: ["visible:食神"], closure: "closed" },
+      { id: "R-WEALTH-ROBBERY-OFFICER", label: "官星制比劫以护财", for_damage: "D-WEALTH-ROBBERY", all: ["visible:正官"], closure: "closed" },
     ],
   },
   偏财: {
@@ -217,10 +223,12 @@ export const BAZI_MONTH_COMMAND_PATTERN_RULES = deepFreeze({
       { id: "F-WEALTH-FOOD-STRONG", label: "食伤生财而有根带比", all: ["visible:食伤", "strength:can_carry", "visible:比劫"] },
     ],
     damage_routes: [
-      { id: "D-WEALTH-KILL", label: "财格透七杀", all: ["visible:七杀"], closure: "screening_only" },
+      { id: "D-WEALTH-KILL", label: "财格透七杀", all: ["visible:七杀"], closure: "closed" },
+      { id: "D-WEALTH-ROBBERY", label: "比劫争财", all: ["visible:比劫"], closure: "closed" },
     ],
     rescue_routes: [
-      { id: "R-WEALTH-KILL-FOOD", label: "食神制杀以存财", for_damage: "D-WEALTH-KILL", all: ["visible:食神"], closure: "screening_only" },
+      { id: "R-WEALTH-KILL-FOOD", label: "食神制杀以存财", for_damage: "D-WEALTH-KILL", all: ["visible:食神"], closure: "closed" },
+      { id: "R-WEALTH-ROBBERY-OFFICER", label: "官星制比劫以护财", for_damage: "D-WEALTH-ROBBERY", all: ["visible:正官"], closure: "closed" },
     ],
   },
   正印: {
@@ -231,7 +239,12 @@ export const BAZI_MONTH_COMMAND_PATTERN_RULES = deepFreeze({
       { id: "F-PRINT-OFFICER", label: "官印相生", all: ["visible:正官"] },
       { id: "F-PRINT-OUTPUT", label: "身印有根有助而食伤泄秀", all: ["strength:can_carry", "visible:食伤"] },
     ],
-    damage_routes: [], rescue_routes: [],
+    damage_routes: [
+      { id: "D-PRINT-WEALTH", label: "财星坏印", all: ["visible:财星"], closure: "closed" },
+    ],
+    rescue_routes: [
+      { id: "R-PRINT-WEALTH-PEER", label: "比劫制财以护印", for_damage: "D-PRINT-WEALTH", all: ["visible:比劫"], closure: "closed" },
+    ],
   },
   偏印: {
     ...COMMON_PATTERN_SOURCE,
@@ -241,7 +254,14 @@ export const BAZI_MONTH_COMMAND_PATTERN_RULES = deepFreeze({
       { id: "F-PRINT-OFFICER", label: "官印相生", all: ["visible:正官"] },
       { id: "F-PRINT-OUTPUT", label: "身印有根有助而食伤泄秀", all: ["strength:can_carry", "visible:食伤"] },
     ],
-    damage_routes: [], rescue_routes: [],
+    damage_routes: [
+      { id: "D-PRINT-WEALTH", label: "财星坏印", all: ["visible:财星"], closure: "closed" },
+      { id: "D-OWL-FOOD", label: "枭印夺食", all: ["visible:食神"], closure: "closed" },
+    ],
+    rescue_routes: [
+      { id: "R-PRINT-WEALTH-PEER", label: "比劫制财以护印", for_damage: "D-PRINT-WEALTH", all: ["visible:比劫"], closure: "closed" },
+      { id: "R-OWL-FOOD-WEALTH", label: "财星制枭以护食", for_damage: "D-OWL-FOOD", all: ["visible:财星"], closure: "closed" },
+    ],
   },
   食神: {
     ...COMMON_PATTERN_SOURCE,
@@ -252,11 +272,11 @@ export const BAZI_MONTH_COMMAND_PATTERN_RULES = deepFreeze({
       { id: "F-FOOD-KILL-PRINT", label: "食带杀而无财，透印转入杀印路线", all: ["visible:七杀", "visible:印星", "absent:财星"] },
     ],
     damage_routes: [
-      { id: "D-FOOD-OWL", label: "食神逢枭", all: ["visible:偏印"], closure: "screening_only" },
+      { id: "D-FOOD-OWL", label: "食神逢枭", all: ["visible:偏印"], closure: "closed" },
       { id: "D-FOOD-WEALTH-KILL", label: "食神生财而又露杀", all: ["visible:财星", "visible:七杀"], closure: "screening_only" },
     ],
     rescue_routes: [
-      { id: "R-FOOD-OWL-WEALTH", label: "生财护食", for_damage: "D-FOOD-OWL", all: ["visible:财星"], closure: "screening_only" },
+      { id: "R-FOOD-OWL-WEALTH", label: "财星制枭护食", for_damage: "D-FOOD-OWL", all: ["visible:财星"], closure: "closed" },
     ],
   },
   伤官: {
@@ -268,9 +288,11 @@ export const BAZI_MONTH_COMMAND_PATTERN_RULES = deepFreeze({
       { id: "F-HURT-KILL-NO-WEALTH", label: "伤官带杀而无财", all: ["visible:七杀", "absent:财星"] },
     ],
     damage_routes: [
-      { id: "D-HURT-OFFICER-NON-METAL-WATER", label: "非金水伤官见官", all: ["visible:正官", "command:not_metal_water"], closure: "screening_only" },
+      { id: "D-HURT-OFFICER-NON-METAL-WATER", label: "非金水伤官见官", all: ["visible:正官", "command:not_metal_water"], closure: "closed" },
     ],
-    rescue_routes: [],
+    rescue_routes: [
+      { id: "R-HURT-OFFICER-PRINT", label: "印星制伤以护官", for_damage: "D-HURT-OFFICER-NON-METAL-WATER", all: ["visible:印星"], closure: "closed" },
+    ],
   },
   比肩: {
     ...COMMON_PATTERN_SOURCE,
@@ -281,7 +303,12 @@ export const BAZI_MONTH_COMMAND_PATTERN_RULES = deepFreeze({
       { id: "F-LU-WEALTH", label: "透财并见食伤", all: ["visible:财星", "visible:食伤"] },
       { id: "F-LU-KILL", label: "透杀而遇制", all: ["visible:七杀", "visible:食伤"] },
     ],
-    damage_routes: [], rescue_routes: [],
+    damage_routes: [
+      { id: "D-LU-WEALTH-ROBBERY", label: "禄格见财又逢比劫", all: ["visible:财星", "visible:比劫"], closure: "closed" },
+    ],
+    rescue_routes: [
+      { id: "R-LU-WEALTH-OFFICER", label: "官星制比劫以护财", for_damage: "D-LU-WEALTH-ROBBERY", all: ["visible:正官"], closure: "closed" },
+    ],
   },
   劫财: {
     ...COMMON_PATTERN_SOURCE,
@@ -292,7 +319,12 @@ export const BAZI_MONTH_COMMAND_PATTERN_RULES = deepFreeze({
       { id: "F-JIE-WEALTH", label: "透财并见食伤", all: ["visible:财星", "visible:食伤"] },
       { id: "F-JIE-KILL", label: "透杀而遇制", all: ["visible:七杀", "visible:食伤"] },
     ],
-    damage_routes: [], rescue_routes: [],
+    damage_routes: [
+      { id: "D-JIE-WEALTH-ROBBERY", label: "月劫见财又逢比劫", all: ["visible:财星", "visible:比劫"], closure: "closed" },
+    ],
+    rescue_routes: [
+      { id: "R-JIE-WEALTH-OFFICER", label: "官星制比劫以护财", for_damage: "D-JIE-WEALTH-ROBBERY", all: ["visible:正官"], closure: "closed" },
+    ],
   },
 });
 
@@ -308,9 +340,9 @@ export const BAZI_VIEW_DEFINITIONS = deepFreeze({
     prerequisites: ["month-command relation", "formation/damage/rescue evidence"],
   },
   climate: {
-    source_status: "disabled_until_replay_verified_rule_facts_are_installed",
-    source_refs: ["BIB-BZ-QIONGTONG-BAOJIAN"],
-    prerequisites: ["verified edition-specific day-stem/month-branch climate entry"],
+    source_status: "base_120_entry_lookup_installed_with_exception_boundary",
+    source_refs: ["SRC-BZ-QIONGTONG-WIKISOURCE"],
+    prerequisites: ["verified day-stem/month-branch base entry", "visible and hidden stem locations"],
   },
   support_balance: {
     source_status: "historical_method_provenance_pending_rule_level_source_audit",
@@ -318,8 +350,8 @@ export const BAZI_VIEW_DEFINITIONS = deepFreeze({
     prerequisites: ["strength hypothesis reaches a non-conflicted result"],
   },
   passage: {
-    source_status: "disabled_until_replay_verified_rule_facts_are_installed",
-    source_refs: ["SRC-BZ-SANMING-WIKISOURCE"],
+    source_status: "bounded_visible_control_pair_and_mediator_route",
+    source_refs: ["SRC-BZ-DITIAN-SUI-WIKISOURCE"],
     prerequisites: ["two opposed forces and a viable mediating relation are explicitly established"],
   },
   disease_remedy: {

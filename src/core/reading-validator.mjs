@@ -1512,6 +1512,19 @@ export function validateReading(payload) {
       calculationBindings.add(binding);
     }
   });
+  const questionCalculations = calculations.filter((item) => (
+    ["tarot", "iching", "meihua"].includes(item?.system)
+    && typeof item?.input?.question === "string"
+    && item.input.question.trim()
+  ));
+  if (questionCalculations.length > 1) {
+    const normalizedQuestions = new Set(questionCalculations.map((item) => (
+      item.input.question.normalize("NFKC").trim().replace(/\s+/gu, " ")
+    )));
+    if (normalizedQuestions.size > 1) {
+      errors.push("multiple question-based systems in one reading must use the same normalized question");
+    }
+  }
   if (!reading || typeof reading !== "object" || Array.isArray(reading)) errors.push("reading is required");
   const claims = reading?.claims;
   const readingKeys = new Set([
@@ -1620,6 +1633,14 @@ export function validateReading(payload) {
   const meaningSignatures = new Set();
 
   if (Array.isArray(claims)) {
+    const calculationSystems = [...new Set(calculations
+      .map((item) => item?.system)
+      .filter((item) => typeof item === "string" && SUPPORTED_SYSTEMS.has(item)))];
+    for (const system of calculationSystems) {
+      if (!claims.some((claim) => claim?.system === system)) {
+        errors.push(`reading.claims must include at least one claim for declared system ${system}`);
+      }
+    }
     for (const [index, claim] of claims.entries()) {
       const at = `reading.claims[${index}]`;
       if (!claim || typeof claim !== "object") {

@@ -4,7 +4,7 @@ import { join, posix } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
-const expectedReleaseFileCount = 99;
+const expectedReleaseFileCount = 118;
 const expectedControlledRoots = [
   ".github", "agents", "assets", "docs", "references", "schemas", "scripts", "src", "test",
 ];
@@ -15,8 +15,11 @@ const required = [
   "docs/COMPETITOR_AUDIT.md", "docs/PROFESSIONAL_COVERAGE.md", "docs/RELEASE_AUDIT.md", "docs/SCOPE.md",
   "agents/openai.yaml", "assets/README.md", "scripts/fortune-teller.mjs", "scripts/doctor.mjs",
   "scripts/package-skill.mjs", "scripts/release-check.mjs", "src/index.mjs",
-  "src/core/bazi-adjudicator.mjs", "src/core/blind-check.mjs", "src/core/calculation-verifier.mjs", "src/core/claim-semantics.mjs", "src/core/meaning-layer.mjs",
-  "src/core/ziwei-adjudicator.mjs", "src/data/bazi-adjudication-rulepack.mjs", "src/data/source-registry.mjs", "src/data/rule-registry.mjs",
+  "src/core/adjudicate.mjs", "src/core/bazi-adjudicator.mjs", "src/core/blind-check.mjs", "src/core/calculation-verifier.mjs", "src/core/claim-semantics.mjs", "src/core/meaning-layer.mjs",
+  "src/core/iching-adjudicator.mjs", "src/core/meihua-adjudicator.mjs", "src/core/method-router.mjs", "src/core/tarot-adjudicator.mjs", "src/core/western-adjudicator.mjs",
+  "src/core/ziwei-adjudicator.mjs", "src/core/ziwei-reading-adjudicator.mjs", "src/data/bazi-adjudication-rulepack.mjs", "src/data/bazi-climate-rulepack.mjs",
+  "src/data/iching-interpretation-rulepack.mjs", "src/data/meihua-interpretation-rulepack.mjs", "src/data/tarot-interpretation-rulepack.mjs", "src/data/western-interpretation-rulepack.mjs",
+  "src/data/source-registry.mjs", "src/data/rule-registry.mjs",
   "src/data/meaning-registry.mjs", "src/data/ziwei-adjudication-rulepack.mjs", "src/data/ziwei-sanhe-rulepack.mjs",
   "src/data/interpretation-profile-registry.mjs", "references/accuracy-evaluation.md", "references/professional-reading.md",
   "references/systems/bazi-professional.md", "references/systems/ziwei-adjudication.md", "references/systems/ziwei-reading-map.md",
@@ -24,9 +27,10 @@ const required = [
   "schemas/blind-check-adjudications.schema.json", "schemas/blind-check-score.schema.json",
   "schemas/calculation-result.schema.json", "schemas/request.schema.json", "schemas/reading.schema.json",
   "schemas/evidence-card.schema.json", "schemas/error.schema.json", "schemas/reading-validation-payload.schema.json",
-  "test/bazi-adjudication-v04.test.mjs", "test/bazi-luck-cycles.test.mjs", "test/blind-check.test.mjs", "test/claim-semantics.test.mjs",
+  "test/adjudicate-v05.test.mjs", "test/bazi-adjudication-v04.test.mjs", "test/bazi-luck-cycles.test.mjs", "test/bazi-professional-v05.test.mjs", "test/blind-check.test.mjs", "test/claim-semantics.test.mjs",
   "test/contract.test.mjs", "test/interactive.test.mjs", "test/offline.test.mjs", "test/professional-v03.test.mjs",
-  "test/ziwei-adjudication-v04.test.mjs", "test/ziwei-phase-components.test.mjs",
+  "test/iching-meihua-adjudicator-v05.test.mjs", "test/method-router-v05.test.mjs", "test/tarot-adjudicator-v05.test.mjs", "test/western-adjudicator-v05.test.mjs",
+  "test/ziwei-adjudication-v04.test.mjs", "test/ziwei-phase-components.test.mjs", "test/ziwei-reading-adjudicator-v05.test.mjs",
 ];
 const errors = [];
 for (const path of required) {
@@ -258,8 +262,8 @@ try {
     import(new URL("../src/data/rule-registry.mjs", import.meta.url)),
     import(new URL("../src/data/interpretation-profile-registry.mjs", import.meta.url)),
   ]);
-  if (SOURCES.length !== 14) errors.push(`expected 14 registered sources, found ${SOURCES.length}`);
-  if (RULES.length !== 31) errors.push(`expected 31 registered rules, found ${RULES.length}`);
+  if (SOURCES.length !== 15) errors.push(`expected 15 registered sources, found ${SOURCES.length}`);
+  if (RULES.length !== 36) errors.push(`expected 36 registered rules, found ${RULES.length}`);
   if (INTERPRETATION_PROFILES.length !== 6) {
     errors.push(`expected 6 registered interpretation profiles, found ${INTERPRETATION_PROFILES.length}`);
   }
@@ -283,10 +287,10 @@ try {
     errors.push("source registry verification note lost its predictive-validity boundary");
   }
   const notices = await readFile(join(root, "THIRD_PARTY_NOTICES.md"), "utf8");
-  if (!notices.includes("contains 14 machine-readable source **records**")) {
+  if (!notices.includes("contains 15 machine-readable source **records**")) {
     errors.push("THIRD_PARTY_NOTICES.md has a stale source-record count");
   }
-  if (!notices.includes("The 31 machine-readable rules")) {
+  if (!notices.includes("The 36 machine-readable rules")) {
     errors.push("THIRD_PARTY_NOTICES.md has a stale rule count");
   }
   for (const source of SOURCES) {
@@ -329,6 +333,16 @@ try {
   }
 } catch (error) {
   errors.push(`cannot inspect SKILL.md links: ${error.message}`);
+}
+
+try {
+  const packageScript = await readFile(join(root, "scripts/package-skill.mjs"), "utf8");
+  const packagedCount = Number(packageScript.match(/expectedReleaseFileCount\s*=\s*(\d+)/)?.[1]);
+  if (packagedCount !== expectedReleaseFileCount) {
+    errors.push(`package and verification scripts disagree on release file count: ${packagedCount || "missing"} vs ${expectedReleaseFileCount}`);
+  }
+} catch (error) {
+  errors.push(`cannot inspect packaging policy: ${error.message}`);
 }
 
 for (const path of ["scripts/fortune-teller.mjs", "scripts/doctor.mjs", "scripts/release-check.mjs", "scripts/package-skill.mjs"]) {

@@ -1,75 +1,98 @@
-# Release Audit — 0.4.0
+# Release Audit — 0.5.0
 
 Audit date: 2026-08-24
 
 ## Outcome
 
-Version `0.4.0` passed the source-tree and clean-extracted-archive release gates. The release adds bounded BaZi professional adjudication and exact luck-cycle structure, while hardening the experimental Zi Wei candidate evaluator so that caller-authored formations or evidence cannot masquerade as verified rules. The supported method count is unchanged.
+Version `0.5.0` extends result-first, replay-checked adjudication from the previous Zi Wei and BaZi paths to all six shipped systems. It also replaces shallow “period relationship equals activation” and “multiple systems agree” shortcuts with explicit closed chains and refusal boundaries.
 
-This is a claim about calculation consistency, registered-rule fidelity, evidence binding, and result-presentation integrity within a deliberately narrow scope. It is not evidence that divination predicts real-world outcomes, a professional-practitioner certification, or permission to infer concrete events from a structural pattern. Internal hashes remain backstage change-detection fields only.
+Final release sign-off is **PASS**. The final source tree and a newly extracted release archive both passed the complete release gates below.
 
-The local verification environment is macOS with Node.js 24.9.0. GitHub Actions reruns `npm run check` on Node.js 20, 22, and 24 and builds the Skill archive on Node.js 20; the hosted result for the released commit remains authoritative for CI status.
+This audit supports claims about calculation consistency, installed-rule fidelity, fail-closed behavior, and readable result presentation inside the documented scope. It does not establish divinatory predictive validity, practitioner certification, or “best overall” status.
 
 ## Reproducible gates
 
-| Gate | Result |
+| Gate | Final result |
 |---|---|
-| `npm test` | Pass: 325/325 in the source tree and 325/325 in a new clean extracted archive |
-| BaZi adjudication/luck fixtures | Pass: 35/35, including fabricated inputs, unreachable routes, boundary dates, and structural-linkage wording |
-| Zi Wei adjudication/phase fixtures | Pass: 33/33, including arbitrary candidates, wrong paths, fake refs/hashes, cross-topic joins, and cross-layer fact reuse |
-| `npm run doctor` | Pass in the source tree and clean archive on Node.js 24.9.0 |
-| `npm run verify` | Pass in the source tree and clean archive |
-| Offline smoke | Pass inside both complete test runs; it traps standard Node network APIs in-process and is not an OS network namespace |
-| JavaScript syntax and whitespace | Pass for the new adjudicators, rule packs, public CLI/release scripts, and final source diff |
-| Source/rule/profile registry | Pass: 14 source records, 31 rules, and 6 interpretation profiles; every profile keeps `professional_label_allowed: false` |
-| Skill archive manifest | Pass: exactly 99 unique sorted files; controlled-tree paths equal the manifest |
-| Clean archive install and full check | Pass after `npm ci --ignore-scripts`; `npm pack --dry-run --json` succeeds |
-| Release archive checksum | Pass: generated after the final build and verified against `fortune-teller-skill.zip` |
+| Full `npm test` in source tree | PASS — 385/385 |
+| New 0.5.0 system-adjudicator and router fixtures | PASS — 56/56 |
+| `npm run doctor` | PASS — runtime, dependencies, deterministic fixture and calendar engine |
+| `npm run verify` | PASS — zero release-policy errors |
+| `quick_validate.py` against the Skill directory | PASS — `Skill is valid!` |
+| JavaScript syntax, whitespace and `git diff --check` | PASS |
+| Registry contract | PASS — 15 source records, 36 rules, 6 interpretation profiles; every profile keeps `professional_label_allowed: false` |
+| Release manifest equality and archive build | PASS — 118/118 controlled files; no `node_modules` |
+| Clean extracted archive install and full check | PASS — locked install, 0 reported vulnerabilities, then 385/385 tests plus doctor and release verification |
+| `npm pack --dry-run --json` | PASS — package metadata and 115 npm-visible entries inspected |
+| Release archive checksum | PASS — SHA-256 sidecar generated with the rebuilt archive |
+| Independent forward-use and competitor-dimension audit | PASS — independent red-team and non-BaZi source/route audit completed; all material findings repaired or bounded explicitly |
 
-The archive does not bundle `node_modules`. Installing locked dependencies contacts the npm registry. After installation, the shipped calculation code does not require a remote calculation service.
+The archive must not bundle `node_modules`. Installing locked dependencies contacts the npm registry; after installation, shipped calculations and adjudicators do not require a remote calculation service.
 
-## Important findings closed in 0.4.0
+## Material changes reviewed in 0.5.0
+
+### Unified entry and interaction
+
+- `adjudicate(calculation, options)` dispatches the frozen envelope to the BaZi, Zi Wei, Western, Tarot, I Ching, or Meihua result-first adjudicator.
+- `recommendMethods` uses question type, available data, requested scope and current implementation only. Its order must never be described as an accuracy ranking.
+- The generic CLI adjudication path and guided interface show the conclusion and plain-language explanation before technical facts.
+- Multi-system readings preserve a separate claim set for every calculation, require a normalized common question for current-question systems, and render system first. They explicitly abstain from voting, declaring a winner, or treating agreement as independent confirmation.
 
 ### BaZi
 
-- Known-time users can explicitly opt into the traditional direction parameter. The engine calculates an exact onset instant, 24 complete decadal intervals, a LiChun-bounded target year, and named natal/decadal/year interactions. The parameter is never inferred from identity.
-- Month-command transparency no longer establishes a pattern. One complete registered compound route is required. Only a closed damage route may produce `破格`, and only its own paired closed rescue may produce `救应`; weight-, position-, control-, and transformation-dependent routes remain `screening_only`.
-- Three previously unreachable formation routes now use a route-level “root plus visible support” carrying condition instead of requiring a global strength state that their own visible output predicate made impossible.
-- Caller-supplied climate, passage, source-status, fact-ID, direction, or period objects cannot affect the result. Only facts replayed from the supplied calculation envelope participate. 调候 and 通关 therefore remain unresolved until fixed, replayable rule facts are installed.
-- A period Ten God is only a possible input to a compound route. The current `joint_activation` compatibility field reports three-layer structural linkage only; it does not rerun formation/damage/rescue and cannot be described as a completed pattern activation or event.
-- Broad directions such as 印星 are expanded before comparison. Different suggestions are not automatically a conflict; only an explicitly registered incompatible direction can create one.
-- Technical and ordinary result states now agree for `受损`, and the guided interface presents the mechanical conclusion and plain explanation before pillars and audit detail.
-- General-reading `R-BZ-005/006` remain protective and unresolved-only until a dedicated typed binding can independently reconstruct the mechanical adjudication.
+- The calculation emits seasonal and month-command evidence, root locations and main/middle/residual depth, visible forces, and expanded stem/branch relations.
+- Pair components of 寅巳申 or 丑戌未 punishment are distinguished from a complete three-branch punishment; active periods may complete a registered relation but cannot turn it directly into an event.
+- The climate lens uses an independently transcribed 120-entry Day-Stem × solar-month source-mention screening index with section-level locators. Array order is not priority; five audited solar-term-segment entries and unclosed conditional roles remain unresolved, and no source outcome language is installed.
+- The passage lens opens only when both visible controlling elements and the fixed generating mediator replay. It remains a candidate because strength, position and effectiveness are not established.
+- Every registered formation, damage and paired-rescue route is re-run at natal, natal+decadal and natal+decadal+yearly layers. The natal result is frozen, and the output reports route conditions opened or closed rather than treating a generic relationship graph as activation.
+- Weight-, exact-position-, control-order-, transformation-, tomb/storehouse-, void- and special-pattern-dependent routes remain screening or unresolved. No phase names a concrete life event.
 
 ### Zi Wei
 
-- The public closed reading path remains exactly `R-ZW-007/008/009` for five topics. It still requires complete natal four-palace axes, complete registered transformations where applicable, and bounded natal → decadal → yearly facts; it does not name concrete events.
-- The separately exported generic evaluator now accepts only three immutable structural candidate IDs. Candidate labels, predicates, evidence status, and paths cannot be authored by the caller; they are rederived from a replay-verified calculation.
-- Phase evaluation binds every layer to the real calculation hash, exact same-topic structures, and distinct natal/decadal/yearly facts. Fake refs, missing four-palace structure, wrong-period facts, cross-topic joins, and reuse of one fact across layers fail closed to `unresolved` or `insufficient`.
-- Those three generic candidates are structural prerequisites, not a corpus of traditional named formations. They are not wired into the ordinary result renderer and cannot be marketed as full Zi Wei pattern recognition.
+- `adjudicateZiweiReading` presents the existing closed `R-ZW-007/008/009` meaning route as an ordinary result. It prefers a complete phase path and discloses fallback to natal when phase conditions are incomplete.
+- Unknown birth time returns unavailable; the wrapper never selects a candidate chart from the day scan.
+- `family_social` returns unavailable because the current table does not justify substituting 命宫 or 夫妻宫 for the separate family/social palaces.
+- The existing generic candidate evaluator remains a developer-facing prerequisite checker, not a traditional named-pattern corpus and not an alternate ordinary reading path.
 
-### Result integrity and interaction
+### Western natal astrology
 
-- `user_focus` is derived from all unique claim topics in stable claim order; `summary` remains the first validated claim headline.
-- Unsupported Zi Wei topics can degrade only the affected claim to `rule_unavailable` without discarding other supported topics or pretending that birth data is missing.
-- Standard and deep result rendering keeps conclusions, plain meaning, revision conditions, and reality checks visible while mechanical criteria and audit metadata remain backstage.
-- The specialist audit records which structures were independently learned from focused BaZi and Zi Wei Skills and which fixed weights, retrospective calibration, unverified event maps, and unreviewed pattern corpora were rejected.
+- Aspects now carry applying, separating, exact or uncertain phase from a fixed time comparison.
+- The engine emits unscored domicile/detriment and exaltation/fall conditions for the classical seven planets, angular/succedent/cadent placement and chart ruler when available.
+- The result-first route selects the topic's primary whole-sign house, keeps its traditional ruler as primary and every occupant as a co-significator, and keeps chart ruler, luminaries and closest relevant aspects visible.
+- Missing birth time or coordinates never produces an Ascendant, house or chart-ruler substitute.
+
+### Tarot
+
+- Every card now carries arcana, number, suit, rank and court metadata; the result also records the registered spread, position functions, composition, suit/rank repetition and adjacency.
+- The adjudicator reads position before card combination, preserves inconvenient or contradictory cards, and anchors the answer in a controllable action.
+- Repetition is emphasis, not a vote; reversed is not automatically bad; future/outcome is conditional; the decision spread compares A and B without choosing a winner.
+
+### I Ching
+
+- The engine emits a frozen reading selector for zero, one, two-to-five, or all changing lines, plus line centrality, positional correctness and correspondence.
+- The adjudicator presents the primary-to-transformed process and exactly the selected stages.
+- No 卦辞, 爻辞, commentary or 384-line corpus is bundled. A missing text cannot be repaired from model memory or presented as a quotation.
+
+### Meihua
+
+- The bounded two-number route now emits body/use, mutual hexagram, and Five-Element relation before and after the one-line change.
+- It remains one explicit number convention, not general Meihua. Without occurrence time, seasonal strength and timing are unavailable; time/object/omen casting and 应期 remain outside scope.
 
 ## Bounded comparison conclusion
 
-Within its supported paths, `0.4.0` has stronger fail-closed controls than prompt-only workflows that let the model invent candidates, accept caller-declared verification status, collapse different useful-god lenses, or turn a relation graph into an event. It also has a narrower automatically closed scope than specialist projects with large classical corpora or dozens of named patterns.
+Within the six implemented routes, 0.5.0 is stronger than prompt-only workflows on calculation replay, explicit school/profile scope, closed-chain reasoning, ordinary-language output, and refusal when a required premise is missing. It is also narrower than Mingyu, Horosa and specialist repositories with larger method directories, named-pattern corpora, classical text collections or full timing systems.
 
-No inspected project, including this one, supplied sufficient public preregistered, blinded, out-of-sample evidence to establish real-world predictive validity. The defensible claim is fewer correctable calculation, rule-selection, evidence-selection, and narrative-promotion errors—not “proved more accurate” or “best overall.”
+No inspected repository, including this one, supplied enough public preregistered, blinded, out-of-sample evidence to establish real-world predictive validity. The defensible claim is improved professional discipline and fewer correctable errors inside scope—not “proved more accurate,” “better overall,” or “the best fortune teller.”
 
-## Known limits
+## Known limits that must remain visible
 
-- BaZi strength is a qualitative competing-hypothesis screen, not a complete human-command/day, root-distance, weight, position, control, combination/transformation, tomb-storehouse, void, special-pattern, following-pattern, or transformation-pattern state machine.
-- A version-verified climate table, replayable passage rules, complete dynamic re-adjudication of compound routes, life-domain/event mapping, and a dedicated typed reading binding remain unavailable.
-- Zi Wei closed meaning is limited to five topics and `R-ZW-007/008/009`. The generic evaluator has only three structural candidates and no reviewed traditional named-pattern corpus. Flow-month/day/hour, full flying-transformation routes, broader school techniques, and event timing are unavailable.
-- Western support remains tropical whole-sign natal only; Meihua remains a two-number preview; Liu Yao, Qi Men, and Vedic astrology remain planned and fail closed.
-- Birth-time rectification, direct lunar-date input, a chart graphic, MCP/HTTP service, independent practitioner review, external-user study, and predictive-validity evidence are not included.
-- Passing the validator is not a semantic proof for unrestricted narrative. Outside typed technical bindings and the three closed Zi Wei meaning routes, prose remains `not_machine_verified` and cannot make future-event assertions.
+- BaZi does not have human-command day weights, fixed force scores, a complete position/control/transformation state machine, the full climate exception corpus, all special patterns or a sourced life-event map.
+- Zi Wei does not have a reviewed complete named-pattern corpus, broad school-specific techniques, unknown-time rectification or flow-month/day/hour event timing.
+- Western remains tropical whole-sign natal only; Tarot has a bounded RWS naming profile and fixed spreads; I Ching lacks the 384 texts and alternate selectors; Meihua remains a narrow two-number preview without timing.
+- Liu Yao, Qi Men and Vedic astrology remain planned.
+- There is no independent practitioner sign-off, external-user validity study, or established predictive accuracy.
+- A passing validator is not a semantic proof for unrestricted prose. Unsupported future-event language remains prohibited.
 
 ## Sign-off rule
 
-Any later edit to code, lockfiles, schemas, Skill routing, professional rules, release documentation, or packaged resources invalidates this sign-off. Rebuild the archive, install it into a new empty directory, rerun the full checks, and regenerate the checksum.
+Any later edit to code, lockfiles, schemas, Skill routing, rule packs, release documentation, or packaged resources invalidates this sign-off and requires a rebuilt archive plus a new clean-extraction run.

@@ -97,7 +97,6 @@ test("Meihua primary, transformed, trigram, and moving-line assertions are typed
   const calculation = calculate("meihua", {
     first_number: 1,
     second_number: 2,
-    moving_line: 3,
   });
   const factIds = ["F-MH-H01", "F-MH-H02", "F-MH-T01", "F-MH-L01"];
   const bindings = [

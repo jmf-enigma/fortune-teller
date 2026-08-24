@@ -231,6 +231,60 @@ function makeCanonicalZiweiPhasePayload() {
   });
 }
 
+function makeMultiSystemPayload() {
+  const question = "我应该怎样核对这个工作机会？";
+  const iching = calculate("iching", { question, lines: [7, 7, 7, 7, 7, 7] });
+  const tarot = calculate("tarot", { question, spread: "one", cards: ["The Fool"] });
+  return bindReadingToCalculations({
+    calculations: [iching, tarot],
+    reading: {
+      system: ["iching", "tarot"],
+      level: "standard",
+      summary: "两个体系分别保留自己的结论。",
+      claims: [
+        {
+          claim_id: "C-MULTI-YJ",
+          topic: "current_situation",
+          statement: "易经先保留当前整体结构。",
+          epistemic_status: "calculation_fact",
+          system: "iching",
+          profile: iching.profile.id,
+          fact_ids: ["F-YJ-H01"],
+          rule_ids: [],
+          calculation_certainty: "high",
+          input_sensitivity: { label: "stable", coverage: null },
+          school_stability: "stable",
+          source_status: "engine_documented",
+          source_ids: [],
+        },
+        {
+          claim_id: "C-MULTI-TR",
+          topic: "current_situation",
+          statement: "塔罗保留本次牌位事实。",
+          epistemic_status: "calculation_fact",
+          system: "tarot",
+          profile: tarot.profile.id,
+          fact_ids: ["F-TR-001"],
+          rule_ids: [],
+          calculation_certainty: "high",
+          input_sensitivity: { label: "stable", coverage: null },
+          school_stability: "stable",
+          source_status: "engine_documented",
+          source_ids: [],
+        },
+      ],
+      next_steps: [{
+        id: "close-multi",
+        label: "结束本次对照",
+        action: "close",
+        available: true,
+        requires_input: [],
+        reuses_frozen_calculation: true,
+      }],
+    },
+  });
+}
+
 function render(payload, extraArgs = []) {
   return spawnSync(process.execPath, [
     "scripts/fortune-teller.mjs", "render-reading", "--input", "-", ...extraArgs,
@@ -290,6 +344,21 @@ test("result-first renderer groups conclusions by topic and hides audit internal
   ];
   for (const value of hiddenValues) assert.ok(!result.stdout.includes(value), `leaked internal value: ${value}`);
   assert.doesNotMatch(result.stdout, /\b(?:profile|warning|sensitivity|facts?_hash|reproducibility_hash|engine_version|schema_version)\b/iu);
+});
+
+test("multi-system renderer keeps systems separate and never elects a winner", () => {
+  const payload = makeMultiSystemPayload();
+  const validation = validateReading(payload);
+  assert.equal(validation.valid, true, validation.errors.join("\n"));
+
+  const result = render(payload);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^多体系对照｜解读结果/mu);
+  assert.match(result.stdout, /各方法分别呈现，不合并投票，也不选胜者/u);
+  assert.match(result.stdout, /周易三钱\n先说结论/u);
+  assert.match(result.stdout, /塔罗\n先说结论/u);
+  assert.ok(result.stdout.indexOf("周易三钱\n先说结论") < result.stdout.indexOf("塔罗\n先说结论"));
+  assert.doesNotMatch(result.stdout, /两个体系分别保留自己的结论/u);
 });
 
 test("audit rendering retains the full frozen assessment criteria", () => {

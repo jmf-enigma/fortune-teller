@@ -33,6 +33,7 @@ const BODIES = [
   ["neptune", "海王星", Body.Neptune],
   ["pluto", "冥王星", Body.Pluto],
 ];
+const BODY_ENUM_BY_ID = Object.freeze(Object.fromEntries(BODIES.map(([id, , body]) => [id, body])));
 
 const SIGNS = [
   ["Aries", "白羊座"], ["Taurus", "金牛座"], ["Gemini", "双子座"], ["Cancer", "巨蟹座"],
@@ -41,6 +42,19 @@ const SIGNS = [
 ];
 const SIGN_ELEMENTS = ["fire", "earth", "air", "water", "fire", "earth", "air", "water", "fire", "earth", "air", "water"];
 const SIGN_MODALITIES = ["cardinal", "fixed", "mutable", "cardinal", "fixed", "mutable", "cardinal", "fixed", "mutable", "cardinal", "fixed", "mutable"];
+const TRADITIONAL_SIGN_RULERS = Object.freeze([
+  "mars", "venus", "mercury", "moon", "sun", "mercury",
+  "venus", "mars", "jupiter", "saturn", "saturn", "jupiter",
+]);
+const DOMICILES = Object.freeze({
+  sun: ["Leo"], moon: ["Cancer"], mercury: ["Gemini", "Virgo"], venus: ["Taurus", "Libra"],
+  mars: ["Aries", "Scorpio"], jupiter: ["Sagittarius", "Pisces"], saturn: ["Capricorn", "Aquarius"],
+});
+const EXALTATIONS = Object.freeze({
+  sun: "Aries", moon: "Taurus", mercury: "Virgo", venus: "Pisces",
+  mars: "Capricorn", jupiter: "Cancer", saturn: "Libra",
+});
+const OPPOSITE_SIGN = Object.freeze(Object.fromEntries(SIGNS.map(([sign], index) => [sign, SIGNS[(index + 6) % 12][0]])));
 
 const ASPECT_ANGLES = {
   conjunction: 0,
@@ -167,13 +181,42 @@ function calculateAngles(date, latitude, longitude) {
 
 function assignWholeSignHouses(planets, ascendant) {
   const firstSign = ascendant.sign_index;
-  return planets.map((planet) => ({
+  return planets.map((planet, index) => ({
+    fact_id: `F-WA-H${String(index + 1).padStart(2, "0")}`,
+    kind: "derived_calculation_fact",
     body: planet.body,
+    source_planet_id: planet.fact_id,
     house: ((planet.sign_index - firstSign + 12) % 12) + 1,
   }));
 }
 
-function aspectFacts(planets, orbs) {
+function aspectOrbAt(bodyId1, bodyId2, date, exact) {
+  const longitude1 = longitudeAt(BODY_ENUM_BY_ID[bodyId1], date);
+  const longitude2 = longitudeAt(BODY_ENUM_BY_ID[bodyId2], date);
+  const separation = Math.abs(signedDelta(longitude1, longitude2));
+  return Math.abs(separation - exact);
+}
+
+function aspectPhase(bodyId1, bodyId2, date, exact, currentOrb) {
+  const auditWindowMinutes = 60;
+  const windowMs = auditWindowMinutes * 60 * 1000;
+  const before = aspectOrbAt(bodyId1, bodyId2, new Date(date.getTime() - windowMs), exact);
+  const after = aspectOrbAt(bodyId1, bodyId2, new Date(date.getTime() + windowMs), exact);
+  const tolerance = 1e-5;
+  let phase = "uncertain";
+  if (currentOrb <= tolerance) phase = "exact";
+  else if (after < before - tolerance) phase = "applying";
+  else if (after > before + tolerance) phase = "separating";
+  return {
+    phase,
+    orb_before_degrees: round(before),
+    orb_after_degrees: round(after),
+    audit_window_minutes: auditWindowMinutes,
+    method: "compare absolute aspect orb at one hour before and one hour after the natal instant",
+  };
+}
+
+function aspectFacts(planets, orbs, date) {
   const facts = [];
   for (let left = 0; left < planets.length; left += 1) {
     for (let right = left + 1; right < planets.length; right += 1) {
@@ -190,6 +233,7 @@ function aspectFacts(planets, orbs) {
             exact_angle: exact,
             separation_degrees: round(separation),
             orb_degrees: round(orb),
+            ...aspectPhase(planets[left].body, planets[right].body, date, exact, orb),
           });
           break;
         }
@@ -197,6 +241,37 @@ function aspectFacts(planets, orbs) {
     }
   }
   return facts;
+}
+
+function essentialCondition(planet, index) {
+  if (!Object.hasOwn(DOMICILES, planet.body)) {
+    return {
+      fact_id: `F-WA-C${String(index + 1).padStart(2, "0")}`,
+      kind: "derived_calculation_fact",
+      source_planet_id: planet.fact_id,
+      body: planet.body,
+      sign: planet.sign,
+      domicile_axis: "not_applicable_outer_planet",
+      exaltation_axis: "not_applicable_outer_planet",
+    };
+  }
+  const domicileAxis = DOMICILES[planet.body].includes(planet.sign)
+    ? "domicile"
+    : DOMICILES[planet.body].some((sign) => OPPOSITE_SIGN[sign] === planet.sign)
+      ? "detriment" : "neutral";
+  const exaltation = EXALTATIONS[planet.body];
+  const exaltationAxis = planet.sign === exaltation
+    ? "exaltation" : planet.sign === OPPOSITE_SIGN[exaltation] ? "fall" : "neutral";
+  return {
+    fact_id: `F-WA-C${String(index + 1).padStart(2, "0")}`,
+    kind: "derived_calculation_fact",
+    source_planet_id: planet.fact_id,
+    body: planet.body,
+    sign: planet.sign,
+    domicile_axis: domicileAxis,
+    exaltation_axis: exaltationAxis,
+    interpretation_limit: "traditional essential condition modifies ease of expression; it is not a score or outcome",
+  };
 }
 
 function countValues(values) {
@@ -218,7 +293,24 @@ function chartStructure(planets, aspects, houses, angles) {
       aspect: aspect.aspect,
       orb_degrees: aspect.orb_degrees,
       selection_rule: "orb_degrees <= 2; presentation priority only",
+      phase: aspect.phase,
     }));
+  const essentialConditions = planets.map(essentialCondition);
+  const angularity = houses ? houses.placements.map((placement, index) => ({
+    fact_id: `F-WA-G${String(index + 1).padStart(2, "0")}`,
+    kind: "derived_calculation_fact",
+    source_placement_id: placement.fact_id,
+    source_planet_id: placement.source_planet_id,
+    body: placement.body,
+    house: placement.house,
+    class: [1, 4, 7, 10].includes(placement.house)
+      ? "angular" : [2, 5, 8, 11].includes(placement.house) ? "succedent" : "cadent",
+    interpretation_limit: "angularity is a categorical house-position label, not a power score",
+  })) : [];
+  const chartRulerBody = angles ? TRADITIONAL_SIGN_RULERS[angles.ascendant.sign_index] : null;
+  const chartRulerPlanet = chartRulerBody ? planets.find((planet) => planet.body === chartRulerBody) : null;
+  const chartRulerPlacement = chartRulerBody ? houses?.placements.find((placement) => placement.body === chartRulerBody) : null;
+  const chartRulerCondition = chartRulerBody ? essentialConditions.find((condition) => condition.body === chartRulerBody) : null;
   return {
     basis: "unweighted descriptive structure only; no dominance, dignity, personality, or predictive score is implied",
     sign_distribution: {
@@ -235,6 +327,22 @@ function chartStructure(planets, aspects, houses, angles) {
       kind: "derived_calculation_fact",
       luminary_ids: planets.filter((planet) => ["sun", "moon"].includes(planet.body)).map((planet) => planet.fact_id),
       angle_ids: angles ? [angles.ascendant.fact_id, angles.midheaven.fact_id] : [],
+    },
+    traditional_conditions: {
+      fact_id: "F-WA-S04",
+      kind: "derived_calculation_fact",
+      zodiac: "tropical",
+      rulership_scope: "traditional_seven_planets_only",
+      essential_conditions: essentialConditions,
+      angularity,
+      chart_ruler: chartRulerBody ? {
+        body: chartRulerBody,
+        source_planet_id: chartRulerPlanet.fact_id,
+        source_placement_id: chartRulerPlacement.fact_id,
+        source_condition_id: chartRulerCondition.fact_id,
+        ascendant_fact_id: angles.ascendant.fact_id,
+      } : null,
+      interpretation_limit: "no dignity points, almuten, dominant-planet score, or predictive verdict is calculated",
     },
     tight_aspects: tightAspects,
     house_occupancy: houses ? {
@@ -316,7 +424,7 @@ export function calculateWestern(rawInput, profileOverride = {}) {
   const local = localDateTime(birth);
   const date = new Date(Number(local.epochMilliseconds));
   const planets = planetFacts(date);
-  const aspects = aspectFacts(planets, profile.aspect_orbs_degrees);
+  const aspects = aspectFacts(planets, profile.aspect_orbs_degrees, date);
   const warnings = [];
   let angles = null;
   let houses = null;

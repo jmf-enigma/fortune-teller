@@ -622,7 +622,7 @@ test("all six systems reject a calculation fact whose visible sentence says the 
     [calculate("western", { date: "2000-08-16", time: "04:00", timezone: "Asia/Shanghai" }), "F-WA-P01", "太阳位于白羊座且处于逆行。"],
     [calculate("tarot", { question: "fixture", spread: "one", cards: ["The Fool"] }), "F-TR-001", "焦点位抽到恶魔逆位。"],
     [calculate("iching", { question: "fixture", lines: [7, 7, 7, 7, 7, 7] }), "F-YJ-H01", "本卦为坤。"],
-    [calculate("meihua", { first_number: 1, second_number: 1, moving_line: 1 }), "F-MH-T01", "上卦为坤。"],
+    [calculate("meihua", { first_number: 1, second_number: 1 }), "F-MH-T01", "上卦为坤。"],
   ];
   for (const [calculation, factId, falseStatement] of cases) {
     const reading = calculationFactReading(calculation, factId);
@@ -1694,8 +1694,8 @@ test("multi-envelope readings require unique system/profile bindings", () => {
 });
 
 test("multi-system readings bind each claim to its own calculation", () => {
-  const iching = calculate("iching", { question: "first", lines: [7, 7, 7, 7, 7, 7] });
-  const tarot = calculate("tarot", { question: "second", spread: "one", cards: ["The Fool"] });
+  const iching = calculate("iching", { question: "same focused question", lines: [7, 7, 7, 7, 7, 7] });
+  const tarot = calculate("tarot", { question: "same focused question", spread: "one", cards: ["The Fool"] });
   const payload = bindReadingToCalculations({
     calculations: [iching, tarot],
     reading: {
@@ -1728,6 +1728,34 @@ test("multi-system readings bind each claim to its own calculation", () => {
   assert.equal(payload.reading.user_focus, "所问主题");
   const result = validateReading(payload);
   assert.equal(result.valid, true, result.errors.join("\n"));
+});
+
+test("multiple question-based systems must answer the same normalized question", () => {
+  const iching = calculate("iching", { question: "是否继续这个项目？", lines: [7, 7, 7, 7, 7, 7] });
+  const tarot = calculate("tarot", { question: "是否接受另一份工作？", spread: "one", cards: ["The Fool"] });
+  const bound = bindReadingToCalculations({
+    calculations: [iching, tarot],
+    reading: {
+      system: ["iching", "tarot"], level: "standard", summary: "x", claims: [
+        {
+          claim_id: "C-YJ", statement: "x", epistemic_status: "calculation_fact", system: "iching",
+          profile: iching.profile.id, fact_ids: ["F-YJ-H01"], rule_ids: [], calculation_certainty: "high",
+          input_sensitivity: { label: "stable", coverage: null }, school_stability: "stable",
+          source_status: "engine_documented", source_ids: [],
+        },
+        {
+          claim_id: "C-TR", statement: "y", epistemic_status: "calculation_fact", system: "tarot",
+          profile: tarot.profile.id, fact_ids: ["F-TR-001"], rule_ids: [], calculation_certainty: "high",
+          input_sensitivity: { label: "stable", coverage: null }, school_stability: "stable",
+          source_status: "engine_documented", source_ids: [],
+        },
+      ],
+      next_steps: [],
+    },
+  });
+  const result = validateReading(bound);
+  assert.equal(result.valid, false);
+  assert.match(result.errors.join("\n"), /must use the same normalized question/u);
 });
 
 test("multi-system next steps target one calculation before applying fresh-draw semantics", () => {

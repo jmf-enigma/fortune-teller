@@ -33,6 +33,10 @@ const STEM_CLASHES = [["甲", "庚"], ["乙", "辛"], ["丙", "壬"], ["丁", "�
 const BRANCH_HARMS = [["子", "未"], ["丑", "午"], ["寅", "巳"], ["卯", "辰"], ["申", "亥"], ["酉", "戌"]];
 const BRANCH_BREAKS = [["子", "酉"], ["丑", "辰"], ["寅", "亥"], ["卯", "午"], ["巳", "申"], ["未", "戌"]];
 const BRANCH_PUNISHMENTS = [["寅", "巳"], ["巳", "申"], ["申", "寅"], ["丑", "戌"], ["戌", "未"], ["未", "丑"], ["子", "卯"]];
+const BRANCH_THREE_PUNISHMENTS = [
+  { branches: ["寅", "巳", "申"], label: "寅巳申三刑" },
+  { branches: ["丑", "戌", "未"], label: "丑戌未三刑" },
+];
 const SELF_PUNISHMENT_BRANCHES = new Set(["辰", "午", "酉", "亥"]);
 const BRANCH_HIDDEN_STEMS = Object.freeze({
   子: ["癸"], 丑: ["己", "癸", "辛"], 寅: ["甲", "丙", "戊"], 卯: ["乙"],
@@ -51,6 +55,13 @@ const BRANCH_THREE_MEETINGS = [
   { branches: ["申", "酉", "戌"], element: "金" },
   { branches: ["亥", "子", "丑"], element: "水" },
 ];
+const SEASON_BY_BRANCH = Object.freeze({
+  寅: ["spring", "early", "木"], 卯: ["spring", "middle", "木"], 辰: ["spring", "late", "木"],
+  巳: ["summer", "early", "火"], 午: ["summer", "middle", "火"], 未: ["summer", "late", "火"],
+  申: ["autumn", "early", "金"], 酉: ["autumn", "middle", "金"], 戌: ["autumn", "late", "金"],
+  亥: ["winter", "early", "水"], 子: ["winter", "middle", "水"], 丑: ["winter", "late", "水"],
+});
+const HIDDEN_STEM_POSITIONS = ["main", "middle", "residual"];
 const BAZI_LUCK_ONSET_SECT = 2;
 const BAZI_LUCK_PERIOD_COUNT = 24;
 
@@ -114,6 +125,19 @@ function matchesUndirectedPair(left, right, pairs) {
   ));
 }
 
+function punishmentQualification(left, right) {
+  if ([left, right].includes("子") && [left, right].includes("卯")) {
+    return {
+      configuration_status: "two_branch_relation_complete",
+      school_variance: "the meaning and severity of the 子卯 punishment still vary by school and require whole-chart adjudication",
+    };
+  }
+  return {
+    configuration_status: "pair_component_of_three_branch_punishment",
+    school_variance: "some schools read the pair component; stricter schools require the complete three-branch configuration, so this pair alone is not a closed damage verdict",
+  };
+}
+
 function stemControlDirection(left, right) {
   const leftElement = Math.floor(STEMS.indexOf(left) / 2);
   const rightElement = Math.floor(STEMS.indexOf(right) / 2);
@@ -122,15 +146,16 @@ function stemControlDirection(left, right) {
   return null;
 }
 
-function periodInteractionFacts(natalPillars, decadal, yearly) {
+function periodInteractionFacts(natalPillars, decadal, yearly = null, factPrefix = "F-BZ-I") {
   const interactions = [];
   const seen = new Set();
+  const nextFactId = () => `${factPrefix}${String(interactions.length + 1).padStart(2, "0")}`;
   const add = (relationship, left, right, extra = {}) => {
     const key = JSON.stringify([relationship, left.fact_id, right.fact_id, extra.traditional_element_label || null]);
     if (seen.has(key)) return;
     seen.add(key);
     interactions.push({
-      fact_id: `F-BZ-I${String(interactions.length + 1).padStart(2, "0")}`,
+      fact_id: nextFactId(),
       kind: "derived_calculation_fact",
       relationship,
       layer_fact_ids: [left.fact_id, right.fact_id],
@@ -159,7 +184,7 @@ function periodInteractionFacts(natalPillars, decadal, yearly) {
     if (matchesUndirectedPair(left.earthly_branch, right.earthly_branch, BRANCH_HARMS)) add("branch_harm", left, right);
     if (matchesUndirectedPair(left.earthly_branch, right.earthly_branch, BRANCH_BREAKS)) add("branch_break", left, right);
     if (matchesUndirectedPair(left.earthly_branch, right.earthly_branch, BRANCH_PUNISHMENTS)) {
-      add("branch_punishment", left, right);
+      add("branch_punishment", left, right, punishmentQualification(left.earthly_branch, right.earthly_branch));
     }
     if (left.stem_branch === right.stem_branch) {
       add(right.layer === "natal" ? "layer_natal_pillar_repetition" : "decadal_yearly_repetition", left, right);
@@ -168,13 +193,13 @@ function periodInteractionFacts(natalPillars, decadal, yearly) {
   };
   const activeLayers = [
     { ...decadal, layer: "decadal" },
-    { ...yearly, layer: "yearly" },
-  ];
+    ...(yearly ? [{ ...yearly, layer: "yearly" }] : []),
+  ].filter((item) => item?.fact_id);
   const natalLayers = natalPillars.map((pillar) => ({ ...pillar, layer: "natal" }));
   for (const active of activeLayers) {
     for (const natal of natalLayers) relate(active, natal);
   }
-  relate(activeLayers[1], activeLayers[0]);
+  if (activeLayers.length > 1) relate(activeLayers[1], activeLayers[0]);
 
   const natalBranches = new Set(natalLayers.map((item) => item.earthly_branch));
   const allLayers = [...natalLayers, ...activeLayers];
@@ -192,7 +217,7 @@ function periodInteractionFacts(natalPillars, decadal, yearly) {
         && activeParticipants.length > 0
       ) {
         interactions.push({
-          fact_id: `F-BZ-I${String(interactions.length + 1).padStart(2, "0")}`,
+          fact_id: nextFactId(),
           kind: "derived_calculation_fact",
           relationship,
           layer_fact_ids: uniqueFactIds(participants.map((item) => item.fact_id)),
@@ -201,6 +226,28 @@ function periodInteractionFacts(natalPillars, decadal, yearly) {
           traditional_element_label: group.element,
         });
       }
+    }
+  }
+  for (const group of BRANCH_THREE_PUNISHMENTS) {
+    const participants = allLayers.filter((item) => group.branches.includes(item.earthly_branch));
+    const present = new Set(participants.map((item) => item.earthly_branch));
+    const activeParticipants = participants.filter((item) => item.layer !== "natal");
+    if (
+      group.branches.every((branch) => present.has(branch))
+      && !group.branches.every((branch) => natalBranches.has(branch))
+      && activeParticipants.length > 0
+    ) {
+      interactions.push({
+        fact_id: nextFactId(),
+        kind: "derived_calculation_fact",
+        relationship: "active_layer_completes_three_punishment",
+        layer_fact_ids: uniqueFactIds(participants.map((item) => item.fact_id)),
+        layers: [...new Set(participants.map((item) => item.layer))],
+        values: group.branches,
+        traditional_label: group.label,
+        configuration_status: "complete_three_branch_configuration",
+        interpretation_limit: "configuration completion is a structural fact, not an event, severity, or outcome verdict",
+      });
     }
   }
   return interactions;
@@ -352,6 +399,9 @@ function luckCycleFacts(chart, input) {
   const activeDecadal = facts.target.active_decadal_fact_id
     ? decadal.find((period) => period.fact_id === facts.target.active_decadal_fact_id)
     : null;
+  facts.target.decadal_interactions = activeDecadal
+    ? periodInteractionFacts(chart.pillars, activeDecadal, null, "F-BZ-DI")
+    : [];
   if (activeDecadal && facts.target.yearly) {
     facts.target.interaction_status = "resolved";
     facts.target.interactions = periodInteractionFacts(chart.pillars, activeDecadal, facts.target.yearly);
@@ -437,6 +487,8 @@ function pairedRelationships(pillars, field, pairs, type, startIndex) {
     for (let right = left + 1; right < pillars.length; right += 1) {
       const values = [pillars[left][field], pillars[right][field]];
       if (!pairs.some((pair) => pair.every((value) => values.includes(value)))) continue;
+      const qualification = type === "branch_punishment"
+        ? punishmentQualification(values[0], values[1]) : {};
       relationships.push({
         fact_id: `F-BZ-R${String(startIndex + relationships.length).padStart(2, "0")}`,
         kind: "derived_calculation_fact",
@@ -444,6 +496,7 @@ function pairedRelationships(pillars, field, pairs, type, startIndex) {
         values,
         pillar_ids: [pillars[left].fact_id, pillars[right].fact_id],
         pillars: [pillars[left].pillar, pillars[right].pillar],
+        ...qualification,
       });
     }
   }
@@ -462,6 +515,13 @@ function chartStructure(pillars) {
   ];
   relationships.push(...pairedRelationships(
     pillars,
+    "heavenly_stem",
+    STEM_CLASHES,
+    "stem_clash",
+    relationships.length + 1,
+  ));
+  relationships.push(...pairedRelationships(
+    pillars,
     "earthly_branch",
     BRANCH_HARMONIES,
     "branch_six_harmony",
@@ -474,6 +534,51 @@ function chartStructure(pillars) {
     "branch_clash",
     relationships.length + 1,
   ));
+  relationships.push(...pairedRelationships(
+    pillars,
+    "earthly_branch",
+    BRANCH_HARMS,
+    "branch_harm",
+    relationships.length + 1,
+  ));
+  relationships.push(...pairedRelationships(
+    pillars,
+    "earthly_branch",
+    BRANCH_BREAKS,
+    "branch_break",
+    relationships.length + 1,
+  ));
+  relationships.push(...pairedRelationships(
+    pillars,
+    "earthly_branch",
+    BRANCH_PUNISHMENTS,
+    "branch_punishment",
+    relationships.length + 1,
+  ));
+  for (let left = 0; left < pillars.length; left += 1) {
+    for (let right = left + 1; right < pillars.length; right += 1) {
+      if (pillars[left].heavenly_stem === pillars[right].heavenly_stem) {
+        relationships.push({
+          fact_id: `F-BZ-R${String(relationships.length + 1).padStart(2, "0")}`,
+          kind: "derived_calculation_fact",
+          relationship: "stem_repetition",
+          values: [pillars[left].heavenly_stem, pillars[right].heavenly_stem],
+          pillar_ids: [pillars[left].fact_id, pillars[right].fact_id],
+          pillars: [pillars[left].pillar, pillars[right].pillar],
+        });
+      }
+      if (pillars[left].earthly_branch !== pillars[right].earthly_branch) continue;
+      relationships.push({
+        fact_id: `F-BZ-R${String(relationships.length + 1).padStart(2, "0")}`,
+        kind: "derived_calculation_fact",
+        relationship: SELF_PUNISHMENT_BRANCHES.has(pillars[left].earthly_branch)
+          ? "branch_self_punishment" : "branch_repetition",
+        values: [pillars[left].earthly_branch, pillars[right].earthly_branch],
+        pillar_ids: [pillars[left].fact_id, pillars[right].fact_id],
+        pillars: [pillars[left].pillar, pillars[right].pillar],
+      });
+    }
+  }
   for (const group of BRANCH_THREE_HARMONIES) {
     if (!group.branches.every((branch) => branches.includes(branch))) continue;
     const participants = pillars.filter((pillar) => group.branches.includes(pillar.earthly_branch));
@@ -487,6 +592,68 @@ function chartStructure(pillars) {
       pillars: participants.map((pillar) => pillar.pillar),
     });
   }
+  for (const group of BRANCH_THREE_MEETINGS) {
+    if (!group.branches.every((branch) => branches.includes(branch))) continue;
+    const participants = pillars.filter((pillar) => group.branches.includes(pillar.earthly_branch));
+    relationships.push({
+      fact_id: `F-BZ-R${String(relationships.length + 1).padStart(2, "0")}`,
+      kind: "derived_calculation_fact",
+      relationship: "branch_full_three_meeting",
+      values: group.branches,
+      traditional_element_label: group.element,
+      pillar_ids: participants.map((pillar) => pillar.fact_id),
+      pillars: participants.map((pillar) => pillar.pillar),
+    });
+  }
+  for (const group of BRANCH_THREE_PUNISHMENTS) {
+    if (!group.branches.every((branch) => branches.includes(branch))) continue;
+    const participants = pillars.filter((pillar) => group.branches.includes(pillar.earthly_branch));
+    relationships.push({
+      fact_id: `F-BZ-R${String(relationships.length + 1).padStart(2, "0")}`,
+      kind: "derived_calculation_fact",
+      relationship: "branch_full_three_punishment",
+      values: group.branches,
+      traditional_label: group.label,
+      configuration_status: "complete_three_branch_configuration",
+      pillar_ids: participants.map((pillar) => pillar.fact_id),
+      pillars: participants.map((pillar) => pillar.pillar),
+      interpretation_limit: "configuration completion is a structural fact, not an event, severity, or outcome verdict",
+    });
+  }
+  let rootEvidenceCounter = 1;
+  const rootEvidence = pillars.flatMap((pillar) => pillar.hidden_stems.flatMap((stem, index) => {
+    const relation = stem === day.heavenly_stem
+      ? "same_stem_root"
+      : STEM_ELEMENTS[STEMS.indexOf(stem)] === STEM_ELEMENTS[dayStemIndex]
+        ? "same_element_peer_root" : null;
+    if (!relation) return [];
+    return [{
+      fact_id: `F-BZ-RT${String(rootEvidenceCounter++).padStart(2, "0")}`,
+      kind: "derived_calculation_fact",
+      source_pillar_id: pillar.fact_id,
+      pillar: pillar.pillar,
+      earthly_branch: pillar.earthly_branch,
+      hidden_stem: stem,
+      hidden_position: HIDDEN_STEM_POSITIONS[index] || `position-${index + 1}`,
+      relation,
+      ten_god: pillar.ten_gods_hidden_stems[index],
+      interpretation_limit: "root location is emitted without a numerical weight; clashes, combinations, and transformations require separate adjudication",
+    }];
+  }));
+  const visibleForceEvidence = pillars.filter((pillar) => pillar.pillar !== "day").map((pillar, index) => ({
+    fact_id: `F-BZ-VF${String(index + 1).padStart(2, "0")}`,
+    kind: "derived_calculation_fact",
+    source_pillar_id: pillar.fact_id,
+    pillar: pillar.pillar,
+    heavenly_stem: pillar.heavenly_stem,
+    ten_god: pillar.ten_god_stem,
+    force_family: ["比肩", "劫财", "正印", "偏印"].includes(pillar.ten_god_stem)
+      ? "support" : ["食神", "伤官"].includes(pillar.ten_god_stem)
+        ? "output" : ["正财", "偏财"].includes(pillar.ten_god_stem)
+          ? "resource_exchange" : "authority_pressure",
+    interpretation_limit: "one visible stem is one located fact, not one point in a strength score",
+  }));
+  const [season, seasonStage, seasonalElement] = SEASON_BY_BRANCH[month.earthly_branch];
   return {
     basis: "transparent structural derivations only; counts are unweighted occurrences, not a strength, pattern, or useful-god score",
     day_master: {
@@ -503,7 +670,7 @@ function chartStructure(pillars) {
       earthly_branch: month.earthly_branch,
       branch_element: BRANCH_ELEMENTS[BRANCHES.indexOf(month.earthly_branch)],
       source_pillar_id: month.fact_id,
-      interpretation_limit: "month branch is exposed as context; no seasonal strength is inferred",
+      interpretation_limit: "month branch and traditional season label are exposed as context; no seasonal strength verdict is inferred",
     },
     occurrence_counts: {
       fact_id: "F-BZ-S03",
@@ -515,6 +682,30 @@ function chartStructure(pillars) {
       hidden_ten_gods: countValues(pillars.flatMap((pillar) => pillar.ten_gods_hidden_stems)),
       interpretation_limit: "visible stems, branches, and hidden stems are deliberately not pooled or weighted",
     },
+    month_command: {
+      fact_id: "F-BZ-S04",
+      kind: "derived_calculation_fact",
+      source_pillar_id: month.fact_id,
+      earthly_branch: month.earthly_branch,
+      candidates_in_library_order: month.hidden_stems.map((stem, index) => ({
+        hidden_stem: stem,
+        ten_god: month.ten_gods_hidden_stems[index],
+        hidden_position: HIDDEN_STEM_POSITIONS[index] || `position-${index + 1}`,
+      })),
+      exact_commander_status: "unresolved_without_solar_term_segment_rule",
+      interpretation_limit: "the first hidden stem is the branch main qi; this release does not pretend it is the exact day-specific commander",
+    },
+    seasonal_context: {
+      fact_id: "F-BZ-S05",
+      kind: "derived_calculation_fact",
+      source_pillar_id: month.fact_id,
+      season,
+      season_stage: seasonStage,
+      traditional_season_element: seasonalElement,
+      interpretation_limit: "season labels are categorical context, not a hidden weight or a complete strength decision",
+    },
+    root_evidence: rootEvidence,
+    visible_force_evidence: visibleForceEvidence,
     relationships,
   };
 }

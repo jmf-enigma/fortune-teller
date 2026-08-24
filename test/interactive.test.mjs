@@ -190,7 +190,7 @@ test("BaZi life-overview path collects luck inputs and presents adjudication bef
   assert.match(result.transcript, /当前阶段：/u);
   assert.match(result.transcript, /当前大运：丙戌/u);
   assert.match(result.transcript, /流年：丙午/u);
-  assert.match(result.transcript, /原局、大运、流年三层出现具名的同链结构联系/u);
+  assert.match(result.transcript, /路线条件已完整重跑|流年没有被单独拿来命名事件/u);
   assert.ok(result.transcript.indexOf("先说结论：") < result.transcript.indexOf("四柱："));
   assert.doesNotMatch(result.transcript, /事实核对码|完整记录核对码|reproducibility_hash/u);
 });
@@ -316,22 +316,22 @@ test("DST gap guide requires a corrected clock time", async () => {
   assert.doesNotMatch(result.transcript, /1 较早一次  2 较晚一次/);
 });
 
-test("Meihua preview discloses its limits before number entry and skips a one-profile question", async () => {
+test("Meihua bounded profile discloses its limits before number entry and skips a one-profile question", async () => {
   const result = await runInteractive([
     { prompt: "请选择想看的内容：", response: "4\n" },
     { prompt: "请选择具体方法：", response: "6\n" },
     { prompt: "问题（可留空）：", response: "\n" },
-    { prompt: "预览功能说明：", response: "8\n" },
+    { prompt: "固定两数口径说明：", response: "8\n" },
     { prompt: "第二个正整数：", response: "13\n" },
-    { prompt: "动爻 1–6", response: "\n" },
     { prompt: "按以上信息在本地计算？", response: "1\n" },
     { prompt: "接下来：1 看盘面 / 牌面重点", response: "5\n" },
   ]);
 
   assert.equal(result.code, 0, result.stderr);
   assert.equal(result.stderr, "");
-  assert.match(result.transcript, /只实现固定的两数起卦/);
-  assert.match(result.transcript, /当前不含时间起卦、体用分析或预测应期/);
+  assert.match(result.transcript, /固定两数口径/);
+  assert.match(result.transcript, /不含时间起卦、季节旺衰或精准应期/);
+  assert.match(result.transcript, /体用|互卦/);
   assert.match(result.transcript, /动爻：第 \d 爻/);
   assert.doesNotMatch(result.transcript, /选择口径（默认 1）/);
 });
@@ -370,12 +370,12 @@ test("result menu can edit one field, recalculate, and start a clean new session
     { prompt: "请选择想看的内容：", response: "4\n" },
     { prompt: "请选择具体方法：", response: "6\n" },
     { prompt: "问题（可留空）：", response: "\n" },
-    { prompt: "预览功能说明：", response: "8\n" },
+    { prompt: "固定两数口径说明：", response: "8\n" },
     { prompt: "第二个正整数：", response: "13\n" },
-    { prompt: "动爻 1–6", response: "\n" },
     { prompt: "按以上信息在本地计算？", response: "1\n" },
     { prompt: "接下来：1 看盘面 / 牌面重点", response: "3\n" },
     { prompt: "要修改哪一项？", response: "2\n" },
+    { prompt: "卦象与原问题已经冻结", response: "1\n" },
     { prompt: "新的第一个正整数：", response: "9\n" },
     { prompt: "按以上信息在本地计算？", response: "1\n" },
     { prompt: "接下来：1 看盘面 / 牌面重点", response: "4\n" },
@@ -385,7 +385,43 @@ test("result menu can edit one field, recalculate, and start a clean new session
   assert.equal(result.stderr, "");
   assert.equal((result.transcript.match(/＝＝＝＝ 排盘 \/ 抽取完成 ＝＝＝＝/g) || []).length, 2);
   assert.match(result.transcript, /第一个数：9/);
+  assert.match(result.transcript, /旧解读作废/);
   assert.match(result.transcript, /已清空本次内存状态/);
+});
+
+test("changing a frozen Meihua question requires fresh numbers and invalidates the old reading", async () => {
+  const result = await runInteractive([
+    { prompt: "请选择想看的内容：", response: "4\n" },
+    { prompt: "请选择具体方法：", response: "6\n" },
+    { prompt: "问题（可留空）：", response: "原问题\n" },
+    { prompt: "固定两数口径说明：", response: "1\n" },
+    { prompt: "第二个正整数：", response: "1\n" },
+    { prompt: "按以上信息在本地计算？", response: "1\n" },
+    { prompt: "接下来：1 看盘面 / 牌面重点", response: "3\n" },
+    { prompt: "要修改哪一项？", response: "1\n" },
+    { prompt: "卦象与原问题已经冻结", response: "1\n" },
+    { prompt: "新的问题（可留空）：", response: "新问题\n" },
+    { prompt: "新问题的第一个正整数：", response: "2\n" },
+    { prompt: "新问题的第二个正整数：", response: "3\n" },
+    { prompt: "按以上信息在本地计算？", response: "1\n" },
+    { prompt: "接下来：1 看盘面 / 牌面重点", response: "5\n" },
+  ]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal((result.transcript.match(/＝＝＝＝ 排盘 \/ 抽取完成 ＝＝＝＝/g) || []).length, 2);
+  assert.match(result.transcript, /已明确开始新问题并采用新数字/u);
+  assert.match(result.transcript, /旧解读作废/u);
+  assert.match(result.transcript, /问题：新问题/u);
+});
+
+test("family-social guided route does not offer unsupported BaZi or Zi Wei topic answers", async () => {
+  const result = await runInteractive([
+    { prompt: "请选择想看的内容：", response: "2\n" },
+    { prompt: "请选择重点领域：", response: "4\n" },
+    { prompt: "请选择出生盘方式", response: KILL },
+  ]);
+  assert.equal(result.signal, "SIGTERM");
+  assert.match(result.transcript, /只有西洋本命盘安装了可闭合的主题宫路线/u);
+  assert.match(result.transcript, /紫微需要分开田宅、父母、兄弟、交友/u);
 });
 
 test("life-overview route can add an explicit Zi Wei target date and show its stage", async () => {

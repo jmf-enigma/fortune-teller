@@ -30,7 +30,7 @@ function allKeys(value, output = []) {
   return output;
 }
 
-test("v0.4 rule pack declares sources, prerequisites, and qualitative adjudication only", () => {
+test("v0.5 rule pack declares sources, prerequisites, and qualitative adjudication only", () => {
   assert.equal(BAZI_ADJUDICATION_RULEPACK_META.quantitative_policy, "no_scores_no_weights_no_school_averaging");
   assert.equal(BAZI_ADJUDICATION_RULEPACK_META.event_policy, "no_named_event_prediction");
   assert.ok(BAZI_ADJUDICATION_RULEPACK_META.sources.every((source) => source.source_status));
@@ -77,17 +77,19 @@ test("a screening-only unresolved damage route cannot manufacture full rescue", 
   assert.match(result.conclusion, /只判受损，不越级判破格或救应/u);
 });
 
-test("screening-only disease and remedy signals cannot upgrade the disease-remedy lens to rescued", () => {
+test("one closed rescue cannot erase a second unresolved damage route", () => {
   const result = adjudicateBazi(bazi({
     date: "1980-02-09", time: "12:00", timezone: "Asia/Shanghai",
   }));
   assert.equal(result.lenses.pattern.hypothesis.label, "食神格候选");
   assert.equal(result.lenses.pattern.hypothesis.state, BAZI_ADJUDICATION_STATES.damaged);
-  assert.ok(result.lenses.pattern.route_adjudication.active_rescue_routes.every((item) => item.closure === "screening_only"));
+  assert.ok(result.lenses.pattern.route_adjudication.active_rescue_routes.some((item) => (
+    item.id === "R-FOOD-OWL-WEALTH" && item.closure === "closed"
+  )));
   const disease = result.lenses.useful_god_views.find((view) => view.lens === "病药");
-  assert.equal(disease.state, BAZI_ADJUDICATION_STATES.unresolved);
-  assert.deepEqual(disease.proposed_directions, []);
-  assert.match(disease.conclusion, /保持未决|不把筛查信号升级成救应/u);
+  assert.equal(disease.state, BAZI_ADJUDICATION_STATES.damaged);
+  assert.deepEqual(disease.proposed_directions, ["偏财"]);
+  assert.match(disease.conclusion, /尚未形成覆盖全部受损路线的闭合救应/u);
 
   const closed = adjudicateBazi(bazi({
     date: "1993-06-08", time: "12:00", timezone: "Asia/Shanghai",
@@ -99,7 +101,7 @@ test("screening-only disease and remedy signals cannot upgrade the disease-remed
 test("mixed natal facts keep strong and weak hypotheses visible instead of manufacturing a score", () => {
   const result = adjudicateBazi(bazi());
   assert.equal(result.status, "completed");
-  assert.equal(result.schema_version, "bazi-adjudication-v0.4");
+  assert.equal(result.schema_version, "bazi-adjudication-v0.5");
   assert.deepEqual(
     result.lenses.strength.hypotheses.map((item) => item.hypothesis_id),
     ["H-BZ-STRENGTH-STRONG", "H-BZ-STRENGTH-WEAK"],
@@ -115,7 +117,7 @@ test("mixed natal facts keep strong and weak hypotheses visible instead of manuf
 
 test("strength hypotheses can establish either route through explicit conjunctions", () => {
   const strong = adjudicateBazi(bazi({
-    date: "2000-01-11", time: "12:00", timezone: "Asia/Shanghai",
+    date: "1996-06-18", time: "12:00", timezone: "Asia/Shanghai",
   }));
   assert.equal(strong.lenses.strength.selected_hypothesis_id, "H-BZ-STRENGTH-STRONG");
   assert.equal(
@@ -178,21 +180,21 @@ test("source-anchored compound routes preserve formation, damage, breakage, and 
   assert.match(broken.route_adjudication.coverage, /复合路线|不补算/u);
 });
 
-test("external climate and passage claims are ignored until replay facts implement them", () => {
+test("climate and passage are recomputed from replay facts and ignore caller claims", () => {
   const calculation = bazi();
   const baseline = adjudicateBazi(calculation);
   assert.deepEqual(
     baseline.lenses.useful_god_views.map((view) => view.lens),
     ["格局取用", "扶抑", "调候", "通关", "病药"],
   );
-  assert.equal(
-    baseline.lenses.useful_god_views.find((view) => view.lens === "调候").state,
-    BAZI_ADJUDICATION_STATES.unresolved,
-  );
-  assert.equal(
-    baseline.lenses.useful_god_views.find((view) => view.lens === "通关").state,
-    BAZI_ADJUDICATION_STATES.unresolved,
-  );
+  const baselineClimate = baseline.lenses.useful_god_views.find((view) => view.lens === "调候");
+  const baselinePassage = baseline.lenses.useful_god_views.find((view) => view.lens === "通关");
+  assert.equal(baselineClimate.source.rule_id, "QT-丙-申");
+  assert.equal(baselineClimate.route_status, "conditional_roles_unresolved");
+  assert.equal(baselineClimate.state, BAZI_ADJUDICATION_STATES.unresolved);
+  assert.deepEqual(baselineClimate.proposed_directions, []);
+  assert.equal(baselinePassage.state, BAZI_ADJUDICATION_STATES.established);
+  assert.ok(baselinePassage.routes.every((route) => route.fact_ids.length >= 3));
 
   const forged = adjudicateBazi(calculation, { rule_inputs: {
     climate: {
@@ -208,10 +210,14 @@ test("external climate and passage claims are ignored until replay facts impleme
       basis_fact_ids: ["F-BZ-001", "F-BZ-003"],
     },
   } });
-  assert.equal(forged.lenses.useful_god_views.find((view) => view.lens === "调候").state, "未决");
-  assert.equal(forged.lenses.useful_god_views.find((view) => view.lens === "通关").state, "未决");
-  assert.deepEqual(forged.lenses.useful_god_views.find((view) => view.lens === "调候").proposed_directions, []);
-  assert.deepEqual(forged.lenses.useful_god_views.find((view) => view.lens === "通关").proposed_directions, []);
+  assert.deepEqual(
+    forged.lenses.useful_god_views.find((view) => view.lens === "调候"),
+    baselineClimate,
+  );
+  assert.deepEqual(
+    forged.lenses.useful_god_views.find((view) => view.lens === "通关"),
+    baselinePassage,
+  );
   assert.equal(forged.safeguards.external_rule_inputs_accepted, false);
   assert.deepEqual(forged.audit.ignored_untrusted_option_keys, ["rule_inputs"]);
 });
@@ -273,18 +279,21 @@ test("verified luck-cycle facts take priority over optional period input", () =>
   assert.notEqual(result.phase.yearly.fact_id, "F-EXTERNAL-Y");
 });
 
-test("luck and year expose candidate route inputs and structural links without declaring route activation", () => {
+test("luck and year rerun every registered route without naming events", () => {
   const result = adjudicateBazi(bazi({
     ...BASE_INPUT,
     chart_sex: "male",
     target_date: "2026-08-24",
   }));
   assert.equal(result.phase.joint_activation.status, "structurally_linked");
-  assert.equal(result.phase.joint_activation.adjudication_level, "structural_linkage_only");
+  assert.equal(result.phase.joint_activation.adjudication_level, "registered_route_re_adjudication");
   assert.ok(result.phase.joint_activation.relation_labels.includes("天克地冲"));
   assert.ok(result.phase.joint_activation.relation_labels.includes("运年与原局伏吟"));
-  assert.ok(result.phase.joint_activation.relation_labels.includes("运年补成三合"));
-  assert.match(result.phase.joint_activation.conclusion, /只确认结构相连|不称为联合引动/u);
+  assert.ok(result.phase.joint_activation.relation_labels.includes("岁运补成三合"));
+  assert.equal(result.phase.re_adjudication.decadal.status, "re_adjudicated");
+  assert.equal(result.phase.re_adjudication.yearly.status, "re_adjudicated");
+  assert.ok(Array.isArray(result.phase.re_adjudication.decadal.transition.opened_damage_routes));
+  assert.match(result.phase.joint_activation.conclusion, /流年没有被单独拿来命名事件|结构迁移/u);
   for (const stage of [result.phase.decadal, result.phase.yearly]) {
     assert.equal(Object.hasOwn(stage.pattern_effect.visible, "effect"), false);
     assert.match(stage.pattern_effect.adjudication, /候选条件|单一运年十神不能直接称为成格、破格或救应/u);
@@ -300,7 +309,7 @@ test("generic stem repetition or control alone does not manufacture a complete t
   }));
   assert.equal(result.phase.joint_activation.status, "partly_linked");
   assert.ok(result.phase.joint_activation.excluded_generic_relation_fact_ids.length > 0);
-  assert.match(result.phase.joint_activation.conclusion, /只见部分层次|尚不足/u);
+  assert.match(result.phase.joint_activation.conclusion, /仍为未决|流年没有被单独拿来命名事件/u);
 });
 
 test("a luck-cycle boundary remains unavailable instead of choosing one side", () => {

@@ -3,6 +3,7 @@ import { FortuneTellerError } from "../core/errors.mjs";
 import { resolveProfile } from "../core/profiles.mjs";
 import { createRandomSource, randomInt } from "../core/random.mjs";
 import { hexagramFromLines } from "../data/iching.mjs";
+import { buildIChingStructure } from "../data/iching-interpretation-rulepack.mjs";
 
 function questionText(value) {
   if (typeof value !== "string" || !value.trim()) {
@@ -85,8 +86,12 @@ export function calculateIChing(rawInput, profileOverride = {}) {
       changing_lines: changing,
       primary: { fact_id: "F-YJ-H01", kind: "calculation_fact", ...primary },
       transformed: { fact_id: "F-YJ-H02", kind: "calculation_fact", ...transformed },
+      structure: buildIChingStructure(lines, primary, transformed),
     },
-    warnings: ["Hexagram interpretation is a traditional reflective practice, not a validated forecast."],
+    warnings: [
+      "Hexagram interpretation is a traditional reflective practice, not a validated forecast.",
+      "This release applies a declared 0/1/multiple/all-changing-line selection protocol but does not package the judgment or 384 line texts; it must not invent or quote missing classic text.",
+    ],
     meta: { rng: rngMeta, interpretation_included: false },
   });
 }
