@@ -16,7 +16,7 @@ You do not need to understand Ten Gods, palaces, stars, aspects, or hexagram the
 Use $fortune-teller for a BaZi life overview. Focus on career and money.
 ~~~
 
-Current version: 0.6.0 · [GitHub repository](https://github.com/jmf-enigma/fortune-teller)
+Current version: `0.6.0` · [GitHub repository](https://github.com/jmf-enigma/fortune-teller)
 
 ## What can it help with?
 

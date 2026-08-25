@@ -16,7 +16,7 @@ Fortune Teller 是一款运行在 Codex 和其他 Agent 中的本地命理 Skill
 用 $fortune-teller 看我的八字人生总览，重点讲事业和财运。
 ~~~
 
-当前版本：0.6.0 · [GitHub 仓库](https://github.com/jmf-enigma/fortune-teller)
+当前版本：`0.6.0` · [GitHub 仓库](https://github.com/jmf-enigma/fortune-teller)
 
 ## 你可以用它做什么
 
